@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { mockRequest, type MockRequest } from './data/mockRequest'
-import { VerificationCard } from './components/VerificationCard'
-import { ClearSigningCard } from './components/ClearSigningCard'
+import { ContractsSection } from './components/ContractsSection'
+import { TransactionCard } from './components/TransactionCard'
 import { PasteCard, type PastedTx } from './components/PasteCard'
 import { ExtensionStatus } from './components/ExtensionStatus'
 import { DebugBar } from './components/DebugBar'
@@ -24,29 +24,53 @@ function shortAddress(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
-function Header({ phase, request }: { phase: Phase; request: MockRequest | null }) {
-  const label: Record<Phase, string> = {
-    home: 'ready',
-    verifying: 'verifying…',
-    review: 'review the intent',
-    approved: 'approved ✓',
-    rejected: 'rejected',
-  }
+function Header({ request }: { request: MockRequest | null }) {
   return (
     <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3">
-      <div className="flex items-baseline gap-3">
-        <span className="font-vt323 text-3xl text-cerulean-blue-500">Independence</span>
-        <span className="font-mono text-xs text-gray-400">transaction verifier</span>
-      </div>
-      <div className="flex items-center gap-3">
-        {request && (
-          <span className="rounded-full bg-cerulean-blue-100 px-3 py-1 font-mono text-xs text-cerulean-blue-700">
-            {request.chain} · Helios mode
-          </span>
-        )}
-        <span className="font-mono text-xs text-gray-500">{label[phase]}</span>
-      </div>
+      <span className="font-vt323 text-3xl text-cerulean-blue-500">Independence</span>
+      {request && (
+        <div className="text-right">
+          <p className="font-mono text-xs text-gray-700">{request.chain}</p>
+          <p className="flex items-center justify-end gap-1.5 pt-0.5 font-mono text-[10px] uppercase tracking-wide text-cerulean-blue-600">
+            <span className="h-1.5 w-1.5 rounded-full bg-cerulean-blue-500" />
+            Helios mode
+          </p>
+        </div>
+      )}
     </header>
+  )
+}
+
+function EndState({
+  tone,
+  title,
+  message,
+  onHome,
+}: {
+  tone: 'ok' | 'blocked'
+  title: string
+  message: string
+  onHome: () => void
+}) {
+  const ok = tone === 'ok'
+  return (
+    <div className="animate-fade-up flex flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-10 text-center shadow-sm">
+      <span
+        className={`flex h-11 w-11 items-center justify-center rounded-full border-2 text-lg ${
+          ok ? 'border-green-500 text-green-600' : 'border-light-coral-500 text-light-coral-600'
+        }`}
+      >
+        {ok ? '✓' : '✕'}
+      </span>
+      <p className="pt-2 text-base font-medium text-gray-900">{title}</p>
+      <p className="max-w-sm text-sm text-gray-500">{message}</p>
+      <button
+        onClick={onHome}
+        className="mt-4 rounded-lg border border-gray-300 px-5 py-2 text-sm font-medium text-gray-700 hover:border-cerulean-blue-400 hover:text-cerulean-blue-600"
+      >
+        Back to home
+      </button>
+    </div>
   )
 }
 
@@ -63,12 +87,14 @@ function App() {
   }
 
   const startFromPaste = (tx: PastedTx) => {
+    const chain = chainName(tx.chainId)
+    const [first, ...rest] = mockRequest.contracts
     setRequest({
       ...mockRequest,
-      chain: chainName(tx.chainId),
-      contractAddress: shortAddress(tx.to),
+      chain,
       origin: 'pasted transaction',
       via: 'manual input',
+      contracts: [{ ...first, address: shortAddress(tx.to) }, ...rest],
     })
     setPhase('verifying')
   }
@@ -80,7 +106,7 @@ function App() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Header phase={phase} request={request} />
+      <Header request={request} />
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-6 py-6">
         {phase === 'home' && (
           <>
@@ -90,20 +116,13 @@ function App() {
         )}
 
         {phase !== 'home' && request && (
-          <p className="font-mono text-xs text-gray-500">
-            {request.method} · from <span className="text-gray-700">{request.origin}</span> · via{' '}
-            {request.via}
-          </p>
-        )}
-
-        {phase !== 'home' && request && (
           <GateLog request={request} running={phase === 'verifying'} onDone={gateDone} />
         )}
 
         {(phase === 'review' || phase === 'approved' || phase === 'rejected') && request && (
           <div className="animate-fade-up flex flex-col gap-4">
-            <VerificationCard request={request} />
-            <ClearSigningCard request={request} />
+            <ContractsSection request={request} />
+            <TransactionCard request={request} />
           </div>
         )}
 
@@ -125,23 +144,21 @@ function App() {
         )}
 
         {phase === 'approved' && (
-          <div className="flex items-center gap-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
-            <p className="text-sm text-green-800">
-              ✓ Approved. The request was handed back to the browser; your wallet takes over as usual.
-            </p>
-            <button onClick={reset} className="ml-auto font-mono text-xs text-gray-500 hover:text-gray-700">
-              ↺ home
-            </button>
-          </div>
+          <EndState
+            tone="ok"
+            title="Handed back to your wallet"
+            message="The request continued to the browser, untouched. Confirm it in your wallet as usual."
+            onHome={reset}
+          />
         )}
 
         {phase === 'rejected' && (
-          <div className="flex items-center gap-4 rounded-xl border border-light-coral-200 bg-light-coral-100/50 px-4 py-3">
-            <p className="text-sm text-light-coral-800">Rejected. Nothing reached your wallet.</p>
-            <button onClick={reset} className="ml-auto font-mono text-xs text-gray-500 hover:text-gray-700">
-              ↺ home
-            </button>
-          </div>
+          <EndState
+            tone="blocked"
+            title="Request rejected"
+            message="Nothing reached your wallet."
+            onHome={reset}
+          />
         )}
       </main>
       <DebugBar
