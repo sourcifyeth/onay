@@ -5,9 +5,10 @@ import { TransactionCard } from './components/TransactionCard'
 import { PasteCard, type PastedTx } from './components/PasteCard'
 import { ExtensionStatus } from './components/ExtensionStatus'
 import { DebugBar } from './components/DebugBar'
+import { SettingsPage, defaultChains, type ChainConfig } from './components/SettingsPage'
 import { GateLog } from './components/GateLog'
 
-type Phase = 'home' | 'verifying' | 'review' | 'approved' | 'rejected'
+type Phase = 'home' | 'settings' | 'verifying' | 'review' | 'approved' | 'rejected'
 
 function chainName(chainId: number): string {
   const known: Record<number, string> = {
@@ -24,10 +25,25 @@ function shortAddress(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
-function Header({ request }: { request: MockRequest | null }) {
+function Header({
+  request,
+  onSettings,
+}: {
+  request: MockRequest | null
+  onSettings?: () => void
+}) {
   return (
     <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3">
       <span className="font-vt323 text-3xl text-cerulean-blue-500">Independence</span>
+      {onSettings && (
+        <button
+          onClick={onSettings}
+          title="Settings"
+          className="font-mono text-xs text-gray-400 hover:text-gray-600"
+        >
+          settings
+        </button>
+      )}
       {request && (
         <div className="text-right">
           <p className="font-mono text-xs text-gray-700">{request.chain}</p>
@@ -78,6 +94,7 @@ function App() {
   const [phase, setPhase] = useState<Phase>('home')
   const [request, setRequest] = useState<MockRequest | null>(null)
   const [extensionInstalled, setExtensionInstalled] = useState(true)
+  const [chains, setChains] = useState<ChainConfig[]>(defaultChains)
 
   const gateDone = useCallback(() => setPhase('review'), [])
 
@@ -106,13 +123,17 @@ function App() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Header request={request} />
+      <Header request={request} onSettings={phase === 'home' ? () => setPhase('settings') : undefined} />
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-6 py-6">
         {phase === 'home' && (
           <>
             <PasteCard onVerify={startFromPaste} />
             <ExtensionStatus installed={extensionInstalled} />
           </>
+        )}
+
+        {phase === 'settings' && (
+          <SettingsPage chains={chains} onChainsChange={setChains} onBack={() => setPhase('home')} />
         )}
 
         {phase !== 'home' && request && (

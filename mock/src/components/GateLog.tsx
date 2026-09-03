@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { MockRequest } from '../data/mockRequest'
 
-type Tag = 'helios' | 'sourcify' | 'gate'
+type Tag = 'helios' | 'sourcify' | 'verifier'
 
 interface LogLine {
   tag: Tag
@@ -13,19 +13,19 @@ interface LogLine {
 const TAG_STYLE: Record<Tag, string> = {
   helios: 'text-cerulean-blue-500',
   sourcify: 'text-light-coral-600',
-  gate: 'text-green-600',
+  verifier: 'text-green-600',
 }
 
 function buildLog(request: MockRequest): LogLine[] {
   const [first, ...rest] = request.contracts
   const lines: LogLine[] = [
-    { tag: 'gate', text: `request received · ${request.method} · via ${request.via}`, delay: 200 },
+    { tag: 'verifier', text: `request received · ${request.method} · via ${request.via}`, delay: 200 },
     { tag: 'helios', text: `starting light client · network=${request.chain}`, delay: 250 },
     { tag: 'helios', text: 'checkpoint 0xa41c…9be2 · age 3h · within weak subjectivity window', delay: 300 },
     { tag: 'helios', text: 'sync committee verified · 512/512 signatures', delay: 350 },
     { tag: 'helios', text: 'finalized head · slot 9,214,336 · in sync', delay: 250 },
     { tag: 'helios', text: `eth_getCode ${first.address} · merkle proof verified`, delay: 300 },
-    { tag: 'gate', text: `simulated call trace · ${request.contracts.length} contracts touched`, delay: 350 },
+    { tag: 'verifier', text: `simulated call trace · ${request.contracts.length} contracts touched`, delay: 350 },
     { tag: 'sourcify', text: `fetching sources for ${first.address} · ${first.sources.length} files`, delay: 300 },
     { tag: 'sourcify', text: 'solc 0.8.24+commit.e11b9ed9 · wasm · hash verified against solc-bin', delay: 300 },
     { tag: 'sourcify', text: 'compiling…', delay: 500 },
@@ -37,7 +37,7 @@ function buildLog(request: MockRequest): LogLine[] {
         delay: 350,
       }),
     ),
-    { tag: 'gate', text: `${request.contracts.length}/${request.contracts.length} contracts verified · opening`, delay: 350 },
+    { tag: 'verifier', text: `${request.contracts.length}/${request.contracts.length} contracts verified · opening`, delay: 350 },
   ]
   let acc = 0
   for (const line of lines) {
@@ -84,12 +84,12 @@ export function GateLog({ request, running, onDone }: GateLogProps) {
               <span className="relative inline-flex h-2 w-2 rounded-full bg-cerulean-blue-500" />
             </span>
             <span>
-              verification gate · {request.contracts[0].address} on {request.chain}
+              verification · {request.contracts[0].address} on {request.chain}
             </span>
           </>
         ) : (
           <>
-            <span className="text-green-600">✓ gate passed</span>
+            <span className="text-green-600">✓ verification passed</span>
             <span className="text-gray-400">Helios + lib-sourcify</span>
             <button
               onClick={() => setShowLogs((v) => !v)}
