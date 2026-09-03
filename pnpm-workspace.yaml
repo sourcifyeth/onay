@@ -1,0 +1,5 @@
+packages:
+  - mock
+
+# supply-chain guardrails (see PLAN.md)
+minimumReleaseAge: 10080 # minutes = 7 days
