@@ -1,13 +1,22 @@
 import { useRef, useState } from 'react'
 import type { MockContract, MockRequest } from '../data/mockRequest'
-import { Tabs } from './Tabs'
 import { CodeView } from './CodeView'
 
 function openInEditor() {
   alert('(mock) the verified sources would open in your editor')
 }
 
+const actionBtn =
+  'rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:border-cerulean-blue-400 hover:text-cerulean-blue-600'
+
 function MatchBadge({ matchType }: { matchType: MockContract['matchType'] }) {
+  if (matchType === 'no match') {
+    return (
+      <span className="rounded-full bg-light-coral-100 px-2 py-0.5 font-mono text-xs text-light-coral-700">
+        ✕ no match
+      </span>
+    )
+  }
   const exact = matchType === 'exact match'
   return (
     <span
@@ -22,35 +31,40 @@ function MatchBadge({ matchType }: { matchType: MockContract['matchType'] }) {
 
 interface ContractCardProps {
   contract: MockContract
-  chain: string
+  chainId: number
+  selector?: string
   expanded: boolean
-  activeTab: number
   hasNext: boolean
   onToggle: () => void
-  onTabChange: (tab: number) => void
   onNextFunction: () => void
 }
 
 function ContractCard({
   contract,
-  chain,
+  chainId,
+  selector,
   expanded,
-  activeTab,
   hasNext,
   onToggle,
-  onTabChange,
   onNextFunction,
 }: ContractCardProps) {
-  const calledFunction = (
+  const verified = contract.matchType !== 'no match'
+
+  const body = verified ? (
     <div>
       <CodeView code={contract.functionSource} />
-      <div className="mt-3 flex gap-3">
-        <button
-          onClick={openInEditor}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:border-cerulean-blue-400 hover:text-cerulean-blue-600"
-        >
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button onClick={openInEditor} className={actionBtn}>
           Open in editor
         </button>
+        <a
+          href={`https://repo.sourcify.dev/${chainId}/${contract.address}`}
+          target="_blank"
+          rel="noreferrer"
+          className={actionBtn}
+        >
+          View on Sourcify ↗
+        </a>
         {hasNext && (
           <button
             onClick={onNextFunction}
@@ -61,35 +75,26 @@ function ContractCard({
         )}
       </div>
     </div>
-  )
-
-  const sources = (
+  ) : (
     <div>
-      <button
-        onClick={openInEditor}
-        className="mb-2 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:border-cerulean-blue-400 hover:text-cerulean-blue-600"
-      >
-        Open files in your editor
-      </button>
-      <ul className="divide-y divide-gray-100">
-        {contract.sources.map((file) => (
-          <li key={file} className="py-1.5 font-mono text-xs text-gray-700">
-            {file}
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-
-  const compilerSettings = (
-    <dl className="divide-y divide-gray-100">
-      {contract.compilerSettings.map((s) => (
-        <div key={s.name} className="flex justify-between gap-4 py-1.5 font-mono text-xs">
-          <dt className="text-gray-500">{s.name}</dt>
-          <dd className="text-gray-800">{s.value}</dd>
+      <p className="rounded-lg border-l-2 border-light-coral-500 bg-light-coral-100 px-3 py-2 text-xs leading-relaxed text-gray-700">
+        No verified source for this contract on Sourcify. There is nothing to review: the function
+        name above comes from the public signature database and only matches the selector, it is not
+        proof of what the code does.
+      </p>
+      {selector && (
+        <div className="mt-3">
+          <a
+            href={`https://4byte.sourcify.dev/?q=${selector}`}
+            target="_blank"
+            rel="noreferrer"
+            className={actionBtn}
+          >
+            Look up selector {selector} ↗
+          </a>
         </div>
-      ))}
-    </dl>
+      )}
+    </div>
   )
 
   return (
@@ -98,46 +103,32 @@ function ContractCard({
         onClick={onToggle}
         className="flex w-full items-center justify-between gap-4 px-5 py-3 text-left"
       >
-        <div>
+        <div className="min-w-0">
           <p className="font-mono text-sm font-medium text-gray-900">
-            {contract.functionSignature.split('(')[0]}()
+            {contract.functionSignature.includes('(')
+              ? `${contract.functionSignature.split('(')[0]}()`
+              : contract.functionSignature}
           </p>
+          <p className="break-all pt-1 font-mono text-[13px] text-gray-700">{contract.address}</p>
           <p className="flex items-center gap-2 pt-1 text-xs text-gray-500">
             <span>{contract.name}</span>
             <MatchBadge matchType={contract.matchType} />
-            <span className="font-mono text-gray-400">
-              {chain} · {contract.address}
-            </span>
           </p>
         </div>
         <span className="shrink-0 text-gray-400">{expanded ? '▴' : '▾'}</span>
       </button>
-      {expanded && (
-        <div className="px-5 pb-5">
-          <Tabs
-            active={activeTab}
-            onChange={onTabChange}
-            tabs={[
-              { label: 'Called function', content: calledFunction },
-              { label: 'Sources', content: sources },
-              { label: 'Compiler settings', content: compilerSettings },
-            ]}
-          />
-        </div>
-      )}
+      {expanded && <div className="px-5 pb-5">{body}</div>}
     </section>
   )
 }
 
 export function ContractsSection({ request }: { request: MockRequest }) {
   const [open, setOpen] = useState<Record<number, boolean>>({})
-  const [tabs, setTabs] = useState<Record<number, number>>({})
   const cardRefs = useRef<(HTMLDivElement | null)[]>([])
 
   const openNextFunction = (current: number) => {
     const next = current + 1
     setOpen((o) => ({ ...o, [current]: false, [next]: true }))
-    setTabs((t) => ({ ...t, [next]: 0 }))
     setTimeout(() => {
       cardRefs.current[next]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 60)
@@ -156,9 +147,18 @@ export function ContractsSection({ request }: { request: MockRequest }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <h2 className="font-mono text-xs uppercase tracking-widest text-gray-500">
-        Contracts · {request.contracts.length} involved
-      </h2>
+      <div className="flex items-baseline justify-between">
+        <h2 className="font-mono text-xs uppercase tracking-widest text-gray-500">
+          Contracts · {contracts.length === 0 ? 'none' : contracts.length} involved
+        </h2>
+        <span className="font-mono text-xs text-gray-400">on {request.chain}</span>
+      </div>
+      {contracts.length === 0 && (
+        <p className="rounded-xl border border-gray-200 bg-white px-5 py-4 text-sm text-gray-600 shadow-sm">
+          The recipient is not a contract: this is a plain ETH transfer to an externally owned
+          account, with no code involved.
+        </p>
+      )}
       <div className="flex flex-col gap-2">
         {contracts.map((contract, i) => (
           <div
@@ -181,12 +181,11 @@ export function ContractsSection({ request }: { request: MockRequest }) {
             )}
             <ContractCard
               contract={contract}
-              chain={request.chain}
+              chainId={request.chainId}
+              selector={request.decoded?.selector}
               expanded={open[i] ?? false}
-              activeTab={tabs[i] ?? 0}
-              hasNext={i < request.contracts.length - 1}
+              hasNext={i < contracts.length - 1}
               onToggle={() => setOpen((o) => ({ ...o, [i]: !(o[i] ?? false) }))}
-              onTabChange={(tab) => setTabs((t) => ({ ...t, [i]: tab }))}
               onNextFunction={() => openNextFunction(i)}
             />
           </div>

@@ -277,6 +277,17 @@ export function SettingsPage({
         <span className="h-1.5 w-1.5 rounded-full bg-cerulean-blue-500" />
         Helios native
       </h2>
+      <p className="text-xs leading-relaxed text-gray-500">
+        Helios is a light client: it never trusts these endpoints, it checks them. Every piece of
+        chain state used in a review is verified against a cryptographic proof, so a lying RPC
+        (Remote Procedure Call) endpoint gets caught instead of believed. What each chain needs
+        depends on how its blocks can be verified. Ethereum chains need a consensus RPC serving
+        beacon light client updates, plus a checkpoint: a recent block hash you trust as the
+        starting point, from which Helios follows the sync committee signatures on its own. OP
+        Stack chains have no light client protocol yet, so Helios only accepts blocks signed by the
+        chain&apos;s sequencer, fetched from the preconf server. Linea carries the sequencer
+        signature inside every block header, so the execution RPC alone is enough.
+      </p>
       {helios.map((chain) => (
         <ChainCard key={chain.id} chain={chain} onChange={(c) => update(chain, c)} />
       ))}

@@ -29,13 +29,14 @@ flowchart LR
   end
   subgraph app [Independence app]
     helios["Helios<br/>verified chain state"]
+    sim["local EVM<br/>call-tree trace"]
     sourcify["lib-sourcify<br/>recompile + compare"]
     cs["clear signing<br/>readable intent"]
     review["you review<br/>confirm or reject"]
   end
   dapp --> ext
   ext -- forward --> helios
-  helios --> sourcify --> cs --> review
+  helios --> sim --> sourcify --> cs --> review
   review -- approved --> wallet
 ```
 
@@ -45,9 +46,11 @@ The verifier never signs anything itself: after your confirmation the original r
 
 - **Interception.** A thin extension wraps the page's EIP-1193 provider (the standard wallet-injection interface) and catches `eth_sendTransaction` and signing requests before the wallet sees them. If the app is not running, the extension prompts to open it, then forwards.
 - **Beyond the extension.** The app also accepts requests that never touched a browser: transaction data pasted by hand (a raw transaction, calldata, or an EIP-712 payload), and animated QR codes from air-gapped hardware wallets via [ERC-4527](https://eips.ethereum.org/EIPS/eip-4527), the `eth-sign-request` Uniform Resources format used by Keystone, OneKey, and AirGap.
-- **Local verification gate.** The app fetches the contract's sources from Sourcify, recompiles them locally, and compares the result against the on-chain bytecode. Sourcify's claim is never trusted; we reproduce it.
+- **Call-tree simulation.** The transaction is executed locally (ethereumjs EVM) against verified chain state, for one purpose in this version: reconstructing the call tree, so the review shows every contract the transaction actually touches, not just the entry point. Effects preview (balance changes, storage writes, events) is deliberately out of scope until a later version.
+- **Local verification gate.** The app fetches the sources of every contract in the call tree from Sourcify, recompiles them locally, and compares the results against the on-chain bytecode. Sourcify's claim is never trusted; we reproduce it.
 - **Clear signing.** The verified ABI (Application Binary Interface) plus ERC-7730 descriptors render the request as human-readable intent.
 - **Review and continue.** You confirm or reject in the app; on confirm, the original request proceeds untouched to your wallet in the browser.
+- **Digest cross-check ([ERC-8213](https://github.com/ethereum/ERCs/pull/1639)).** After you confirm, the app displays the request's digest using the exact terminology the standard mandates: the Calldata Digest for transactions (`keccak256(uint256(len(calldata)) || calldata)`, chain-independent by design) and the EIP-712 Digest for typed-data signatures. A wallet that also implements ERC-8213 (Keycard Shell is the first hardware wallet to do so) shows the same value before signing; comparing the two proves the wallet received exactly the bytes you reviewed, even if the dapp or browser was compromised in between. This closes the last gap in the flow: the app verifies what you review, the digest verifies what you sign.
 
 ### Chain support: every chain, two modes
 
@@ -104,4 +107,4 @@ The UX leads the build order: the first step of Version 0 is to vibecode the ent
 
 ## Version 1+
 
-To be planned. Candidates from the target, in no confirmed order: local EVM simulation with effects preview, the transaction builder and contract explorer, Ledger signing, post-mining verification and activity history, address book, Firefox port.
+To be planned. Candidates from the target, in no confirmed order: an effects preview built on the Version 0 call-tree simulation (balance changes, storage writes, events), the transaction builder and contract explorer, Ledger signing, post-mining verification and activity history, address book, Firefox port.

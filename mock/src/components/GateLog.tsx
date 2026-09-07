@@ -7,6 +7,8 @@ interface LogLine {
   tag: Tag
   text: string
   delay: number // ms after previous line
+  /** true renders a green check, false a coral cross */
+  ok?: boolean
   stamp?: string // dmesg-style boot time, filled in by buildLog
 }
 
@@ -17,28 +19,107 @@ const TAG_STYLE: Record<Tag, string> = {
 }
 
 function buildLog(request: MockRequest): LogLine[] {
-  const [first, ...rest] = request.contracts
+  const target =
+    request.contracts[0]?.address ?? request.raw.find((f) => f.name === 'to')?.value ?? ''
   const lines: LogLine[] = [
     { tag: 'verifier', text: `request received · ${request.method} · via ${request.via}`, delay: 200 },
-    { tag: 'helios', text: `starting light client · network=${request.chain}`, delay: 250 },
-    { tag: 'helios', text: 'checkpoint 0xa41c…9be2 · age 3h · within weak subjectivity window', delay: 300 },
-    { tag: 'helios', text: 'sync committee verified · 512/512 signatures', delay: 350 },
-    { tag: 'helios', text: 'finalized head · slot 9,214,336 · in sync', delay: 250 },
-    { tag: 'helios', text: `eth_getCode ${first.address} · merkle proof verified`, delay: 300 },
-    { tag: 'verifier', text: `simulated call trace · ${request.contracts.length} contracts touched`, delay: 350 },
-    { tag: 'sourcify', text: `fetching sources for ${first.address} · ${first.sources.length} files`, delay: 300 },
-    { tag: 'sourcify', text: 'solc 0.8.24+commit.e11b9ed9 · wasm · hash verified against solc-bin', delay: 300 },
-    { tag: 'sourcify', text: 'compiling…', delay: 500 },
-    { tag: 'sourcify', text: `runtime bytecode compare · ${first.matchType}`, delay: 300 },
-    ...rest.map(
-      (c): LogLine => ({
-        tag: 'sourcify',
-        text: `${c.address} · recompiled · ${c.matchType}`,
-        delay: 350,
-      }),
-    ),
-    { tag: 'verifier', text: `${request.contracts.length}/${request.contracts.length} contracts verified · opening`, delay: 350 },
   ]
+
+  if (request.chainMode === 'helios') {
+    lines.push(
+      { tag: 'helios', text: `starting light client · network=${request.chain}`, delay: 250 },
+      { tag: 'helios', text: 'checkpoint 0xa41c…9be2 · age 3h · within weak subjectivity window', delay: 300 },
+      { tag: 'helios', text: 'sync committee verified · 512/512 signatures', delay: 350, ok: true },
+      { tag: 'helios', text: 'finalized head · slot 9,214,336 · in sync', delay: 250 },
+    )
+  } else {
+    lines.push(
+      { tag: 'verifier', text: `rpc mode · ${request.chain} has no Helios support`, delay: 250 },
+      { tag: 'verifier', text: 'chain state comes from the configured endpoint, unverified', delay: 300 },
+    )
+  }
+
+  if (request.contracts.length === 0) {
+    lines.push(
+      { tag: 'helios', text: `eth_getCode ${target} · empty · recipient is not a contract`, delay: 300 },
+      { tag: 'verifier', text: 'no calldata · plain value transfer', delay: 300 },
+      { tag: 'verifier', text: 'nothing to compile · opening', delay: 350, ok: true },
+    )
+  } else {
+    lines.push({
+      tag: 'helios',
+      text:
+        request.chainMode === 'helios'
+          ? `eth_getCode ${target} · merkle proof verified`
+          : `eth_getCode ${target}`,
+      delay: 300,
+      ok: request.chainMode === 'helios',
+    })
+
+    if (request.outcome === 'reverted') {
+      lines.push(
+        {
+          tag: 'verifier',
+          text: `simulated call trace · reverted: ${request.revertReason}`,
+          delay: 500,
+          ok: false,
+        },
+        { tag: 'verifier', text: 'halting · this transaction would revert on chain', delay: 350, ok: false },
+      )
+    } else {
+      if (request.typedData) {
+        const primaryType = request.raw.find((f) => f.name === 'primaryType')?.value ?? 'message'
+        lines.push({
+          tag: 'verifier',
+          text: `typed data · ${primaryType} · signature only, nothing executes until it is used`,
+          delay: 350,
+        })
+      } else if (request.batch) {
+        lines.push({
+          tag: 'verifier',
+          text: `simulated batch · ${request.batch.calls.length} calls · ${request.contracts.length} contracts touched`,
+          delay: 350,
+        })
+      } else {
+        lines.push({
+          tag: 'verifier',
+          text: `simulated call trace · ${request.contracts.length} contracts touched`,
+          delay: 350,
+        })
+      }
+
+      const [first, ...rest] = request.contracts
+      if (request.outcome === 'unverified') {
+        lines.push(
+          { tag: 'sourcify', text: `looking up ${first.address}`, delay: 300 },
+          { tag: 'sourcify', text: 'no match found on Sourcify · nothing to compile', delay: 500, ok: false },
+          { tag: 'verifier', text: `0/${request.contracts.length} contracts verified · halting`, delay: 350, ok: false },
+        )
+      } else {
+        lines.push(
+          { tag: 'sourcify', text: `fetching sources for ${first.address} · ${first.sources.length} files`, delay: 300 },
+          { tag: 'sourcify', text: 'solc 0.8.24+commit.e11b9ed9 · wasm · hash verified against solc-bin', delay: 300, ok: true },
+          { tag: 'sourcify', text: 'compiling…', delay: 500 },
+          { tag: 'sourcify', text: `runtime bytecode compare · ${first.matchType}`, delay: 300, ok: true },
+          ...rest.map(
+            (c): LogLine => ({
+              tag: 'sourcify',
+              text: `${c.address} · recompiled · ${c.matchType}`,
+              delay: 350,
+              ok: true,
+            }),
+          ),
+          {
+            tag: 'verifier',
+            text: `${request.contracts.length}/${request.contracts.length} contracts verified · opening`,
+            delay: 350,
+            ok: true,
+          },
+        )
+      }
+    }
+  }
+
   let acc = 0
   for (const line of lines) {
     acc += line.delay
@@ -73,6 +154,14 @@ export function GateLog({ request, running, onDone }: GateLogProps) {
   }, [running, lines, onDone])
 
   const expanded = running || showLogs
+  const target =
+    request.contracts[0]?.address ?? request.raw.find((f) => f.name === 'to')?.value ?? ''
+  const doneLabel =
+    request.outcome === 'verified'
+      ? '✓ verification passed'
+      : request.outcome === 'reverted'
+        ? '✕ simulation reverted'
+        : '✕ verification failed'
 
   return (
     <div className="font-mono text-xs">
@@ -83,14 +172,18 @@ export function GateLog({ request, running, onDone }: GateLogProps) {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cerulean-blue-300 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-cerulean-blue-500" />
             </span>
-            <span>
-              verification · {request.contracts[0].address} on {request.chain}
+            <span className="truncate">
+              verification · {target} on {request.chain}
             </span>
           </>
         ) : (
           <>
-            <span className="text-green-600">✓ verification passed</span>
-            <span className="text-gray-400">Helios + lib-sourcify</span>
+            <span className={request.outcome === 'verified' ? 'text-green-600' : 'text-light-coral-700'}>
+              {doneLabel}
+            </span>
+            <span className="text-gray-400">
+              {request.chainMode === 'helios' ? 'Helios + lib-sourcify' : 'RPC + lib-sourcify'}
+            </span>
             <button
               onClick={() => setShowLogs((v) => !v)}
               className="ml-auto rounded px-2 py-0.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
@@ -107,13 +200,12 @@ export function GateLog({ request, running, onDone }: GateLogProps) {
       >
         <div className="pt-2 leading-relaxed">
           {lines.slice(0, visible).map((line) => (
-            <p key={line.stamp}>
+            <p key={line.stamp} className="break-all">
               <span className="text-gray-300">{line.stamp}</span>{' '}
               <span className={TAG_STYLE[line.tag]}>{line.tag}</span>{' '}
               <span className="text-gray-500">{line.text}</span>
-              {(line.text.includes('verified') || line.text.includes('match')) && (
-                <span className="text-green-600"> ✓</span>
-              )}
+              {line.ok === true && <span className="text-green-600"> ✓</span>}
+              {line.ok === false && <span className="text-light-coral-700"> ✕</span>}
             </p>
           ))}
           {running && <span className="animate-pulse text-cerulean-blue-500">▍</span>}
