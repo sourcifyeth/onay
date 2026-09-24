@@ -7,6 +7,7 @@ import { ExtensionStatus } from './components/ExtensionStatus'
 import { DebugBar } from './components/DebugBar'
 import { SettingsPage, defaultChains, type ChainConfig } from './components/SettingsPage'
 import { GateLog } from './components/GateLog'
+import { RequestSummary } from './components/RequestSummary'
 
 type Phase = 'home' | 'settings' | 'verifying' | 'failed' | 'review' | 'approved' | 'rejected'
 
@@ -207,7 +208,10 @@ function App() {
         )}
 
         {phase !== 'home' && phase !== 'settings' && request && (
-          <GateLog request={request} running={phase === 'verifying'} onDone={gateDone} />
+          <>
+            <RequestSummary request={request} />
+            <GateLog request={request} running={phase === 'verifying'} onDone={gateDone} />
+          </>
         )}
 
         {phase === 'failed' && request && (
@@ -226,8 +230,8 @@ function App() {
                 chain state behind it comes straight from the configured endpoint.
               </p>
             )}
-            <ContractsSection request={request} />
             <TransactionCard request={request} />
+            <ContractsSection request={request} />
           </div>
         )}
 

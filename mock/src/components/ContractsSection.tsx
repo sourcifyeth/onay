@@ -104,15 +104,16 @@ function ContractCard({
         className="flex w-full items-center justify-between gap-4 px-5 py-3 text-left"
       >
         <div className="min-w-0">
-          <p className="font-mono text-sm font-medium text-gray-900">
+          <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="text-xs text-gray-500">Contract</span>
+            <span className="break-all font-mono text-[13px] text-gray-700">{contract.address}</span>
+            <span className="text-xs text-gray-500">{contract.name}</span>
+            <MatchBadge matchType={contract.matchType} />
+          </p>
+          <p className="pt-1 font-mono text-sm font-medium text-gray-900">
             {contract.functionSignature.includes('(')
               ? `${contract.functionSignature.split('(')[0]}()`
               : contract.functionSignature}
-          </p>
-          <p className="break-all pt-1 font-mono text-[13px] text-gray-700">{contract.address}</p>
-          <p className="flex items-center gap-2 pt-1 text-xs text-gray-500">
-            <span>{contract.name}</span>
-            <MatchBadge matchType={contract.matchType} />
           </p>
         </div>
         <span className="shrink-0 text-gray-400">{expanded ? '▴' : '▾'}</span>
@@ -147,12 +148,9 @@ export function ContractsSection({ request }: { request: MockRequest }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-baseline justify-between">
-        <h2 className="font-mono text-xs uppercase tracking-widest text-gray-500">
-          Contracts · {contracts.length === 0 ? 'none' : contracts.length} involved
-        </h2>
-        <span className="font-mono text-xs text-gray-400">on {request.chain}</span>
-      </div>
+      <h2 className="font-mono text-xs uppercase tracking-widest text-gray-500">
+        Call tree · {contracts.length === 0 ? 'none' : contracts.length}
+      </h2>
       {contracts.length === 0 && (
         <p className="rounded-xl border border-gray-200 bg-white px-5 py-4 text-sm text-gray-600 shadow-sm">
           The recipient is not a contract: this is a plain ETH transfer to an externally owned
