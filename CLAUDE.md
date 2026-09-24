@@ -1,4 +1,4 @@
-# Project Independence
+# Onay
 
 A trustless smart-contract transaction builder and verifier. Read `PLAN.md` before doing anything: it is the plan of record and a living document (edit it in place; updates replace content, never append sections).
 
@@ -21,5 +21,5 @@ The from-zero rebuild of the vibecoded prototype at `~/Projects/project-independ
 ## Commands
 
 - `pnpm install` — install everything (workspace).
-- `pnpm --filter mock dev` — run the mock app (also available as the `independence-mock` launch.json preview, port 5199).
+- `pnpm --filter mock dev` — run the mock app (also available as the `onay-mock` launch.json preview, port 5199).
 - `pnpm --filter mock build` — typecheck + build the mock.

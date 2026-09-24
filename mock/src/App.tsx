@@ -31,7 +31,7 @@ function Header({
   const helios = request?.chainMode === 'helios'
   return (
     <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3">
-      <span className="font-vt323 text-3xl text-cerulean-blue-500">Independence</span>
+      <span className="font-vt323 text-3xl text-cerulean-blue-500">Onay</span>
       {onSettings && (
         <button
           onClick={onSettings}

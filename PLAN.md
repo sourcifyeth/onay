@@ -1,4 +1,4 @@
-# Project Independence — rebuild plan
+# Onay: rebuild plan
 
 A trustless smart-contract transaction builder and verifier. Data may be downloaded from anywhere, but every security-relevant fact is verified locally, on your machine.
 
@@ -6,11 +6,11 @@ This is a living document: it is edited in place, and superseded content is remo
 
 ## What it is
 
-Project Independence lets you inspect contracts, build transactions, and verify the transactions other apps ask you to sign, without trusting any external service. Chain state is proof-verified through an embedded [Helios](https://github.com/a16z/helios) light client (or an RPC endpoint you choose to trust). Source code claims from Sourcify are never believed: sources are recompiled locally and compared byte-for-byte against the on-chain bytecode. What you are about to sign is rendered human-readable with the ERC-7730 clear-signing standard.
+Onay lets you inspect contracts, build transactions, and verify the transactions other apps ask you to sign, without trusting any external service. Chain state is proof-verified through an embedded [Helios](https://github.com/a16z/helios) light client (or an RPC endpoint you choose to trust). Source code claims from Sourcify are never believed: sources are recompiled locally and compared byte-for-byte against the on-chain bytecode. What you are about to sign is rendered human-readable with the ERC-7730 clear-signing standard.
 
 ## Where we start
 
-A fully working prototype already exists (the `project-independence` repo): a Tauri desktop app that was vibecoded to explore the idea end to end. It is the reference implementation. It defines the target feature set (Helios light client, local Sourcify verification gate, proxy and diamond resolution, ERC-7730 clear signing, local EVM simulation, Ledger signing, post-mining verification, activity history, address book), but none of its code is trusted as-is: every feature re-enters the product through a from-zero rewrite in which each line is reviewed.
+A fully working prototype already exists (the `project-independence` repo, from when the project was called Independence): a Tauri desktop app that was vibecoded to explore the idea end to end. It is the reference implementation. It defines the target feature set (Helios light client, local Sourcify verification gate, proxy and diamond resolution, ERC-7730 clear signing, local EVM simulation, Ledger signing, post-mining verification, activity history, address book), but none of its code is trusted as-is: every feature re-enters the product through a from-zero rewrite in which each line is reviewed.
 
 ## How we rebuild
 
@@ -27,7 +27,7 @@ flowchart LR
     ext["extension<br/>intercepts"]
     wallet["wallet<br/>signs as usual"]
   end
-  subgraph app [Independence app]
+  subgraph app [Onay app]
     helios["Helios<br/>verified chain state"]
     sim["local EVM<br/>call-tree trace"]
     sourcify["lib-sourcify<br/>recompile + compare"]
