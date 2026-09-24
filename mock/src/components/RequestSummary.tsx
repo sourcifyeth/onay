@@ -123,7 +123,8 @@ export function RequestSummary({ request }: { request: MockRequest }) {
         Nothing is signed or sent yet.
         {!pasted && ' If you confirm, your wallet opens as usual.'}
       </p>
-      <dl className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2">
+      <h2 className="pb-2 pt-5 text-sm font-semibold text-gray-700">Who Am I Talking To</h2>
+      <dl className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2">
         <TargetRows request={request} />
         <Row label="Chain">{request.chain}</Row>
       </dl>
