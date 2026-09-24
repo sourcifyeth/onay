@@ -1078,3 +1078,91 @@ export const scenarios: Scenario[] = [
   { id: 'rpc-mode', label: 'RPC mode chain', request: rpcMode },
   { id: 'revert', label: 'simulation reverts', request: reverting },
 ]
+
+/**
+ * Facts about a contract address, independent of the call being made. Placeholder shape, to be
+ * refined: where each value comes from (an indexer, an explorer API, a local label list) and how
+ * much of it can be verified is still open.
+ */
+export interface ContractInfo {
+  /** ISO date of the deployment transaction */
+  deployedAt: string
+  deployBlock: number
+  /** all transactions ever sent to this address */
+  txCount: number
+  labels: string[]
+}
+
+const contractInfo: Record<string, ContractInfo> = {
+  [ROUTER]: {
+    deployedAt: '2020-06-05',
+    deployBlock: 10207858,
+    txCount: 214_381_902,
+    labels: ['DEX', 'Router'],
+  },
+  [WETH]: {
+    deployedAt: '2017-12-18',
+    deployBlock: 4719568,
+    txCount: 18_904_117,
+    labels: ['ERC-20', 'Wrapped ETH'],
+  },
+  [USDC]: {
+    deployedAt: '2018-08-03',
+    deployBlock: 6082465,
+    txCount: 162_550_483,
+    labels: ['ERC-20', 'Stablecoin', 'Proxy'],
+  },
+  [PAIR]: {
+    deployedAt: '2020-05-05',
+    deployBlock: 10008355,
+    txCount: 3_412_096,
+    labels: ['Liquidity pool'],
+  },
+  [PERMIT2]: {
+    deployedAt: '2022-11-17',
+    deployBlock: 15986406,
+    txCount: 9_873_310,
+    labels: ['Token approvals'],
+  },
+  [BAYC]: {
+    deployedAt: '2021-04-22',
+    deployBlock: 12287507,
+    txCount: 1_204_558,
+    labels: ['NFT', 'ERC-721'],
+  },
+  [SAFE]: {
+    deployedAt: '2024-02-14',
+    deployBlock: 19226471,
+    txCount: 312,
+    labels: ['Multisig wallet'],
+  },
+  [MULTISEND]: {
+    deployedAt: '2021-07-08',
+    deployBlock: 12788245,
+    txCount: 2_096_774,
+    labels: ['Batch helper'],
+  },
+  '0x3c9e1a7f5b20d84c6f01de92b7a45c318e6f2b91': {
+    deployedAt: '2025-03-11',
+    deployBlock: 22021833,
+    txCount: 48_220,
+    labels: ['Yield vault', 'ERC-4626'],
+  },
+  // deliberately young and quiet: the unverified scenario
+  '0x5b1869d9a4c187f2eaa108f3062412ecf0526b24': {
+    deployedAt: '2026-09-22',
+    deployBlock: 23419702,
+    txCount: 14,
+    labels: [],
+  },
+  '0xaf88d065e77c8cc2239327c5edb3a432268e5831': {
+    deployedAt: '2022-10-31',
+    deployBlock: 36123,
+    txCount: 87_310_442,
+    labels: ['ERC-20', 'Stablecoin', 'Proxy'],
+  },
+}
+
+export function getContractInfo(address: string): ContractInfo | undefined {
+  return contractInfo[address.toLowerCase()]
+}
