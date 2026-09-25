@@ -103,8 +103,66 @@ The whole product in one interaction: a dapp request that would open the wallet 
 
 The app's visual style follows Sourcify's design language (sourcify.dev, verify.sourcify.dev, repo.sourcify.dev).
 
-The UX leads the build order: the first step of Version 0 is to vibecode the entire frontend with mocked data (the `mock/` package in this repo) and iterate on it until we are satisfied. Only then does the real, reviewed development start against that refined UX.
+The UX came first: the `mock/` package in this repo holds the whole Version 0 frontend with fake data. The real app takes its UI from the mock one feature at a time; the mock stays the place where UX changes are tried before they enter the app.
+
+### Build order
+
+Each step ends with something that runs and can be reviewed. Steps 3 to 6 work on the target contract alone; step 7 extends every one of them to the whole call tree.
+
+0. **Foundations.** Repo layout, CI (continuous integration), and supply-chain checks before any real code.
+   - Folders: `app/` (Tauri, relay included) and `extension/` inside this monorepo.
+   - CI: frozen lockfiles, cargo-deny, OSV scan, Socket on dependency PRs.
+1. **Skeleton.** A minimal Chrome extension and Tauri app talking over native messaging.
+   - Tiny relay binary, bundled inside the app: users install only app and extension.
+   - The browser starts the relay; it forwards stdin/stdout to the app's local socket.
+   - The app installs the host manifest, allowlisting only our extension ID.
+   - Ping from the extension, pong from the app, visible on both sides.
+2. **Interception and secure channel.** Extension catches signing requests via the page's wallet provider (EIP-1193).
+   - Transactions, typed data (EIP-712) and plain messages; everything else passes through untouched.
+   - The app shows the raw request; Approve lets it continue to the wallet.
+   - Reject returns an error to the dapp. Both outcomes reach the browser correctly.
+   - App not running: the extension asks to open it, then forwards.
+   - Encrypted pairing (X25519 keys, NaCl box), first connection approved in the app.
+   - Peer verification where the OS supports it.
+   - **To analyse first: can an attacker hand the app a different transaction than the one the wallet receives?**
+   - Open UX question: hold the wallet until the app answers (sequential), or open the wallet and the app at the same time (parallel)?
+3. **Gate 1: Helios.** Embed Helios; read the target contract's bytecode as verified chain state.
+   - Chain registry (chain id plus RPC); Helios where supported, RPC mode elsewhere.
+   - RPC mode sits behind the same interface, with its permanent trust notice.
+   - Native Rust Helios, exposed to the webview as EIP-1193 over Tauri IPC (inter-process communication).
+4. **Gate 2: Sourcify.** Fetch sources, recompile locally, compare against the verified on-chain bytecode.
+   - Download solc only from the official list, hash-checked before running.
+   - Resolve proxies (EIP-1967 slots) so the implementation gets verified too.
+   - Show result, sources, compiler settings; "open files in your editor".
+   - Requests to the Sourcify server carry a User-Agent header with the app name and version.
+5. **Clear signing (ERC-7730).** Decode the call with the verified ABI (Application Binary Interface).
+   - Render intent and field table from ERC-7730 descriptors; plain decoding as fallback.
+   - Use our own ERC-7730 library.
+6. **Digest (ERC-8213).** After approval, show the Calldata Digest or EIP-712 Digest.
+7. **Call-tree simulation.** Run the transaction in a local EVM (ethereumjs) on verified state.
+   - Collect every touched contract, run both gates on each, display them all.
+   - This also covers delegatecalls and diamonds, replacing the step 4 proxy shortcut.
+8. **Other inputs.** Pasted transactions and animated QR codes (ERC-4527) enter the same pipeline.
+
+### Preparing for step 7 from day one
+
+- Model a request as a list of contracts, even when it holds only one.
+- Gates take one address and return one result; no single-target assumptions anywhere.
+- One chain-state interface (Helios or RPC) that the EVM can later read from.
+- Cache gate results per chain and code hash; call trees repeat the same contracts.
+- Gates run in parallel and report progress per contract.
+- The UI renders a contract list from the start; step 7 only adds entries.
+- Early spike: ethereumjs EVM reading state lazily from Helios, to remove the biggest risk.
+- Requests enter one pipeline regardless of source, so step 8 is just new inputs.
+
+### Where code runs
+
+- Verification pipeline in TypeScript, in the app's webview: lib-sourcify, ethereumjs, viem, ERC-7730.
+- Rust side: relay, native messaging socket, pairing crypto, Helios, file access.
+- Helios reaches the webview through Tauri IPC, never a localhost port.
+- RPC mode is just another EIP-1193 provider; the pipeline cannot tell them apart.
+- The Chrome extension only intercepts and forwards; it never verifies anything.
 
 ## Version 1+
 
-To be planned. Candidates from the target, in no confirmed order: an effects preview built on the Version 0 call-tree simulation (balance changes, storage writes, events), the transaction builder and contract explorer, Ledger signing, post-mining verification and activity history, address book, Firefox port.
+To be planned. Candidates from the target, in no confirmed order: an effects preview built on the Version 0 call-tree simulation (balance changes, storage writes, events), the transaction builder and contract explorer, Ledger signing, post-mining verification and activity history, address book, Firefox port. Also for later: the user chooses which attestors to trust.
