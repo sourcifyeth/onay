@@ -1090,76 +1090,320 @@ export interface ContractInfo {
   deployBlock: number
   /** all transactions ever sent to this address */
   txCount: number
-  labels: string[]
+  /** safelists that include this address on this chain; placeholder names and links */
+  lists: SafeList[]
+  /** whether the block explorers show verified source code for this address */
+  explorers: { etherscan: boolean; blockscout: boolean }
+  /** native balance held by the contract, formatted */
+  ethBalance: string
+  ethUsd?: string
+  /** ERC-20 balances held by the contract, largest first */
+  tokens: Holding[]
+  /** the account that sent the deployment transaction */
+  deployer: Deployer
 }
+
+export interface SafeList {
+  name: string
+  url?: string
+}
+
+export interface Holding {
+  symbol: string
+  amount: string
+  usd?: string
+}
+
+export interface Deployer {
+  address: string
+  /** an externally owned account, or a factory contract that deploys others */
+  kind: 'account' | 'contract'
+  name?: string
+  /** ISO date of the deployer's first transaction */
+  firstTxAt: string
+  txCount: number
+  ethBalance: string
+  ethUsd?: string
+  tokens: Holding[]
+}
+
+// mock safelists: each one is a list of addresses that a project or curator publishes
+const LISTS = {
+  exampleDex: {
+    name: 'Example DEX deployments',
+    url: 'https://github.com/Uniswap/contracts/tree/main/deployments',
+  },
+  erc7730: {
+    name: 'ERC-7730 registry',
+    url: 'https://github.com/LedgerHQ/clear-signing-erc7730-registry',
+  },
+  uniswapTokens: {
+    name: 'Uniswap default token list',
+    url: 'https://tokens.uniswap.org',
+  },
+  coingecko: {
+    name: 'CoinGecko token list',
+    url: 'https://tokens.coingecko.com/uniswap/all.json',
+  },
+  superchain: {
+    name: 'Superchain token list',
+    url: 'https://static.optimism.io/optimism.tokenlist.json',
+  },
+  circle: {
+    name: 'Circle USDC addresses',
+    url: 'https://developers.circle.com/stablecoins/usdc-contract-addresses',
+  },
+  uniswapDeployments: {
+    name: 'Uniswap deployments',
+    url: 'https://github.com/Uniswap/contracts/tree/main/deployments',
+  },
+  safe: {
+    name: 'Safe deployments',
+    url: 'https://github.com/safe-global/safe-deployments',
+  },
+  arbitrum: {
+    name: 'Arbitrum token list',
+    url: 'https://tokenlist.arbitrum.io/ArbTokenLists/arbed_coingecko.json',
+  },
+} satisfies Record<string, SafeList>
 
 const contractInfo: Record<string, ContractInfo> = {
   [ROUTER]: {
     deployedAt: '2020-06-05',
     deployBlock: 10207858,
     txCount: 214_381_902,
-    labels: ['DEX', 'Router'],
+    lists: [LISTS.exampleDex, LISTS.erc7730],
+    explorers: { etherscan: true, blockscout: true },
+    ethBalance: '0.0213 ETH',
+    ethUsd: '$56',
+    tokens: [
+      { symbol: 'USDC', amount: '14.02', usd: '$14' },
+      { symbol: 'DAI', amount: '3.51', usd: '$4' },
+    ],
+    deployer: {
+      address: '0x9c33eacc2f50e39940d3afaf2c7b8246b681a374',
+      kind: 'account',
+      name: 'Example DEX: Deployer',
+      firstTxAt: '2018-10-30',
+      txCount: 1_284,
+      ethBalance: '3.21 ETH',
+      ethUsd: '$8,480',
+      tokens: [],
+    },
   },
   [WETH]: {
     deployedAt: '2017-12-18',
     deployBlock: 4719568,
     txCount: 18_904_117,
-    labels: ['ERC-20', 'Wrapped ETH'],
+    lists: [LISTS.uniswapTokens, LISTS.coingecko, LISTS.superchain],
+    explorers: { etherscan: true, blockscout: true },
+    ethBalance: '2,914,387 ETH',
+    ethUsd: '$7.7B',
+    tokens: [
+      { symbol: 'USDT', amount: '1,204.5', usd: '$1.2K' },
+      { symbol: 'USDC', amount: '310', usd: '$310' },
+    ],
+    deployer: {
+      address: '0x4f26ffbe5f04ed43630fdc30a87638d53d0b0876',
+      kind: 'account',
+      firstTxAt: '2017-12-11',
+      txCount: 52,
+      ethBalance: '0.91 ETH',
+      ethUsd: '$2,400',
+      tokens: [],
+    },
   },
   [USDC]: {
     deployedAt: '2018-08-03',
     deployBlock: 6082465,
     txCount: 162_550_483,
-    labels: ['ERC-20', 'Stablecoin', 'Proxy'],
+    lists: [LISTS.circle, LISTS.uniswapTokens, LISTS.coingecko, LISTS.superchain, LISTS.erc7730],
+    explorers: { etherscan: true, blockscout: true },
+    ethBalance: '0.84 ETH',
+    ethUsd: '$2.2K',
+    tokens: [
+      { symbol: 'USDC', amount: '318,402.11', usd: '$318K' },
+      { symbol: 'USDT', amount: '41,200', usd: '$41K' },
+      { symbol: 'WETH', amount: '2.1', usd: '$5.6K' },
+    ],
+    deployer: {
+      address: '0x95ba4cf87d6723ad9c0db21737d862be80e93911',
+      kind: 'account',
+      name: 'Circle: Deployer',
+      firstTxAt: '2018-07-30',
+      txCount: 2_431,
+      ethBalance: '12.5 ETH',
+      ethUsd: '$33,010',
+      tokens: [{ symbol: 'USDC', amount: '1,000', usd: '$1,000' }],
+    },
   },
   [PAIR]: {
     deployedAt: '2020-05-05',
     deployBlock: 10008355,
     txCount: 3_412_096,
-    labels: ['Liquidity pool'],
+    lists: [],
+    explorers: { etherscan: true, blockscout: true },
+    ethBalance: '0 ETH',
+    tokens: [
+      { symbol: 'WETH', amount: '18,420.3', usd: '$48.9M' },
+      { symbol: 'USDC', amount: '48,871,204', usd: '$48.9M' },
+    ],
+    deployer: {
+      address: '0x5c69bee701ef814a2b6a3edd4b1652cb9cc5aa6f',
+      kind: 'contract',
+      name: 'ExampleFactory',
+      firstTxAt: '2020-05-04',
+      txCount: 390_112,
+      ethBalance: '0 ETH',
+      tokens: [],
+    },
   },
   [PERMIT2]: {
     deployedAt: '2022-11-17',
     deployBlock: 15986406,
     txCount: 9_873_310,
-    labels: ['Token approvals'],
+    lists: [LISTS.uniswapDeployments, LISTS.erc7730],
+    explorers: { etherscan: true, blockscout: true },
+    ethBalance: '0 ETH',
+    tokens: [
+      { symbol: 'USDC', amount: '102.5', usd: '$103' },
+    ],
+    deployer: {
+      address: '0x6c7e2f4a0b8d1e3c5f9a7b2d4e6c8a0f1b3d5e7a',
+      kind: 'account',
+      name: 'Uniswap Labs: Deployer',
+      firstTxAt: '2019-02-14',
+      txCount: 8_902,
+      ethBalance: '7.44 ETH',
+      ethUsd: '$19,650',
+      tokens: [],
+    },
   },
   [BAYC]: {
     deployedAt: '2021-04-22',
     deployBlock: 12287507,
     txCount: 1_204_558,
-    labels: ['NFT', 'ERC-721'],
+    lists: [],
+    explorers: { etherscan: true, blockscout: true },
+    ethBalance: '0.5 ETH',
+    ethUsd: '$1.3K',
+    tokens: [
+      { symbol: 'ApeCoin', amount: '1,004', usd: '$720' },
+    ],
+    deployer: {
+      address: '0xaba7161a7fb69c88e16ed9f455ce62b791ee4d03',
+      kind: 'account',
+      firstTxAt: '2021-04-20',
+      txCount: 1_905,
+      ethBalance: '4.1 ETH',
+      ethUsd: '$10,830',
+      tokens: [],
+    },
   },
   [SAFE]: {
     deployedAt: '2024-02-14',
     deployBlock: 19226471,
     txCount: 312,
-    labels: ['Multisig wallet'],
+    lists: [LISTS.safe],
+    explorers: { etherscan: true, blockscout: false },
+    ethBalance: '412.6 ETH',
+    ethUsd: '$1.1M',
+    tokens: [
+      { symbol: 'USDC', amount: '2,450,000', usd: '$2.45M' },
+      { symbol: 'WETH', amount: '150', usd: '$398K' },
+    ],
+    deployer: {
+      address: '0xa6b71e26c5e0845f74c812102ca7114b6a896ab2',
+      kind: 'contract',
+      name: 'Safe: Proxy Factory 1.3.0',
+      firstTxAt: '2021-05-12',
+      txCount: 4_872_331,
+      ethBalance: '0 ETH',
+      tokens: [],
+    },
   },
   [MULTISEND]: {
     deployedAt: '2021-07-08',
     deployBlock: 12788245,
     txCount: 2_096_774,
-    labels: ['Batch helper'],
+    lists: [LISTS.safe],
+    explorers: { etherscan: true, blockscout: true },
+    ethBalance: '0 ETH',
+    tokens: [],
+    deployer: {
+      address: '0x1aa7451dd11b8cb16ac089ed7fe05efa00100a6a',
+      kind: 'account',
+      name: 'Safe: Deployer',
+      firstTxAt: '2020-03-02',
+      txCount: 3_310,
+      ethBalance: '1.02 ETH',
+      ethUsd: '$2,690',
+      tokens: [],
+    },
   },
   '0x3c9e1a7f5b20d84c6f01de92b7a45c318e6f2b91': {
     deployedAt: '2025-03-11',
     deployBlock: 22021833,
     txCount: 48_220,
-    labels: ['Yield vault', 'ERC-4626'],
+    lists: [],
+    explorers: { etherscan: true, blockscout: true },
+    ethBalance: '0 ETH',
+    tokens: [
+      { symbol: 'USDC', amount: '12,804,330', usd: '$12.8M' },
+    ],
+    deployer: {
+      address: '0x8e1d0b3f5a7c9e2d4f6b8a0c1e3d5f7a9b2c4d6e',
+      kind: 'account',
+      firstTxAt: '2025-03-01',
+      txCount: 211,
+      ethBalance: '1.8 ETH',
+      ethUsd: '$4,750',
+      tokens: [{ symbol: 'USDC', amount: '5,000', usd: '$5,000' }],
+    },
   },
-  // deliberately young and quiet: the unverified scenario
+  // deliberately young and quiet, holding ETH taken from victims: the unverified scenario
   '0x5b1869d9a4c187f2eaa108f3062412ecf0526b24': {
     deployedAt: '2026-09-22',
     deployBlock: 23419702,
     txCount: 14,
-    labels: [],
+    lists: [],
+    explorers: { etherscan: false, blockscout: false },
+    ethBalance: '38.2 ETH',
+    ethUsd: '$101K',
+    tokens: [],
+    deployer: {
+      // a fresh account made only to deploy this contract
+      address: '0xf3a7c01e9d25b86c4e0f1a2b3c4d5e6f7a8b9c0d',
+      kind: 'account',
+      firstTxAt: '2026-09-21',
+      txCount: 3,
+      ethBalance: '0.04 ETH',
+      ethUsd: '$106',
+      tokens: [],
+    },
   },
   '0xaf88d065e77c8cc2239327c5edb3a432268e5831': {
     deployedAt: '2022-10-31',
     deployBlock: 36123,
     txCount: 87_310_442,
-    labels: ['ERC-20', 'Stablecoin', 'Proxy'],
+    lists: [LISTS.circle, LISTS.arbitrum, LISTS.uniswapTokens],
+    explorers: { etherscan: true, blockscout: true },
+    ethBalance: '0.012 ETH',
+    ethUsd: '$32',
+    tokens: [
+      { symbol: 'USDC', amount: '9,811.4', usd: '$9.8K' },
+      { symbol: 'ARB', amount: '640', usd: '$390' },
+    ],
+    deployer: {
+      address: '0x95ba4cf87d6723ad9c0db21737d862be80e93911',
+      kind: 'account',
+      name: 'Circle: Deployer',
+      firstTxAt: '2022-10-28',
+      txCount: 614,
+      ethBalance: '2.3 ETH',
+      ethUsd: '$6,070',
+      tokens: [],
+    },
   },
 }
 

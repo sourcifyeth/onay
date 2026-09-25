@@ -48,5 +48,6 @@ body {
 }
 
 .animate-fade-up {
-  animation: fade-up 0.5s ease-out forwards;
+  /* no fill-mode: a kept transform would trap popups in a stacking context */
+  animation: fade-up 0.5s ease-out;
 }

@@ -8,6 +8,9 @@ import { DebugBar } from './components/DebugBar'
 import { SettingsPage, defaultChains, type ChainConfig } from './components/SettingsPage'
 import { GateLog } from './components/GateLog'
 import { RequestSummary } from './components/RequestSummary'
+import { VerificationStep } from './components/VerificationStep'
+import { ChainDataStep } from './components/ChainDataStep'
+import { ProfileStep } from './components/ProfileStep'
 
 type Phase = 'home' | 'settings' | 'verifying' | 'failed' | 'review' | 'approved' | 'rejected'
 
@@ -210,7 +213,17 @@ function App() {
         {phase !== 'home' && phase !== 'settings' && request && (
           <>
             <RequestSummary request={request} />
-            <GateLog request={request} running={phase === 'verifying'} onDone={gateDone} />
+            {phase === 'verifying' && <GateLog request={request} onDone={gateDone} />}
+            {phase !== 'verifying' && (
+              <>
+                <ChainDataStep
+                  request={request}
+                  rpcUrl={chains.find((c) => c.id === request.chainId)?.executionRpc}
+                />
+                <VerificationStep request={request} />
+                <ProfileStep request={request} />
+              </>
+            )}
           </>
         )}
 
@@ -224,12 +237,6 @@ function App() {
 
         {(phase === 'review' || phase === 'approved' || phase === 'rejected') && request && (
           <div className="animate-fade-up flex flex-col gap-4">
-            {request.chainMode === 'rpc' && (
-              <p className="rounded-lg border-l-2 border-amber-400 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-                {request.chain} runs in RPC mode: nothing on this page is verified by Helios. The
-                chain state behind it comes straight from the configured endpoint.
-              </p>
-            )}
             <TransactionCard request={request} />
             <ContractsSection request={request} />
           </div>
