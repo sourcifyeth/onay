@@ -13,3 +13,7 @@ tauri-build = { version = "=2.6.3", features = [] }
 # shipped with this tauri release. Newer ones break the build. After a tauri
 # bump, run `cargo update --precise` for each of them, in dependency order.
 tauri = { version = "=2.11.6", features = [] }
+# serde and serde_json are already in tauri's tree; same versions as Cargo.lock.
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+onay-ipc = { path = "../ipc" }

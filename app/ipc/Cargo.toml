@@ -1,0 +1,8 @@
+[package]
+name = "onay-ipc"
+description = "What the relay and the app share: socket path, message framing, identifiers"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]

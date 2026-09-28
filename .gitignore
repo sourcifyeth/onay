@@ -5,3 +5,6 @@ dist/
 # Rust build output and Tauri generated schemas
 target/
 app/src-tauri/gen/
+
+# private key that fixes the extension ID; back it up, never commit it
+extension/key.pem

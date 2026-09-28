@@ -49,6 +49,8 @@ ignore = true
 multiple-versions = "warn"
 # Our manifests must pin versions; "*" is never acceptable.
 wildcards = "deny"
+# Path dependencies inside this workspace carry no version on purpose.
+allow-wildcard-paths = true
 
 [sources]
 unknown-registry = "deny"

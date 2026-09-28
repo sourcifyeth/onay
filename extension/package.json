@@ -3,9 +3,10 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "build": "tsc && cp manifest.json dist/"
+    "build": "tsc && cp manifest.json popup.html dist/"
   },
   "devDependencies": {
+    "@types/chrome": "0.3.0",
     "typescript": "6.0.3"
   }
 }

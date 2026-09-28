@@ -12,6 +12,7 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 - `mock/` — Vite + React + TypeScript playground (client-only, no SSR). The one place where vibecoding is allowed: Version 0's whole UX is mocked here with fake data, and the app takes its UI from the mock one feature at a time.
 - `app/` — the Tauri app: Vite + React + TypeScript webview in `app/src/`, Rust in `app/src-tauri/`, and the native messaging relay crate in `app/relay/`. One Cargo workspace at `app/Cargo.toml`, lockfile committed.
 - `extension/` — the Chrome extension (Manifest V3). Zero runtime dependencies: TypeScript compiled by `tsc` into plain ES modules in `extension/dist/`, no bundler.
+- `extension/key.pem` (gitignored) is the private key behind the `key` field in `extension/manifest.json`. It fixes the extension ID to `jhopbgoicoiceialjejgojebmeijklbn`, which the app's host manifest allowlists. Back it up; never commit it.
 
 ## Rules
 
@@ -27,6 +28,6 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 - `pnpm --filter mock build` — typecheck + build the mock.
 - `pnpm --filter app tauri dev` — run the app (needs the Tauri Linux prerequisites: webkit2gtk 4.1 dev headers and friends).
 - `pnpm --filter app build` — typecheck + build the app webview only.
-- `pnpm --filter extension build` — build the extension into `extension/dist/`; load that folder unpacked in Chrome.
+- `pnpm --filter extension build` — build the extension into `extension/dist/`; load that folder unpacked in Chrome (its ID must match the one above).
 - `cargo build` in `app/` — build the Rust workspace (app and relay).
 - `cargo deny check` in `app/` — advisories, licenses, sources, bans; same as CI (`cargo install --locked cargo-deny` once).

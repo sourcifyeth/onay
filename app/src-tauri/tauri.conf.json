@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "identifier": "dev.sourcify.onay",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "pnpm relay && pnpm dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"

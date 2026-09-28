@@ -2101,13 +2101,23 @@ dependencies = [
 name = "onay"
 version = "0.0.0"
 dependencies = [
+ "onay-ipc",
+ "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
 ]
 
 [[package]]
+name = "onay-ipc"
+version = "0.0.0"
+
+[[package]]
 name = "onay-relay"
 version = "0.0.0"
+dependencies = [
+ "onay-ipc",
+]
 
 [[package]]
 name = "once_cell"
