@@ -1,0 +1,31 @@
+# OSV scanner ignore list for app/Cargo.lock. The scanner reads this file
+# from the lockfile's directory. Each entry needs a reason. Review the list
+# at every tauri bump; it mirrors the advisories section of deny.toml.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+reason = "glib 0.18 unsoundness in VariantStrIter, fixed in glib 0.20; via tauri > gtk 0.18, waits for tauri to move"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0370"
+reason = "unmaintained proc-macro-error, via tauri > gtk > glib-macros; no upgrade path yet"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0075"
+reason = "unmaintained unic-char-range, via tauri-utils > urlpattern"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0080"
+reason = "unmaintained unic-common, via tauri-utils > urlpattern"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0081"
+reason = "unmaintained unic-char-property, via tauri-utils > urlpattern"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0098"
+reason = "unmaintained unic-ucd-version, via tauri-utils > urlpattern"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0100"
+reason = "unmaintained unic-ucd-ident, via tauri-utils > urlpattern"

@@ -63,11 +63,11 @@ Per-chain trust details (which mechanism Helios uses, what RPC mode trusts) stay
 
 ### Extension ↔ app transport: native messaging
 
-The same architecture password managers converged on. The browser spawns a small relay binary (shipped and registered by the app) and talks to it over stdin/stdout via the Native Messaging API; the relay forwards to the running app over a Unix socket or named pipe. No network socket is ever opened, so no other website, browser, or local process gets a surface to probe.
+The same architecture password managers converged on. The browser spawns a small relay binary (shipped and registered by the app) and talks to it over stdin/stdout via the Native Messaging API; the relay forwards to the running app over a Unix socket. No network socket is ever opened, so no other website, browser, or local process gets a surface to probe.
 
 - **Browser-enforced allowlist.** The host manifest names exactly which extension IDs may connect, and the extension can only address this one host.
 - **Encrypted pairing (KeePassXC model).** Extension and app exchange X25519 public keys; every message is sealed with a NaCl box and incrementing nonces. First connection requires explicit approval in the app.
-- **Peer verification (1Password model).** Where the OS supports it, the app verifies the connecting browser's code signature (macOS, Windows) or binary ownership (Linux) before accepting the channel.
+- **Peer verification (1Password model).** Where the OS supports it, the app verifies the connecting browser's code signature (macOS) or binary ownership (Linux) before accepting the channel.
 - **Rust reference implementations.** The relay exists in Rust already: [keepassxc-proxy-rust](https://github.com/varjolintu/keepassxc-proxy-rust) (a tiny standalone stdio→socket relay by the KeePassXC-Browser maintainer) and Bitwarden's [desktop_proxy](https://github.com/bitwarden/clients/tree/main/apps/desktop/desktop_native) (production Rust proxy with end-to-end encryption and replay-mitigating timestamps). Both are GPL-family, so they are study references for our own implementation, not vendored code.
 
 ### Securing the supply chain
