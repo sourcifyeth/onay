@@ -29,3 +29,4 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 - `pnpm --filter app build` — typecheck + build the app webview only.
 - `pnpm --filter extension build` — build the extension into `extension/dist/`; load that folder unpacked in Chrome.
 - `cargo build` in `app/` — build the Rust workspace (app and relay).
+- `cargo deny check` in `app/` — advisories, licenses, sources, bans; same as CI (`cargo install --locked cargo-deny` once).

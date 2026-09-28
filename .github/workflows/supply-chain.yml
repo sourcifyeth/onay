@@ -1,0 +1,42 @@
+# Checks both dependency trees for advisories, license, and source problems.
+# Runs on every change and once a day, because advisories appear without commits.
+name: Supply chain
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * *" # daily, 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-deny:
+    name: cargo-deny (advisories, licenses, sources, bans)
+    runs-on: ubuntu-latest
+    steps:
+      # actions are pinned to commit SHAs (tag in the comment), per the supply-chain rules
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # configuration lives in app/deny.toml
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          manifest-path: app/Cargo.toml
+          arguments: --locked --all-features
+
+  osv-scanner:
+    name: OSV scan (npm and crates.io lockfiles)
+    permissions:
+      actions: read
+      contents: read
+      # results go to the Security tab as code scanning alerts
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+    with:
+      scan-args: |-
+        --lockfile=pnpm-lock.yaml
+        --lockfile=app/Cargo.lock
