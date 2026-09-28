@@ -1,3 +1,7 @@
 node_modules/
 dist/
 *.local
+
+# Rust build output and Tauri generated schemas
+target/
+app/src-tauri/gen/

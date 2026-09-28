@@ -1,4 +1,6 @@
 packages:
+  - app
+  - extension
   - mock
 
 # supply-chain guardrails (see PLAN.md)
