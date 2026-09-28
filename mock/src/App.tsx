@@ -11,8 +11,9 @@ import { RequestSummary } from './components/RequestSummary'
 import { VerificationStep } from './components/VerificationStep'
 import { ChainDataStep } from './components/ChainDataStep'
 import { ProfileStep } from './components/ProfileStep'
+import { IconsPreview } from './components/IconsPreview'
 
-type Phase = 'home' | 'settings' | 'verifying' | 'failed' | 'review' | 'approved' | 'rejected'
+type Phase = 'home' | 'settings' | 'icons' | 'verifying' | 'failed' | 'review' | 'approved' | 'rejected'
 
 function chainName(chainId: number): string {
   const known: Record<number, string> = {
@@ -210,7 +211,9 @@ function App() {
           <SettingsPage chains={chains} onChainsChange={setChains} onBack={() => setPhase('home')} />
         )}
 
-        {phase !== 'home' && phase !== 'settings' && request && (
+        {phase === 'icons' && <IconsPreview />}
+
+        {phase !== 'home' && phase !== 'settings' && phase !== 'icons' && request && (
           <>
             <RequestSummary request={request} />
             {phase === 'verifying' && <GateLog request={request} onDone={gateDone} />}
@@ -287,6 +290,10 @@ function App() {
         onScenarioChange={setScenarioId}
         onSimulateInterception={startFromExtension}
         onToggleExtension={() => setExtensionInstalled((v) => !v)}
+        onShowIcons={() => {
+          setRequest(null)
+          setPhase('icons')
+        }}
         onReset={reset}
       />
     </div>

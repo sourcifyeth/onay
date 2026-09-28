@@ -8,6 +8,7 @@ interface DebugBarProps {
   onScenarioChange: (id: string) => void
   onSimulateInterception: () => void
   onToggleExtension: () => void
+  onShowIcons: () => void
   onReset: () => void
 }
 
@@ -22,6 +23,7 @@ export function DebugBar({
   onScenarioChange,
   onSimulateInterception,
   onToggleExtension,
+  onShowIcons,
   onReset,
 }: DebugBarProps) {
   return (
@@ -44,6 +46,9 @@ export function DebugBar({
       </button>
       <button className={btn} onClick={onToggleExtension}>
         {extensionInstalled ? '⛔ uninstall ext' : '✔ install ext'}
+      </button>
+      <button className={btn} onClick={onShowIcons}>
+        ◈ icons
       </button>
       <button className={btn} onClick={onReset}>
         ↺ reset
