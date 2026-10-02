@@ -2,10 +2,13 @@
   "name": "extension",
   "private": true,
   "version": "0.0.0",
+  "license": "GPL-3.0-only",
   "scripts": {
-    "build": "tsc && cp manifest.json dist/"
+    "build": "rm -rf dist && tsc && cp manifest.json popup.html dist/",
+    "package": "pnpm build && node scripts/store-build.mjs && cd dist-store && zip -q -r -X ../onay-extension.zip ."
   },
   "devDependencies": {
+    "@types/chrome": "0.3.0",
     "typescript": "6.0.3"
   }
 }

@@ -2,6 +2,14 @@ node_modules/
 dist/
 *.local
 
-# Rust build output and Tauri generated schemas
+# Rust build output, Tauri generated schemas, and the relay copy for packaging
 target/
 app/src-tauri/gen/
+app/src-tauri/binaries/
+
+# store build of the extension
+extension/dist-store/
+extension/*.zip
+
+# private key that fixes the extension ID; back it up, never commit it
+extension/key.pem

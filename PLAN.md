@@ -1,12 +1,14 @@
-# Onay: rebuild plan
+# Onay: local signing companion
 
-A trustless smart-contract transaction builder and verifier. Data may be downloaded from anywhere, but every security-relevant fact is verified locally, on your machine.
+A second, independent check on every transaction before you sign. Data may be downloaded from anywhere, but every security-relevant fact is verified locally, on your machine, or shown as missing.
 
 This is a living document: it is edited in place, and superseded content is removed, not appended. The interactive version with the UX demo lives as an HTML artifact; this file is the plan of record in the repo.
 
 ## What it is
 
-Onay lets you inspect contracts, build transactions, and verify the transactions other apps ask you to sign, without trusting any external service. Chain state is proof-verified through an embedded [Helios](https://github.com/a16z/helios) light client (or an RPC endpoint you choose to trust). Source code claims from Sourcify are never believed: sources are recompiled locally and compared byte-for-byte against the on-chain bytecode. What you are about to sign is rendered human-readable with the ERC-7730 clear-signing standard.
+Ethereum is built around verification, but transaction signing still depends on blind trust: an RPC endpoint for chain state, an explorer for the ABI (Application Binary Interface), the dapp for what the action means. Independent verification is possible and cheap; the problem is usability. Onay turns it into a second check that runs on every signing request.
+
+Onay is a local desktop app with a thin browser extension that sits between the dapp and the wallet. It is view only: it holds no keys and does not replace the wallet. Chain state is proof-verified through an embedded [Helios](https://github.com/a16z/helios) light client (or an RPC endpoint you choose to trust). Source code claims from Sourcify are never believed: sources are recompiled locally and compared byte-for-byte against the on-chain bytecode. What you are about to sign is rendered human-readable with the ERC-7730 clear-signing standard. After you confirm, the ERC-8213 digest lets you check that the wallet received exactly the bytes you reviewed.
 
 ## Where we start
 

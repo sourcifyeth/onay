@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "es2023",
-    "lib": ["ES2023", "WebWorker"],
-    "types": [],
+    "lib": ["ES2023", "DOM"],
+    "types": ["chrome"],
     "skipLibCheck": true,
 
     /* Plain ES modules, no bundler: imports keep their .ts extension in source and become .js in dist */

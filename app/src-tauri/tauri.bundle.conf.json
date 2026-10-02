@@ -1,0 +1,23 @@
+{
+  "bundle": {
+    "active": true,
+    "targets": [
+      "deb",
+      "rpm",
+      "app",
+      "dmg"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns"
+    ],
+    "externalBin": [
+      "binaries/onay-relay"
+    ],
+    "category": "Utility",
+    "shortDescription": "Local signing companion: a second check on every transaction before you sign",
+    "license": "GPL-3.0-only"
+  }
+}

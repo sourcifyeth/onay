@@ -3,6 +3,8 @@ name = "onay-relay"
 description = "Native messaging relay between the browser and the Onay app"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish.workspace = true
 
 [dependencies]
+onay-ipc = { path = "../ipc" }

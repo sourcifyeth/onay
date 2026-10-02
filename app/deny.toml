@@ -42,13 +42,15 @@ allow = [
 confidence-threshold = 0.9
 
 [licenses.private]
-# Our own crates are publish = false and have no license field.
+# Our own crates are GPL-3.0-only and not published. The allowlist is for dependencies.
 ignore = true
 
 [bans]
 multiple-versions = "warn"
 # Our manifests must pin versions; "*" is never acceptable.
 wildcards = "deny"
+# Path dependencies inside this workspace carry no version on purpose.
+allow-wildcard-paths = true
 
 [sources]
 unknown-registry = "deny"

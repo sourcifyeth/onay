@@ -2,11 +2,15 @@
   "name": "app",
   "private": true,
   "version": "0.0.0",
+  "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "relay": "cargo build -p onay-relay",
+    "relay:release": "cargo build --release --locked -p onay-relay && mkdir -p src-tauri/binaries && cp target/release/onay-relay src-tauri/binaries/onay-relay-$(rustc --print host-tuple)",
+    "bundle": "pnpm relay:release && tauri build --config src-tauri/tauri.bundle.conf.json",
     "tauri": "tauri"
   },
   "dependencies": {
