@@ -1,6 +1,22 @@
 // What the Rust side sends to the webview. Types only.
 // Mirrors `Snapshot`, `ConnectionInfo`, and `SigningRequest` in
 // src-tauri/src/link.rs, and `Installed` in src-tauri/src/host_manifest.rs.
+// The chain types mirror the commands and `Ready` in src-tauri/src/chain.rs.
+
+export type Hex = `0x${string}`
+
+export type ChainReadyArgs = { chainId: number }
+
+// Mirrors `Ready`.
+export type ChainReady = {
+  // The newest verified block.
+  block: number
+  // The newest finalized checkpoint.
+  checkpoint: Hex | null
+}
+
+// `chain_request` answers like an EIP-1193 provider.
+export type ChainRequestArgs = { chainId: number; method: string; params: unknown[] }
 
 export type Snapshot = {
   socket: string

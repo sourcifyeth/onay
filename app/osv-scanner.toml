@@ -29,3 +29,21 @@ reason = "unmaintained unic-ucd-version, via tauri-utils > urlpattern"
 [[IgnoredVulns]]
 id = "RUSTSEC-2025-0100"
 reason = "unmaintained unic-ucd-ident, via tauri-utils > urlpattern"
+
+# Helios 0.12.0. Review these at every Helios bump.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0258"
+reason = "h2 0.3, via helios-core > jsonrpsee 0.19; only Helios's JSON-RPC server uses it, and the app never starts that server"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0118"
+reason = "hickory-proto 0.25, via helios > reqwest 0.12; affects DNSSEC validation, which is not enabled; fixed in 0.26, which reqwest 0.12 does not accept"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0119"
+reason = "hickory-proto 0.25, via helios > reqwest 0.12; the resolver encodes only its own small queries; fixed in 0.26, which reqwest 0.12 does not accept"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0436"
+reason = "unmaintained paste, a compile-time macro, via helios > alloy-primitives"

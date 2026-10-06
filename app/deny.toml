@@ -19,6 +19,11 @@ ignore = [
   { id = "RUSTSEC-2025-0081", reason = "unmaintained unic-char-property, via tauri-utils > urlpattern" },
   { id = "RUSTSEC-2025-0098", reason = "unmaintained unic-ucd-version, via tauri-utils > urlpattern" },
   { id = "RUSTSEC-2025-0100", reason = "unmaintained unic-ucd-ident, via tauri-utils > urlpattern" },
+  # Helios 0.12.0. Review the list at every Helios bump.
+  { id = "RUSTSEC-2026-0258", reason = "h2 0.3, via helios-core > jsonrpsee 0.19; only Helios's JSON-RPC server uses it, and the app never starts that server" },
+  { id = "RUSTSEC-2026-0118", reason = "hickory-proto 0.25, via helios > reqwest 0.12; affects DNSSEC validation, which is not enabled; fixed in 0.26, which reqwest 0.12 does not accept" },
+  { id = "RUSTSEC-2026-0119", reason = "hickory-proto 0.25, via helios > reqwest 0.12; the resolver encodes only its own small queries; fixed in 0.26, which reqwest 0.12 does not accept" },
+  { id = "RUSTSEC-2024-0436", reason = "unmaintained paste, a compile-time macro, via helios > alloy-primitives" },
 ]
 
 [licenses]
@@ -33,8 +38,47 @@ allow = [
   "Zlib",
   "Unicode-3.0",
   "MPL-2.0",
+  # A public domain dedication. Via helios > revm-precompile > aurora-engine-modexp.
+  "CC0-1.0",
 ]
 confidence-threshold = 0.9
+
+# The Helios crates name no license in their manifests. The repository's
+# LICENSE file is MIT.
+[[licenses.clarify]]
+crate = "helios-common"
+expression = "MIT"
+license-files = []
+
+[[licenses.clarify]]
+crate = "helios-consensus-core"
+expression = "MIT"
+license-files = []
+
+[[licenses.clarify]]
+crate = "helios-core"
+expression = "MIT"
+license-files = []
+
+[[licenses.clarify]]
+crate = "helios-ethereum"
+expression = "MIT"
+license-files = []
+
+[[licenses.clarify]]
+crate = "helios-revm-utils"
+expression = "MIT"
+license-files = []
+
+[[licenses.clarify]]
+crate = "helios-verifiable-api-client"
+expression = "MIT"
+license-files = []
+
+[[licenses.clarify]]
+crate = "helios-verifiable-api-types"
+expression = "MIT"
+license-files = []
 
 [licenses.private]
 # Our own crates are GPL-3.0-only and not published. The allowlist is for dependencies.
@@ -51,3 +95,5 @@ allow-wildcard-paths = true
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# Helios is not on crates.io. Cargo.toml pins it to the commit of a release tag.
+allow-git = ["https://github.com/a16z/helios"]

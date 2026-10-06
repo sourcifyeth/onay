@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import type { ConnectionInfo, SigningRequest, Snapshot } from './messages.ts'
+import { GatePage } from './GatePage.tsx'
+import { forgetVerification, requestKey, verificationFor } from './gates/verification.ts'
 
 const OUTCOME_TEXT = {
   fulfilled: 'The wallet signed.',
@@ -30,8 +32,23 @@ function Pairing({ connection }: { connection: ConnectionInfo }) {
   )
 }
 
-function Request({ request }: { request: SigningRequest }) {
-  const dismiss = () => invoke('dismiss_request', { connection: request.connection, id: request.id })
+const STATUS_TEXT = {
+  running: 'Checks are running.',
+  passed: 'All checks passed.',
+  failed: 'A check failed.',
+}
+
+function CheckStatus({ request }: { request: SigningRequest }) {
+  const store = verificationFor(request)
+  const { status } = useSyncExternalStore(store.subscribe, store.getSnapshot)
+  return <span className={status === 'failed' ? 'text-red-700' : 'text-gray-600'}>{STATUS_TEXT[status]}</span>
+}
+
+function Request({ request, onOpen }: { request: SigningRequest; onOpen: () => void }) {
+  const dismiss = () => {
+    forgetVerification(request)
+    return invoke('dismiss_request', { connection: request.connection, id: request.id })
+  }
   return (
     <div className="mt-3 rounded border border-gray-300 p-4">
       <div className="flex items-baseline justify-between gap-4">
@@ -58,13 +75,19 @@ function Request({ request }: { request: SigningRequest }) {
       <pre className="mt-2 max-h-80 overflow-auto rounded bg-gray-100 p-2 font-mono text-xs break-all whitespace-pre-wrap">
         {JSON.stringify(request.params, null, 2)}
       </pre>
-      <div className="mt-2 flex items-center justify-between">
+      <div className="mt-2 flex items-center justify-between gap-4">
         <span className="text-gray-600">
+          <CheckStatus request={request} />{' '}
           {request.outcome ? OUTCOME_TEXT[request.outcome] : 'The wallet has the same request now.'}
         </span>
-        <button className="rounded border border-gray-400 px-3 py-1" onClick={dismiss}>
-          Dismiss
-        </button>
+        <div className="flex shrink-0 gap-2">
+          <button className="rounded bg-cerulean-blue-500 px-3 py-1 text-white" onClick={onOpen}>
+            Open
+          </button>
+          <button className="rounded border border-gray-400 px-3 py-1" onClick={dismiss}>
+            Dismiss
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -118,6 +141,10 @@ export default function App() {
   // Set if the link did not start.
   const [failure, setFailure] = useState<string[] | null>(null)
 
+  // The request on its own page, if any.
+  const [openKey, setOpenKey] = useState<string | null>(null)
+  const seen = useRef(new Set<string>())
+
   useEffect(() => {
     const load = () => invoke<Snapshot>('link_state').then(setSnapshot, setFailure)
     load()
@@ -127,10 +154,18 @@ export default function App() {
     }
   }, [])
 
+  // A new request opens on its own page.
+  useEffect(() => {
+    const fresh = snapshot?.requests.filter((request) => !seen.current.has(requestKey(request))) ?? []
+    for (const request of fresh) seen.current.add(requestKey(request))
+    if (fresh.length > 0) setOpenKey(requestKey(fresh[fresh.length - 1]))
+  }, [snapshot])
+
   const errors = failure ?? snapshot?.errors ?? []
   const pairings = snapshot?.connections.filter((c) => c.pairingCode !== null) ?? []
   const requests = snapshot?.requests.toReversed() ?? []
   const connected = snapshot?.connections.some((c) => c.pairingCode === null) ?? false
+  const opened = requests.find((request) => requestKey(request) === openKey)
 
   return (
     <main className="p-6 font-sans text-sm">
@@ -146,21 +181,27 @@ export default function App() {
         <Pairing key={connection.id} connection={connection} />
       ))}
 
-      <section className="mt-6">
-        <h2 className="font-semibold">Signing requests</h2>
-        {requests.length === 0 && (
-          <p className="mt-2 text-gray-500">
-            {connected
-              ? 'Nothing yet. A request appears here when a site asks your wallet to sign.'
-              : 'No browser extension is connected.'}
-          </p>
-        )}
-        {requests.map((request) => (
-          <Request key={`${request.connection}:${request.id}`} request={request} />
-        ))}
-      </section>
+      {opened ? (
+        <GatePage key={openKey} request={opened} onBack={() => setOpenKey(null)} />
+      ) : (
+        <>
+          <section className="mt-6">
+            <h2 className="font-semibold">Signing requests</h2>
+            {requests.length === 0 && (
+              <p className="mt-2 text-gray-500">
+                {connected
+                  ? 'Nothing yet. A request appears here when a site asks your wallet to sign.'
+                  : 'No browser extension is connected.'}
+              </p>
+            )}
+            {requests.map((request) => (
+              <Request key={requestKey(request)} request={request} onOpen={() => setOpenKey(requestKey(request))} />
+            ))}
+          </section>
 
-      {snapshot && <Details snapshot={snapshot} />}
+          {snapshot && <Details snapshot={snapshot} />}
+        </>
+      )}
     </main>
   )
 }
