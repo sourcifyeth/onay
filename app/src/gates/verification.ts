@@ -1,8 +1,9 @@
 // Runs the gates for each contract of a signing request, and keeps their log.
 // React reads the result through `useSyncExternalStore`.
 
+import { chainById, type ChainConfig } from '../chains.ts'
 import type { Hex, SigningRequest } from '../messages.ts'
-import { chainGate, chainReady, type ChainCode } from './chain.ts'
+import { chainGateFor, chainReady, type ChainCode } from './chain.ts'
 import { errorText, runGate, type GateState, type LogLine } from './gate.ts'
 
 // TODO: take the chain from the request when the extension sends it.
@@ -17,6 +18,9 @@ export type TimedLine = LogLine & {
 
 export type Verification = {
   chainId: number
+  // How the chain gate reads the chain. Null if the chain is not in the
+  // settings.
+  mode: ChainConfig['mode'] | null
   checks: ContractChecks[]
   lines: TimedLine[]
   // 'passed' when each gate passed for each contract: the review can open.
@@ -52,10 +56,13 @@ export function forgetVerification(request: SigningRequest) {
 
 function start(request: SigningRequest, chainId: number): VerificationStore {
   const addresses = contractsOf(request)
+  // Taken once: a change in the settings does not change a running request.
+  const chain = chainById(chainId)
   const started = performance.now()
   const listeners = new Set<() => void>()
   let snapshot: Verification = {
     chainId,
+    mode: chain?.mode ?? null,
     checks: addresses.map((address) => ({ address, chain: { status: 'waiting' } })),
     lines: [],
     status: 'running',
@@ -71,33 +78,40 @@ function start(request: SigningRequest, chainId: number): VerificationStore {
 
   const run = async () => {
     log({ source: 'browser', text: `request received · ${request.method} · from ${request.origin}` })
+    const fail = (reason: string) => {
+      addresses.forEach((_, index) => report(index, { status: 'failed', reason }))
+      set({ status: 'failed' })
+    }
+    if (!chain) {
+      const reason = `chain ${chainId} is not in the settings`
+      log({ source: 'browser', text: reason, ok: false })
+      return fail(reason)
+    }
     if (addresses.length === 0) {
-      log({ source: 'helios', text: 'no contract to read', ok: true })
+      log({ source: chain.mode, text: 'no contract to read', ok: true })
       return set({ status: 'passed' })
     }
 
     let block: number
     try {
-      block = await chainReady(chainId, log)
+      block = await chainReady(chain, log)
     } catch (error) {
       const reason = errorText(error)
-      log({ source: 'helios', text: reason, ok: false })
-      addresses.forEach((_, index) => report(index, { status: 'failed', reason }))
-      return set({ status: 'failed' })
+      log({ source: chain.mode, text: reason, ok: false })
+      return fail(reason)
     }
 
     // Contracts in parallel. The Sourcify gate will take the result of the
     // chain gate for the same contract.
+    const chainGate = chainGateFor(chain)
     await Promise.all(
-      addresses.map((address, index) =>
-        runGate(chainGate, { chainId, address, block }, log, (state) => report(index, state)),
-      ),
+      addresses.map((address, index) => runGate(chainGate, { address, block }, log, (state) => report(index, state))),
     )
 
     const passed = snapshot.checks.filter((check) => check.chain.status === 'passed').length
     const total = addresses.length
     const ok = passed === total
-    log({ source: 'helios', text: `${passed}/${total} contracts read`, ok })
+    log({ source: chain.mode, text: `${passed}/${total} contracts read`, ok })
     set({ status: ok ? 'passed' : 'failed' })
   }
   void run()

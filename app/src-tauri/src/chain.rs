@@ -1,8 +1,10 @@
-//! Helios light clients, one for each supported chain. They start with the
-//! app. The webview reads verified chain state through the two commands.
+//! Helios light clients, one for each chain in Helios mode. The webview
+//! owns the list of chains: it starts and stops the clients, and reads
+//! verified chain state through the commands.
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use alloy::eips::BlockId;
 use alloy::primitives::{Address, B256};
@@ -14,70 +16,72 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use tauri::State;
 
-struct Chain {
-    id: u64,
-    name: &'static str,
-    network: Network,
-    /// A beacon node with the light client API.
-    consensus_rpc: &'static str,
-    /// An execution node with `eth_getProof`.
-    execution_rpc: &'static str,
+/// The running clients, by chain id.
+pub struct Chains {
+    clients: Mutex<HashMap<u64, Arc<EthereumClient>>>,
+    /// Helios saves the newest checkpoint of each chain here.
+    data_dir: PathBuf,
 }
 
-const CHAINS: [Chain; 2] = [
-    Chain {
-        id: 1,
-        name: "mainnet",
-        network: Network::Mainnet,
-        consensus_rpc: "https://ethereum-beacon-api.publicnode.com",
-        execution_rpc: "https://ethereum-rpc.publicnode.com",
-    },
-    Chain {
-        id: 11155111,
-        name: "sepolia",
-        network: Network::Sepolia,
-        consensus_rpc: "https://ethereum-sepolia-beacon-api.publicnode.com",
-        execution_rpc: "https://ethereum-sepolia-rpc.publicnode.com",
-    },
-];
-
-/// The client of each chain, or the reason why it did not start.
-pub struct Chains(HashMap<u64, Result<EthereumClient, String>>);
-
 impl Chains {
-    /// Call it inside the async runtime: Helios starts its sync tasks there.
-    pub fn start(data_dir: &Path) -> Self {
-        Self(
-            CHAINS
-                .iter()
-                .map(|chain| (chain.id, start(chain, data_dir)))
-                .collect(),
-        )
+    pub fn new(data_dir: PathBuf) -> Self {
+        Self {
+            clients: Mutex::default(),
+            data_dir,
+        }
     }
 
-    fn client(&self, chain_id: u64) -> Result<&EthereumClient, String> {
-        match self.0.get(&chain_id) {
-            Some(Ok(client)) => Ok(client),
-            Some(Err(err)) => Err(format!("Helios did not start: {err}")),
-            None => Err(format!("chain {chain_id} is not supported")),
+    fn client(&self, chain_id: u64) -> Result<Arc<EthereumClient>, String> {
+        let clients = self.clients.lock().unwrap();
+        let client = clients.get(&chain_id).cloned();
+        client.ok_or_else(|| format!("Helios does not run for chain {chain_id}"))
+    }
+
+    fn replace(
+        &self,
+        chain_id: u64,
+        client: Option<EthereumClient>,
+    ) -> Option<Arc<EthereumClient>> {
+        let mut clients = self.clients.lock().unwrap();
+        match client {
+            Some(client) => clients.insert(chain_id, Arc::new(client)),
+            None => clients.remove(&chain_id),
         }
     }
 }
 
-fn start(chain: &Chain, data_dir: &Path) -> Result<EthereumClient, String> {
+/// Starts the client of a chain. A client that runs for the chain stops.
+#[tauri::command]
+pub async fn start_chain(
+    chains: State<'_, Chains>,
+    chain_id: u64,
+    consensus_rpc: String,
+    execution_rpc: String,
+) -> Result<(), String> {
     let build = || {
         EthereumClientBuilder::<FileDB>::new()
-            .network(chain.network)
-            .consensus_rpc(chain.consensus_rpc)?
-            .execution_rpc(chain.execution_rpc)?
+            .network(Network::from_chain_id(chain_id)?)
+            .consensus_rpc(consensus_rpc.as_str())?
+            .execution_rpc(execution_rpc.as_str())?
             // If the saved checkpoint is too old, take the checkpoint that
             // most public checkpoint services agree on.
             .load_external_fallback()
-            // Helios saves its newest checkpoint here.
-            .data_dir(data_dir.join(chain.name))
+            .data_dir(chains.data_dir.join(chain_id.to_string()))
             .build()
     };
-    build().map_err(|err| err.to_string())
+    let client = build().map_err(|err| err.to_string())?;
+    if let Some(old) = chains.replace(chain_id, Some(client)) {
+        old.shutdown().await;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn stop_chain(chains: State<'_, Chains>, chain_id: u64) -> Result<(), String> {
+    if let Some(old) = chains.replace(chain_id, None) {
+        old.shutdown().await;
+    }
+    Ok(())
 }
 
 #[derive(Serialize)]

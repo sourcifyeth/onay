@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import type { ConnectionInfo, SigningRequest, Snapshot } from './messages.ts'
 import { GatePage } from './GatePage.tsx'
+import { SettingsPage } from './SettingsPage.tsx'
 import { forgetVerification, requestKey, verificationFor } from './gates/verification.ts'
 
 const OUTCOME_TEXT = {
@@ -143,6 +144,7 @@ export default function App() {
 
   // The request on its own page, if any.
   const [openKey, setOpenKey] = useState<string | null>(null)
+  const [settings, setSettings] = useState(false)
   const seen = useRef(new Set<string>())
 
   useEffect(() => {
@@ -169,7 +171,14 @@ export default function App() {
 
   return (
     <main className="p-6 font-sans text-sm">
-      <h1 className="text-2xl font-semibold">Onay</h1>
+      <div className="flex items-baseline justify-between">
+        <h1 className="text-2xl font-semibold">Onay</h1>
+        {!opened && !settings && (
+          <button onClick={() => setSettings(true)} className="font-mono text-xs text-gray-400 hover:text-gray-600">
+            settings
+          </button>
+        )}
+      </div>
 
       {errors.map((error) => (
         <p key={error} className="mt-3 text-red-700">
@@ -183,6 +192,8 @@ export default function App() {
 
       {opened ? (
         <GatePage key={openKey} request={opened} onBack={() => setOpenKey(null)} />
+      ) : settings ? (
+        <SettingsPage onBack={() => setSettings(false)} />
       ) : (
         <>
           <section className="mt-6">

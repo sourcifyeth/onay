@@ -9,7 +9,7 @@ export type GateState<T> =
 
 // Where a line comes from. The page shows the lines of each gate under
 // its own header.
-export type Source = 'browser' | 'helios'
+export type Source = 'browser' | 'helios' | 'rpc'
 
 export type LogLine = {
   source: Source

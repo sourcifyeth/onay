@@ -109,15 +109,15 @@ fn main() {
         .setup(|app| {
             app.manage(start_link(app.handle()));
             let helios_dir = app.path().app_data_dir()?.join("helios");
-            app.manage(tauri::async_runtime::block_on(async {
-                chain::Chains::start(&helios_dir)
-            }));
+            app.manage(chain::Chains::new(helios_dir));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             link_state,
             answer_pairing,
             dismiss_request,
+            chain::start_chain,
+            chain::stop_chain,
             chain::chain_ready,
             chain::chain_request
         ])

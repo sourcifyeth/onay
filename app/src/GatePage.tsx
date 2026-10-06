@@ -1,6 +1,7 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { Fragment, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { SigningRequest } from './messages.ts'
-import { CHAIN_NAMES } from './gates/chain.ts'
+import { chainName } from './chains.ts'
+import { LocallyVerifiedIcon, ThirdPartyIcon } from './Icons.tsx'
 import { verificationFor, type TimedLine, type Verification } from './gates/verification.ts'
 
 // The log shows at most one new line in this time, so that you can read it.
@@ -25,6 +26,25 @@ function Headline({ request }: { request: SigningRequest }) {
   }
 }
 
+// One badge in joined parts: chain id, chain name, and the address.
+function ChainBadge({ chainId, address }: { chainId: number; address?: string }) {
+  return (
+    <p>
+      <span className="inline-flex max-w-full overflow-hidden rounded-md border border-cerulean-blue-200 text-sm">
+        <span title="Chain id" className="shrink-0 bg-cerulean-blue-500 px-2 py-0.5 font-mono text-white">
+          {chainId}
+        </span>
+        <span className="shrink-0 bg-white px-2.5 py-0.5 text-gray-700">{chainName(chainId)}</span>
+        {address && (
+          <span className="min-w-0 border-l border-cerulean-blue-200 bg-gray-50 px-2.5 py-0.5 font-mono break-all text-gray-900">
+            {address}
+          </span>
+        )}
+      </span>
+    </p>
+  )
+}
+
 function Summary({ request, verification }: { request: SigningRequest; verification: Verification }) {
   const { checks, chainId } = verification
   const label = request.method.startsWith('eth_signTypedData') ? 'Verifying contract' : 'To'
@@ -36,17 +56,20 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
       <p className="pt-1 text-sm text-gray-500">
         Your wallet has the same request now. Check it here before you confirm there.
       </p>
-      <div className="pt-5">
-        {checks.length > 0 && <p className="text-xs text-gray-500">{label}</p>}
-        {checks.map((check) => (
-          <p key={check.address} className="font-mono text-lg font-medium break-all text-gray-900">
-            {check.address}
-          </p>
-        ))}
-        <p className="pt-1 text-base text-gray-700">
-          {CHAIN_NAMES[chainId] ?? `Chain ${chainId}`} - chainId: {chainId}
-        </p>
-      </div>
+      {checks.length === 0 ? (
+        <div className="pt-5">
+          <ChainBadge chainId={chainId} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-[max-content_1fr] items-center gap-x-3 gap-y-1 pt-5">
+          {checks.map((check, index) => (
+            <Fragment key={check.address}>
+              <span className="text-xs text-gray-500">{index === 0 ? label : ''}</span>
+              <ChainBadge chainId={chainId} address={check.address} />
+            </Fragment>
+          ))}
+        </div>
+      )}
     </section>
   )
 }
@@ -70,11 +93,15 @@ function Cursor() {
 // The lines of one gate under its header.
 function Section({
   title,
+  color,
+  icon,
   subtitle,
   lines,
   state,
 }: {
   title: string
+  color: string
+  icon: ReactNode
   subtitle: string
   lines: TimedLine[]
   state: 'running' | 'passed' | 'failed'
@@ -89,7 +116,8 @@ function Section({
           )}
           <span className={`relative inline-flex h-2 w-2 rounded-full ${dot}`} />
         </span>
-        <span className="text-cerulean-blue-500">{title}</span>
+        <span className={color}>{title}</span>
+        {icon}
         <span className="truncate text-gray-500">· {subtitle}</span>
       </div>
       <div className="pt-1 pl-4">
@@ -103,21 +131,29 @@ function Section({
 }
 
 function GateLog({ verification, shown, done }: { verification: Verification; shown: number; done: boolean }) {
-  const { checks, chainId, status } = verification
+  const { checks, chainId, mode, status } = verification
   const visible = verification.lines.slice(0, shown)
   const browser = visible.filter((line) => line.source === 'browser')
-  const helios = visible.filter((line) => line.source === 'helios')
+  const chain = visible.filter((line) => line.source === mode)
   const target = checks.length === 1 ? checks[0].address : `${checks.length} contracts`
   return (
     <div className="font-mono text-xs leading-relaxed">
       {browser.map((line, index) => (
         <LogLineView key={index} line={line} tag />
       ))}
-      {helios.length > 0 ? (
+      {mode && chain.length > 0 ? (
         <Section
-          title="helios"
-          subtitle={`${target} on ${CHAIN_NAMES[chainId] ?? `chain ${chainId}`}`}
-          lines={helios}
+          title={mode}
+          color={mode === 'helios' ? 'text-cerulean-blue-500' : 'text-amber-600'}
+          icon={
+            mode === 'helios' ? (
+              <LocallyVerifiedIcon className="h-3.5 w-3.5 shrink-0" title="Verified on this machine" />
+            ) : (
+              <ThirdPartyIcon className="h-3.5 w-3.5 shrink-0" title="From a third party, not verified" />
+            )
+          }
+          subtitle={`${target} on ${chainName(chainId)}`}
+          lines={chain}
           state={done ? status : 'running'}
         />
       ) : (
@@ -151,7 +187,7 @@ export function GatePage({ request, onBack }: { request: SigningRequest; onBack:
   const [compact, setCompact] = useState(false)
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 py-2">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 py-2">
       <button onClick={onBack} className="self-start font-mono text-xs text-gray-400 hover:text-gray-600">
         ← all requests
       </button>

@@ -161,7 +161,7 @@ Each step ends with something that runs and can be reviewed. Steps 3 to 6 work o
 - Verification pipeline in TypeScript, in the app's webview: lib-sourcify, ethereumjs, viem, ERC-7730.
 - Rust side: relay, native messaging socket, pairing crypto, Helios, file access.
 - Helios reaches the webview through Tauri IPC, never a localhost port.
-- RPC mode is just another EIP-1193 provider; the pipeline cannot tell them apart.
+- RPC mode is just another EIP-1193 provider, in the webview: a plain fetch to the user's endpoint, so the webview's Content Security Policy must allow any HTTPS host and local nodes. The pipeline cannot tell the two modes apart.
 - The Chrome extension only intercepts and forwards; it never verifies anything.
 
 ## Version 1+

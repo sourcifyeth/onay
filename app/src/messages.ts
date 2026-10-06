@@ -5,6 +5,10 @@
 
 export type Hex = `0x${string}`
 
+export type StartChainArgs = { chainId: number; consensusRpc: string; executionRpc: string }
+
+export type StopChainArgs = { chainId: number }
+
 export type ChainReadyArgs = { chainId: number }
 
 // Mirrors `Ready`.
