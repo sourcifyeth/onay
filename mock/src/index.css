@@ -1,10 +1,10 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* Sourcify design tokens (mirrors repo.sourcify.dev globals.css) */
 @theme {
-  --font-sans: "IBM Plex Sans", sans-serif;
-  --font-mono: "IBM Plex Mono", monospace;
-  --font-vt323: "VT323", monospace;
+  --font-sans: 'IBM Plex Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-vt323: 'VT323', monospace;
 
   /* Cerulean Blue */
   --color-cerulean-blue-100: #e8efff;

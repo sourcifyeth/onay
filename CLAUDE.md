@@ -12,7 +12,7 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 - `README.md` — how to run and build everything, for development and production. Keep it current when commands change.
 - `mock/` — Vite + React + TypeScript playground (client-only, no SSR). The one place where vibecoding is allowed: Version 0's whole UX is mocked here with fake data, and the app takes its UI from the mock one feature at a time.
 - `app/` — the Tauri app: Vite + React + TypeScript webview in `app/src/`, Rust in `app/src-tauri/`, and the native messaging relay crate in `app/relay/`. One Cargo workspace at `app/Cargo.toml`, lockfile committed.
-- `extension/` — the Chrome extension (Manifest V3). Zero runtime dependencies: TypeScript compiled by `tsc` into plain ES modules in `extension/dist/`, no bundler. `inpage.ts` and `content.ts` are plain scripts, not modules: no imports or exports, types through `import('./messages.ts')`.
+- `extension/` — the Chrome extension (Manifest V3). Zero runtime dependencies: TypeScript compiled by `tsc` into plain ES modules in `extension/dist/`, no bundler. `inpage.ts` and `content.ts` are plain scripts, not modules: no imports or exports, types through `import('./messages.ts')`. `extension/README.md` explains the architecture.
 - `testdata/` — test vectors that the Rust and the TypeScript implementation of the encrypted channel must both match.
 - `extension/key.pem` (gitignored) is the private key behind the `key` field in `extension/manifest.json`. It fixes the extension ID to `jhopbgoicoiceialjejgojebmeijklbn`, which the app's host manifest allowlists. Back it up; never commit it.
 
@@ -29,6 +29,7 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 ## Commands
 
 - `pnpm install` — install everything (workspace).
+- `pnpm format` — format all JavaScript, TypeScript, JSON, CSS, YAML, TOML, and Markdown files with oxfmt (`.oxfmtrc.json`); `pnpm format:check` is what CI runs.
 - `pnpm --filter mock dev` — run the mock app (also available as the `onay-mock` launch.json preview, port 5199).
 - `pnpm --filter mock build` — typecheck + build the mock.
 - `pnpm --filter app tauri dev` — run the app (needs the Tauri Linux prerequisites: webkit2gtk 4.1 dev headers and friends).

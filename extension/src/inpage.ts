@@ -79,7 +79,9 @@
 
   function hasError(response: unknown): boolean {
     const responses = Array.isArray(response) ? response : [response]
-    return responses.some((entry) => typeof entry === 'object' && entry !== null && Boolean((entry as { error?: unknown }).error))
+    return responses.some(
+      (entry) => typeof entry === 'object' && entry !== null && Boolean((entry as { error?: unknown }).error),
+    )
   }
 
   // A callback that reports the answer and then calls the page's callback.
@@ -108,32 +110,47 @@
     const provider = candidate as Record<string, unknown>
 
     // request({ method, params }): the EIP-1193 call.
-    replace(provider, 'request', (original) => function (this: unknown, ...args: unknown[]) {
-      const ids = reportPayload(args[0])
-      return watchResult(ids, Reflect.apply(original, this, args))
-    })
+    replace(
+      provider,
+      'request',
+      (original) =>
+        function (this: unknown, ...args: unknown[]) {
+          const ids = reportPayload(args[0])
+          return watchResult(ids, Reflect.apply(original, this, args))
+        },
+    )
 
     // sendAsync(payload, callback): the older call.
-    replace(provider, 'sendAsync', (original) => function (this: unknown, ...args: unknown[]) {
-      const ids = reportPayload(args[0])
-      if (ids.length > 0 && typeof args[1] === 'function') args[1] = watchCallback(ids, args[1] as Method)
-      return Reflect.apply(original, this, args)
-    })
+    replace(
+      provider,
+      'sendAsync',
+      (original) =>
+        function (this: unknown, ...args: unknown[]) {
+          const ids = reportPayload(args[0])
+          if (ids.length > 0 && typeof args[1] === 'function') args[1] = watchCallback(ids, args[1] as Method)
+          return Reflect.apply(original, this, args)
+        },
+    )
 
     // send: the oldest call. It is send(method, params), or
     // send(payload, callback), or send(payload).
-    replace(provider, 'send', (original) => function (this: unknown, ...args: unknown[]) {
-      if (typeof args[0] === 'string') {
-        const id = report(args[0], args[1])
-        return watchResult(id === null ? [] : [id], Reflect.apply(original, this, args))
-      }
-      const ids = reportPayload(args[0])
-      if (ids.length > 0 && typeof args[1] === 'function') {
-        args[1] = watchCallback(ids, args[1] as Method)
-        return Reflect.apply(original, this, args)
-      }
-      return watchResult(ids, Reflect.apply(original, this, args))
-    })
+    replace(
+      provider,
+      'send',
+      (original) =>
+        function (this: unknown, ...args: unknown[]) {
+          if (typeof args[0] === 'string') {
+            const id = report(args[0], args[1])
+            return watchResult(id === null ? [] : [id], Reflect.apply(original, this, args))
+          }
+          const ids = reportPayload(args[0])
+          if (ids.length > 0 && typeof args[1] === 'function') {
+            args[1] = watchCallback(ids, args[1] as Method)
+            return Reflect.apply(original, this, args)
+          }
+          return watchResult(ids, Reflect.apply(original, this, args))
+        },
+    )
   }
 
   function watchGlobal() {

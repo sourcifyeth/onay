@@ -18,7 +18,10 @@ function describe(status: LinkStatus): [string, string] {
     case 'ready':
       return ['Connected to the Onay app.', 'The app shows each signing request. Your wallet gets it at the same time.']
     case 'pairing':
-      return ['Pair with the Onay app', 'Make sure that the Onay app shows this code. Then approve the pairing in the app.']
+      return [
+        'Pair with the Onay app',
+        'Make sure that the Onay app shows this code. Then approve the pairing in the app.',
+      ]
     case 'unavailable':
       if (status.reason === 'not-installed') {
         return ['The Onay app is not installed.', 'Install the app and start it once. This page connects by itself.']
@@ -39,9 +42,7 @@ function show(update: StatusUpdate) {
   detail.textContent = text
   code.textContent = status.state === 'pairing' ? status.code : ''
   waiting.textContent =
-    update.waiting > 0
-      ? `${update.waiting} signing request(s) wait for the app. Your wallet has them already.`
-      : ''
+    update.waiting > 0 ? `${update.waiting} signing request(s) wait for the app. Your wallet has them already.` : ''
 }
 
 const port = chrome.runtime.connect({ name: 'status' })

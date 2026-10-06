@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { fromBase64, generateIdentity, pairingCode, publicKeyBytes, randomSalt, session, toBase64 } from '../src/channel.ts'
+import {
+  fromBase64,
+  generateIdentity,
+  pairingCode,
+  publicKeyBytes,
+  randomSalt,
+  session,
+  toBase64,
+} from '../src/channel.ts'
 import type { Bytes, Opener, Sealer } from '../src/channel.ts'
 import { Link } from '../src/link.ts'
 import type { NativePort } from '../src/link.ts'
@@ -155,7 +163,10 @@ test('known app: ready without pairing', async () => {
   link.start()
   await app.answerHello(ports[0], true)
   await until(() => link.status.state === 'ready')
-  assert.deepEqual(statuses.map((status) => status.state), ['connecting', 'ready'])
+  assert.deepEqual(
+    statuses.map((status) => status.state),
+    ['connecting', 'ready'],
+  )
 })
 
 test('an app that claims a pairing with another key is refused', async () => {
@@ -186,7 +197,11 @@ test('the relay reports that the app is not running, and a new start connects ag
   ports[0].receive({ type: 'error', message: 'app not running' })
   ports[0].close()
   await until(() => link.status.state === 'unavailable')
-  assert.deepEqual(link.status, { state: 'unavailable', reason: 'not-running', message: 'The Onay app is not running.' })
+  assert.deepEqual(link.status, {
+    state: 'unavailable',
+    reason: 'not-running',
+    message: 'The Onay app is not running.',
+  })
 
   link.start()
   assert.equal(ports.length, 2)

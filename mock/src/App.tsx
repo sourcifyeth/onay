@@ -26,23 +26,13 @@ function chainName(chainId: number): string {
   return known[chainId] ?? `chain ${chainId}`
 }
 
-function Header({
-  request,
-  onSettings,
-}: {
-  request: MockRequest | null
-  onSettings?: () => void
-}) {
+function Header({ request, onSettings }: { request: MockRequest | null; onSettings?: () => void }) {
   const helios = request?.chainMode === 'helios'
   return (
     <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3">
       <span className="font-vt323 text-3xl text-cerulean-blue-500">Onay</span>
       {onSettings && (
-        <button
-          onClick={onSettings}
-          title="Settings"
-          className="font-mono text-xs text-gray-400 hover:text-gray-600"
-        >
+        <button onClick={onSettings} title="Settings" className="font-mono text-xs text-gray-400 hover:text-gray-600">
           settings
         </button>
       )}
@@ -54,9 +44,7 @@ function Header({
               helios ? 'text-cerulean-blue-600' : 'text-amber-600'
             }`}
           >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${helios ? 'bg-cerulean-blue-500' : 'bg-amber-500'}`}
-            />
+            <span className={`h-1.5 w-1.5 rounded-full ${helios ? 'bg-cerulean-blue-500' : 'bg-amber-500'}`} />
             {helios ? 'Helios mode' : 'RPC mode'}
           </p>
         </div>
@@ -117,8 +105,8 @@ function DigestBox({ digest }: { digest: { label: string; value: string } }) {
       </p>
       <p className="break-all pt-1 font-mono text-xs text-gray-800">{digest.value}</p>
       <p className="pt-2 text-xs leading-relaxed text-gray-500">
-        If your wallet shows a {digest.label} before signing, it must match this one exactly. A
-        match proves your wallet received exactly what you just reviewed here.
+        If your wallet shows a {digest.label} before signing, it must match this one exactly. A match proves your wallet
+        received exactly what you just reviewed here.
       </p>
     </div>
   )
@@ -219,10 +207,7 @@ function App() {
             {phase === 'verifying' && <GateLog request={request} onDone={gateDone} />}
             {phase !== 'verifying' && (
               <>
-                <ChainDataStep
-                  request={request}
-                  rpcUrl={chains.find((c) => c.id === request.chainId)?.executionRpc}
-                />
+                <ChainDataStep request={request} rpcUrl={chains.find((c) => c.id === request.chainId)?.executionRpc} />
                 <VerificationStep request={request} />
                 <ProfileStep request={request} />
               </>
@@ -274,12 +259,7 @@ function App() {
         )}
 
         {phase === 'rejected' && (
-          <EndState
-            tone="blocked"
-            title="Request rejected"
-            message="Nothing reached your wallet."
-            onHome={reset}
-          />
+          <EndState tone="blocked" title="Request rejected" message="Nothing reached your wallet." onHome={reset} />
         )}
       </main>
       <DebugBar

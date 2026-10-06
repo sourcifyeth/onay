@@ -20,8 +20,17 @@ export function localVerificationLog(contract: MockContract): LogLine[] {
     ]
   }
   return [
-    { tag: 'sourcify', text: `fetching sources for ${contract.address} · ${contract.sources.length} files`, delay: 300 },
-    { tag: 'sourcify', text: 'solc 0.8.24+commit.e11b9ed9 · wasm · hash verified against solc-bin', delay: 300, ok: true },
+    {
+      tag: 'sourcify',
+      text: `fetching sources for ${contract.address} · ${contract.sources.length} files`,
+      delay: 300,
+    },
+    {
+      tag: 'sourcify',
+      text: 'solc 0.8.24+commit.e11b9ed9 · wasm · hash verified against solc-bin',
+      delay: 300,
+      ok: true,
+    },
     { tag: 'sourcify', text: 'compiling…', delay: 500 },
     { tag: 'sourcify', text: `runtime bytecode compare · ${contract.matchType}`, delay: 300, ok: true },
   ]
@@ -40,7 +49,11 @@ export function heliosSyncLog(chain: string): LogLine[] {
   const { checkpoint, checkpointAge, signatures, slot } = HELIOS_STATE
   return [
     { tag: 'helios', text: `starting light client · network=${chain}`, delay: 250 },
-    { tag: 'helios', text: `checkpoint ${checkpoint} · age ${checkpointAge} · within weak subjectivity window`, delay: 300 },
+    {
+      tag: 'helios',
+      text: `checkpoint ${checkpoint} · age ${checkpointAge} · within weak subjectivity window`,
+      delay: 300,
+    },
     { tag: 'helios', text: `sync committee verified · ${signatures}/${signatures} signatures`, delay: 350, ok: true },
     { tag: 'helios', text: `finalized head · slot ${slot.toLocaleString('en-US')} · in sync`, delay: 250 },
   ]

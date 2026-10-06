@@ -44,10 +44,7 @@ export function IconsPreview() {
           <p className="pt-0.5 text-sm text-gray-500">{meaning}</p>
 
           {(['bg-white', 'bg-gray-50', 'bg-gray-900'] as const).map((bg) => (
-            <div
-              key={bg}
-              className={`mt-3 flex items-end gap-5 rounded-lg border border-gray-200 px-4 py-3 ${bg}`}
-            >
+            <div key={bg} className={`mt-3 flex items-end gap-5 rounded-lg border border-gray-200 px-4 py-3 ${bg}`}>
               {sizes.map(({ px, cls }) => (
                 <div key={px} className="flex flex-col items-center gap-1.5">
                   <Icon className={cls} title={label} />

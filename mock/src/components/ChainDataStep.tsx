@@ -21,9 +21,7 @@ function readAddresses(request: MockRequest): { address: string; name?: string }
     const to = request.raw.find((f) => f.name === 'to')?.value ?? ''
     return [{ address: to }]
   }
-  return request.contracts.filter(
-    (c, i, all) => all.findIndex((o) => o.address === c.address) === i,
-  )
+  return request.contracts.filter((c, i, all) => all.findIndex((o) => o.address === c.address) === i)
 }
 
 function CodeReads({ request, helios }: { request: MockRequest; helios: boolean }) {
@@ -60,9 +58,7 @@ function HeliosCard({ request }: { request: MockRequest }) {
     ...readAddresses(request).map(({ address }) => codeReadLog(address, true, empty)),
   ]
   return (
-    <CollapsibleCard
-      summary={<p className="text-sm font-medium text-green-700">✓ Chain data verified by Helios</p>}
-    >
+    <CollapsibleCard summary={<p className="text-sm font-medium text-green-700">✓ Chain data verified by Helios</p>}>
       <div className="divide-y divide-gray-100">
         <Row label="Starting point">
           block <span className="font-mono text-[13px]">{checkpoint}</span> · {checkpointAge} old
@@ -82,17 +78,15 @@ function HeliosCard({ request }: { request: MockRequest }) {
 
 function RpcCard({ request, rpcUrl }: { request: MockRequest; rpcUrl?: string }) {
   const empty = request.contracts.length === 0
-  const lines: LogLine[] = readAddresses(request).map(({ address }) =>
-    codeReadLog(address, false, empty),
-  )
+  const lines: LogLine[] = readAddresses(request).map(({ address }) => codeReadLog(address, false, empty))
   return (
     <CollapsibleCard
       summary={
         <div className="rounded-lg border-2 border-amber-400 bg-amber-50 px-4 py-4">
           <p className="text-lg font-semibold text-amber-800">⚠ Chain data is not verified</p>
           <p className="pt-1 text-sm leading-relaxed text-gray-700">
-            Helios does not support {request.chain}. Every answer comes straight from the RPC
-            endpoint, with no proof. Only use RPC endpoints you fully trust.
+            Helios does not support {request.chain}. Every answer comes straight from the RPC endpoint, with no proof.
+            Only use RPC endpoints you fully trust.
           </p>
         </div>
       }

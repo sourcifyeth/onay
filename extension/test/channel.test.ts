@@ -2,7 +2,15 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
-import { fromBase64, generateIdentity, pairingCode, publicKeyBytes, randomSalt, session, toBase64 } from '../src/channel.ts'
+import {
+  fromBase64,
+  generateIdentity,
+  pairingCode,
+  publicKeyBytes,
+  randomSalt,
+  session,
+  toBase64,
+} from '../src/channel.ts'
 import type { Bytes, Hello } from '../src/channel.ts'
 
 const encoder = new TextEncoder()
@@ -78,8 +86,7 @@ test('matches the shared test vectors', async () => {
   const vectors = JSON.parse(readFileSync(new URL('../../testdata/channel-v1.json', import.meta.url), 'utf8'))
   const bytes = (name: string): Bytes => fromBase64(vectors[name])
   // PKCS #8 wrapping of a raw X25519 private key.
-  const pkcs8 = (secret: Bytes) =>
-    new Uint8Array([...fromBase64('MC4CAQAwBQYDK2VuBCIEIA=='), ...secret])
+  const pkcs8 = (secret: Bytes) => new Uint8Array([...fromBase64('MC4CAQAwBQYDK2VuBCIEIA=='), ...secret])
   const importSecret = (name: string) =>
     crypto.subtle.importKey('pkcs8', pkcs8(bytes(name)), { name: 'X25519' }, false, ['deriveBits'])
 

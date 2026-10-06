@@ -32,9 +32,7 @@ function BigAddress({ value }: { value: string }) {
 
 function Target({ request }: { request: MockRequest }) {
   if (request.batch) {
-    const targets = [
-      ...new Set(request.batch.calls.map((c) => c.raw.find((f) => f.name === 'to')?.value ?? '')),
-    ]
+    const targets = [...new Set(request.batch.calls.map((c) => c.raw.find((f) => f.name === 'to')?.value ?? ''))]
     return (
       <>
         <p className="text-xs text-gray-500">Contracts</p>
@@ -44,8 +42,7 @@ function Target({ request }: { request: MockRequest }) {
       </>
     )
   }
-  const target =
-    request.contracts[0]?.address ?? request.raw.find((f) => f.name === 'to')?.value ?? ''
+  const target = request.contracts[0]?.address ?? request.raw.find((f) => f.name === 'to')?.value ?? ''
   const label =
     request.contracts.length === 0
       ? 'Recipient · not a contract'

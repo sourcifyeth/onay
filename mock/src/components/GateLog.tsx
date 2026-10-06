@@ -1,12 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { MockRequest } from '../data/mockRequest'
-import {
-  codeReadLog,
-  heliosSyncLog,
-  localVerificationLog,
-  type LogLine,
-  type Tag,
-} from '../data/verificationLog'
+import { codeReadLog, heliosSyncLog, localVerificationLog, type LogLine, type Tag } from '../data/verificationLog'
 
 const TAG_STYLE: Record<Tag, string> = {
   helios: 'text-cerulean-blue-500',
@@ -19,8 +13,7 @@ export function LogLineView({ line }: { line: LogLine }) {
   return (
     <p className="break-all">
       {line.stamp && <span className="text-gray-300">{line.stamp} </span>}
-      <span className={TAG_STYLE[line.tag]}>{line.tag}</span>{' '}
-      <span className="text-gray-500">{line.text}</span>
+      <span className={TAG_STYLE[line.tag]}>{line.tag}</span> <span className="text-gray-500">{line.text}</span>
       {line.ok === true && <span className="text-green-600"> ✓</span>}
       {line.ok === false && <span className="text-light-coral-700"> ✕</span>}
     </p>
@@ -50,8 +43,7 @@ export function CollapsibleLog({ lines }: { lines: LogLine[] }) {
 }
 
 function buildLog(request: MockRequest): LogLine[] {
-  const target =
-    request.contracts[0]?.address ?? request.raw.find((f) => f.name === 'to')?.value ?? ''
+  const target = request.contracts[0]?.address ?? request.raw.find((f) => f.name === 'to')?.value ?? ''
   const lines: LogLine[] = [
     { tag: 'verifier', text: `request received · ${request.method} · via ${request.via}`, delay: 200 },
   ]
@@ -108,21 +100,21 @@ function buildLog(request: MockRequest): LogLine[] {
 
       const [first, ...rest] = request.contracts
       if (request.outcome === 'unverified') {
-        lines.push(
-          ...localVerificationLog(first),
-          { tag: 'verifier', text: `0/${request.contracts.length} contracts verified · halting`, delay: 350, ok: false },
-        )
+        lines.push(...localVerificationLog(first), {
+          tag: 'verifier',
+          text: `0/${request.contracts.length} contracts verified · halting`,
+          delay: 350,
+          ok: false,
+        })
       } else {
         lines.push(
           ...localVerificationLog(first),
-          ...rest.map(
-            (c): LogLine => ({
-              tag: 'sourcify',
-              text: `${c.address} · recompiled · ${c.matchType}`,
-              delay: 350,
-              ok: true,
-            }),
-          ),
+          ...rest.map((c): LogLine => ({
+            tag: 'sourcify',
+            text: `${c.address} · recompiled · ${c.matchType}`,
+            delay: 350,
+            ok: true,
+          })),
           {
             tag: 'verifier',
             text: `${request.contracts.length}/${request.contracts.length} contracts verified · opening`,
@@ -163,8 +155,7 @@ export function GateLog({ request, onDone }: GateLogProps) {
     return () => timers.forEach(clearTimeout)
   }, [lines, onDone])
 
-  const target =
-    request.contracts[0]?.address ?? request.raw.find((f) => f.name === 'to')?.value ?? ''
+  const target = request.contracts[0]?.address ?? request.raw.find((f) => f.name === 'to')?.value ?? ''
 
   return (
     <div className="font-mono text-xs">

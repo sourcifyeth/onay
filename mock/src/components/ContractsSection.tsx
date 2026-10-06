@@ -39,15 +39,7 @@ interface ContractCardProps {
   onNextFunction: () => void
 }
 
-function ContractCard({
-  contract,
-  chainId,
-  selector,
-  expanded,
-  hasNext,
-  onToggle,
-  onNextFunction,
-}: ContractCardProps) {
+function ContractCard({ contract, chainId, selector, expanded, hasNext, onToggle, onNextFunction }: ContractCardProps) {
   const verified = contract.matchType !== 'no match'
 
   const body = verified ? (
@@ -78,18 +70,12 @@ function ContractCard({
   ) : (
     <div>
       <p className="rounded-lg border-l-2 border-light-coral-500 bg-light-coral-100 px-3 py-2 text-xs leading-relaxed text-gray-700">
-        No verified source for this contract on Sourcify. There is nothing to review: the function
-        name above comes from the public signature database and only matches the selector, it is not
-        proof of what the code does.
+        No verified source for this contract on Sourcify. There is nothing to review: the function name above comes from
+        the public signature database and only matches the selector, it is not proof of what the code does.
       </p>
       {selector && (
         <div className="mt-3">
-          <a
-            href={`https://4byte.sourcify.dev/?q=${selector}`}
-            target="_blank"
-            rel="noreferrer"
-            className={actionBtn}
-          >
+          <a href={`https://4byte.sourcify.dev/?q=${selector}`} target="_blank" rel="noreferrer" className={actionBtn}>
             Look up selector {selector} ↗
           </a>
         </div>
@@ -99,10 +85,7 @@ function ContractCard({
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
-      <button
-        onClick={onToggle}
-        className="flex w-full items-center justify-between gap-4 px-5 py-3 text-left"
-      >
+      <button onClick={onToggle} className="flex w-full items-center justify-between gap-4 px-5 py-3 text-left">
         <div className="min-w-0">
           <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <span className="text-xs text-gray-500">Contract</span>
@@ -153,8 +136,8 @@ export function ContractsSection({ request }: { request: MockRequest }) {
       </h2>
       {contracts.length === 0 && (
         <p className="rounded-xl border border-gray-200 bg-white px-5 py-4 text-sm text-gray-600 shadow-sm">
-          The recipient is not a contract: this is a plain ETH transfer to an externally owned
-          account, with no code involved.
+          The recipient is not a contract: this is a plain ETH transfer to an externally owned account, with no code
+          involved.
         </p>
       )}
       <div className="flex flex-col gap-2">

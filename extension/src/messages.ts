@@ -4,7 +4,8 @@
 // ---- Page script to content script to service worker ----
 
 // From inpage.ts, by window.postMessage. The page can forge these, so the
-// service worker checks each field.
+// service worker checks each field. `id` is a counter per page; a `settled`
+// message names the `request` it belongs to.
 export type PageMessage =
   | { onay: 'request'; id: string; method: string; params: unknown }
   | { onay: 'settled'; id: string; outcome: Outcome }
@@ -27,7 +28,8 @@ export type ServerFrame =
   | { type: 'sealed'; data: string }
   | { type: 'error'; message: string }
 
-// Inside a sealed frame.
+// Inside a sealed frame. `id` is the page counter with the browser's ID of
+// the document in front, so requests of different tabs never collide.
 export type ClientMessage =
   | { type: 'request'; id: string; origin: string; method: string; params: unknown }
   | { type: 'settled'; id: string; outcome: Outcome }

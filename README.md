@@ -10,10 +10,10 @@ The plan of record is [PLAN.md](PLAN.md).
 
 ## What is in this repo
 
-| Folder | What it is |
-|---|---|
-| `app/` | The desktop app (Tauri). The web user interface is in `app/src/`, the Rust side in `app/src-tauri/`. Also holds the relay (`app/relay/`) and the code that relay and app share (`app/ipc/`). |
-| `extension/` | The Chrome extension (Manifest V3). No runtime dependencies. |
+| Folder       | What it is                                                                                                                                                                                   |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/`       | The desktop app (Tauri). The web user interface is in `app/src/`, the Rust side in `app/src-tauri/`. Also holds the relay (`app/relay/`) and the code that relay and app share (`app/ipc/`). |
+| `extension/` | The Chrome extension (Manifest V3). No runtime dependencies.                                                                                                                                 |
 
 ## Prerequisites
 
@@ -75,15 +75,16 @@ On Linux the app accepts a connection only from an approved browser that is inst
 
 Run these before you push. Continuous integration (CI) runs the same commands.
 
-| Command | Where | What it does |
-|---|---|---|
-| `pnpm -r build` | repo root | Type-checks and builds the mock, the app's web user interface, and the extension. |
-| `pnpm -r lint` | repo root | Runs oxlint. |
-| `pnpm -r test` | repo root | Runs the extension tests with the Node.js test runner. |
-| `cargo test` | `app/` | Runs the Rust tests, including one that drives the real relay binary. |
-| `cargo clippy --all-targets -- -D warnings` | `app/` | Rust lints. |
-| `cargo fmt --all --check` | `app/` | Rust formatting. |
-| `cargo deny check` | `app/` | Advisories, licenses, and sources of the Rust dependencies. Install once with `cargo install --locked cargo-deny`. |
+| Command                                     | Where     | What it does                                                                                                       |
+| ------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------ |
+| `pnpm -r build`                             | repo root | Type-checks and builds the mock, the app's web user interface, and the extension.                                  |
+| `pnpm format:check`                         | repo root | Checks the formatting with oxfmt. `pnpm format` fixes it.                                                          |
+| `pnpm -r lint`                              | repo root | Runs oxlint.                                                                                                       |
+| `pnpm -r test`                              | repo root | Runs the extension tests with the Node.js test runner.                                                             |
+| `cargo test`                                | `app/`    | Runs the Rust tests, including one that drives the real relay binary.                                              |
+| `cargo clippy --all-targets -- -D warnings` | `app/`    | Rust lints.                                                                                                        |
+| `cargo fmt --all --check`                   | `app/`    | Rust formatting.                                                                                                   |
+| `cargo deny check`                          | `app/`    | Advisories, licenses, and sources of the Rust dependencies. Install once with `cargo install --locked cargo-deny`. |
 
 ## Production
 

@@ -81,7 +81,10 @@ test('the report comes before the wallet is called', () => {
       return Promise.resolve()
     },
   })
-  ;(state.window.ethereum as { request: (args: unknown) => unknown }).request({ method: 'eth_sendTransaction', params: [{}] })
+  ;(state.window.ethereum as { request: (args: unknown) => unknown }).request({
+    method: 'eth_sendTransaction',
+    params: [{}],
+  })
   assert.ok(reportedFirst)
 })
 
@@ -90,7 +93,10 @@ test('a rejection by the wallet reaches the page and is reported', async () => {
   const provider = wallet(() => Promise.reject(refusal))
   const { posted } = page(provider)
 
-  await assert.rejects(provider.request({ method: 'eth_sendTransaction', params: [{ to: '0x1' }] }) as Promise<unknown>, refusal)
+  await assert.rejects(
+    provider.request({ method: 'eth_sendTransaction', params: [{ to: '0x1' }] }) as Promise<unknown>,
+    refusal,
+  )
   await tick()
   assert.deepEqual(posted.at(-1), { onay: 'settled', id: '1', outcome: 'rejected' })
 })
@@ -210,12 +216,15 @@ test('a batch reports each signing request in it', async () => {
     ],
     () => {},
   )
-  assert.deepEqual(posted.map((message) => [message.onay, message.id]), [
-    ['request', '1'],
-    ['request', '2'],
-    ['settled', '1'],
-    ['settled', '2'],
-  ])
+  assert.deepEqual(
+    posted.map((message) => [message.onay, message.id]),
+    [
+      ['request', '1'],
+      ['request', '2'],
+      ['settled', '1'],
+      ['settled', '2'],
+    ],
+  )
 })
 
 test('send in its three forms', async () => {
@@ -232,14 +241,10 @@ test('send in its three forms', async () => {
   provider.send({ method: 'eth_sign', params: ['b'] }, () => {})
   await provider.send({ method: 'eth_sendTransaction', params: ['c'] })
   await tick()
-  assert.deepEqual(posted.map((message) => (message.onay === 'request' ? message.method : message.outcome)), [
-    'personal_sign',
-    'fulfilled',
-    'eth_sign',
-    'rejected',
-    'eth_sendTransaction',
-    'fulfilled',
-  ])
+  assert.deepEqual(
+    posted.map((message) => (message.onay === 'request' ? message.method : message.outcome)),
+    ['personal_sign', 'fulfilled', 'eth_sign', 'rejected', 'eth_sendTransaction', 'fulfilled'],
+  )
 })
 
 test('a frozen provider keeps working and is not watched', async () => {

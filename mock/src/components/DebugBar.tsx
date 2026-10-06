@@ -12,8 +12,7 @@ interface DebugBarProps {
   onReset: () => void
 }
 
-const btn =
-  'rounded px-2 py-1 hover:bg-white/15 transition-colors text-left whitespace-nowrap'
+const btn = 'rounded px-2 py-1 hover:bg-white/15 transition-colors text-left whitespace-nowrap'
 
 export function DebugBar({
   phase,

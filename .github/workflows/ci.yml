@@ -30,6 +30,8 @@ jobs:
           cache: pnpm
       # the frozen-lockfile guardrail: lockfile drift fails here
       - run: pnpm install --frozen-lockfile
+      # formatting (oxfmt) is checked, never changed, in CI
+      - run: pnpm format:check
       - run: pnpm -r build
       - run: pnpm -r lint
       - run: pnpm -r test

@@ -187,11 +187,7 @@ const pairContract: MockContract = {
   sources: ['contracts/ExamplePair.sol', 'contracts/interfaces/IERC20.sol'],
 }
 
-const usdcSources = [
-  'contracts/FiatTokenV2_2.sol',
-  'contracts/FiatTokenV2.sol',
-  'contracts/AbstractFiatTokenV2.sol',
-]
+const usdcSources = ['contracts/FiatTokenV2_2.sol', 'contracts/FiatTokenV2.sol', 'contracts/AbstractFiatTokenV2.sol']
 
 const usdcTransferContract: MockContract = {
   depth: 0,
@@ -381,9 +377,7 @@ const approveUnlimited: MockRequest = {
       { name: 'Spender', value: 'Permit2 (0x0000…8ba3)' },
     ],
     provenance: { text: 'ERC-7730 descriptor by Circle, from the registry', url: REGISTRY_URL },
-    warnings: [
-      'The approval is unlimited: until revoked, the spender can move any amount of your USDC at any time.',
-    ],
+    warnings: ['The approval is unlimited: until revoked, the spender can move any amount of your USDC at any time.'],
   },
   raw: [
     { name: 'chainId', value: '1' },
@@ -515,7 +509,11 @@ struct PermitDetails {
     uint48 expiration;
     uint48 nonce;
 }`,
-      sources: ['contracts/Permit2.sol', 'contracts/AllowanceTransfer.sol', 'contracts/interfaces/IAllowanceTransfer.sol'],
+      sources: [
+        'contracts/Permit2.sol',
+        'contracts/AllowanceTransfer.sol',
+        'contracts/interfaces/IAllowanceTransfer.sol',
+      ],
     },
   ],
 }
@@ -744,7 +742,8 @@ const safeNested: MockRequest = {
       address: SAFE,
       name: 'GnosisSafe (v1.3.0)',
       matchType: 'match',
-      functionSignature: 'execTransaction(address, uint256, bytes, uint8, uint256, uint256, uint256, address, address, bytes)',
+      functionSignature:
+        'execTransaction(address, uint256, bytes, uint8, uint256, uint256, uint256, address, address, bytes)',
       functionSource: `function execTransaction(
     address to,
     uint256 value,
@@ -1265,9 +1264,7 @@ const contractInfo: Record<string, ContractInfo> = {
     lists: [LISTS.uniswapDeployments, LISTS.erc7730],
     explorers: { etherscan: true, blockscout: true },
     ethBalance: '0 ETH',
-    tokens: [
-      { symbol: 'USDC', amount: '102.5', usd: '$103' },
-    ],
+    tokens: [{ symbol: 'USDC', amount: '102.5', usd: '$103' }],
     deployer: {
       address: '0x6c7e2f4a0b8d1e3c5f9a7b2d4e6c8a0f1b3d5e7a',
       kind: 'account',
@@ -1287,9 +1284,7 @@ const contractInfo: Record<string, ContractInfo> = {
     explorers: { etherscan: true, blockscout: true },
     ethBalance: '0.5 ETH',
     ethUsd: '$1.3K',
-    tokens: [
-      { symbol: 'ApeCoin', amount: '1,004', usd: '$720' },
-    ],
+    tokens: [{ symbol: 'ApeCoin', amount: '1,004', usd: '$720' }],
     deployer: {
       address: '0xaba7161a7fb69c88e16ed9f455ce62b791ee4d03',
       kind: 'account',
@@ -1348,9 +1343,7 @@ const contractInfo: Record<string, ContractInfo> = {
     lists: [],
     explorers: { etherscan: true, blockscout: true },
     ethBalance: '0 ETH',
-    tokens: [
-      { symbol: 'USDC', amount: '12,804,330', usd: '$12.8M' },
-    ],
+    tokens: [{ symbol: 'USDC', amount: '12,804,330', usd: '$12.8M' }],
     deployer: {
       address: '0x8e1d0b3f5a7c9e2d4f6b8a0c1e3d5f7a9b2c4d6e',
       kind: 'account',

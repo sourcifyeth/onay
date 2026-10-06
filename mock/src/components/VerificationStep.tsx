@@ -121,9 +121,7 @@ function VerifiedEverywhere({ list }: { list: Source[] }) {
       >
         <span className="text-sm font-medium text-green-700">
           ✓ Verified everywhere
-          <span className="pl-2 font-normal text-gray-500">
-            {list.map((s) => s.name).join(', ')}
-          </span>
+          <span className="pl-2 font-normal text-gray-500">{list.map((s) => s.name).join(', ')}</span>
         </span>
         <span className="shrink-0 text-gray-400">{open ? '▴' : '▾'}</span>
       </button>

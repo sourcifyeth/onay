@@ -32,9 +32,7 @@ export function CodeView({ code }: { code: string }) {
         <tbody>
           {lines.map((line, i) => (
             <tr key={i}>
-              <td className="w-8 select-none pr-3 pl-3 text-right align-top text-gray-300">
-                {i + 1}
-              </td>
+              <td className="w-8 select-none pr-3 pl-3 text-right align-top text-gray-300">{i + 1}</td>
               <td className="whitespace-pre pr-4 text-gray-800">
                 {tokenizeLine(line).map((t, j) =>
                   t.cls ? (

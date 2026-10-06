@@ -1,12 +1,6 @@
 import type { ReactNode } from 'react'
 import { BLOCKSCOUT, ETHERSCAN } from '../data/explorers'
-import {
-  getContractInfo,
-  type Deployer,
-  type Holding,
-  type MockContract,
-  type MockRequest,
-} from '../data/mockRequest'
+import { getContractInfo, type Deployer, type Holding, type MockContract, type MockRequest } from '../data/mockRequest'
 import { Step } from './Step'
 
 function age(iso: string): string {
@@ -100,22 +94,12 @@ function DeployerSection({ deployer, chainId }: { deployer: Deployer; chainId: n
         </p>
         <p className="flex gap-3 pb-1">
           {etherscan && (
-            <a
-              href={`${etherscan}/address/${deployer.address}`}
-              target="_blank"
-              rel="noreferrer"
-              className={link}
-            >
+            <a href={`${etherscan}/address/${deployer.address}`} target="_blank" rel="noreferrer" className={link}>
               Etherscan ↗
             </a>
           )}
           {blockscout && (
-            <a
-              href={`${blockscout}/address/${deployer.address}`}
-              target="_blank"
-              rel="noreferrer"
-              className={link}
-            >
+            <a href={`${blockscout}/address/${deployer.address}`} target="_blank" rel="noreferrer" className={link}>
               Blockscout ↗
             </a>
           )}

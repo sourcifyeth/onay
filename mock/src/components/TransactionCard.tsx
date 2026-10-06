@@ -18,22 +18,11 @@ function Interpolated({ parts }: { parts: IntentPart[] }) {
   )
 }
 
-function IntentToggle({
-  pill,
-  open,
-  onToggle,
-}: {
-  pill: ReactNode
-  open: boolean
-  onToggle: () => void
-}) {
+function IntentToggle({ pill, open, onToggle }: { pill: ReactNode; open: boolean; onToggle: () => void }) {
   return (
     <p className="flex items-center justify-between pb-2">
       {pill}
-      <button
-        onClick={onToggle}
-        className="font-mono text-xs text-gray-400 transition-colors hover:text-gray-600"
-      >
+      <button onClick={onToggle} className="font-mono text-xs text-gray-400 transition-colors hover:text-gray-600">
         {open ? 'hide intent ▴' : 'show intent ▾'}
       </button>
     </p>
@@ -155,8 +144,8 @@ function ClearSigningPane({ request }: { request: MockRequest }) {
     return (
       <div>
         <p className="rounded-lg border-l-2 border-amber-400 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-          No ERC-7730 clear signing descriptor is registered for this contract, so there is no
-          reviewed description of what this transaction does.{' '}
+          No ERC-7730 clear signing descriptor is registered for this contract, so there is no reviewed description of
+          what this transaction does.{' '}
           {unverifiedEntry
             ? 'The contract is not verified either: parameter names below are a signature database guess.'
             : 'The parameters below are decoded from the verified ABI; the names come from the source code, not from a reviewed descriptor.'}
@@ -177,11 +166,7 @@ function ClearSigningPane({ request }: { request: MockRequest }) {
 
   return (
     <div>
-      <IntentToggle
-        pill={<Pill>{cs.intent}</Pill>}
-        open={showIntent}
-        onToggle={() => setShowIntent((v) => !v)}
-      />
+      <IntentToggle pill={<Pill>{cs.intent}</Pill>} open={showIntent} onToggle={() => setShowIntent((v) => !v)} />
       {showIntent && <Interpolated parts={cs.interpolatedIntent} />}
       <FieldList fields={cs.fields} />
       <Warnings warnings={cs.warnings} />
