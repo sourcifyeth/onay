@@ -25,9 +25,9 @@ flowchart LR
   inpage -. watches .- wallet
   inpage -- postMessage --> content
   content -- sendMessage --> background
-  background --> link
-  link --> channel
-  link --> store
+  background -- requests --> link
+  link -. seal / open message .-> channel
+  link -. keys .-> store
   popup <-- port --> background
   link -- native messaging --> app
 ```
@@ -71,3 +71,15 @@ pnpm package    # onay-extension.zip for the Chrome Web Store
 ```
 
 The tests in `test/` run the channel against the shared vectors in `../testdata/`, the link against a fake app, and the built `dist/inpage.js` inside a fake page.
+
+## Fonts
+
+The fonts in `fonts/` are the unmodified IBM Plex files from [IBM's repository](https://github.com/IBM/plex) at commit `763c36ef9117`, under the SIL Open Font License 1.1 (`fonts/LICENSE.txt`). Their SHA-256 checksums:
+
+```
+33faf307fa6031fb4062276d7320a6d632de890cbb347576fd80cfa01077bc25  IBMPlexMono-Medium.woff2
+ba204497f16b6d334cee9d1e963a831b73e3a56e1d6300a8489d18df7214b350  IBMPlexMono-Regular.woff2
+5660f8a658f8bb50dbc005232f885eadffd2bc1c235c4f6fbb63469d1f9cde6d  IBMPlexSans-Medium.woff2
+ba711a3085ff9f27440b6b9c4550cfc47c97bf36591d5da958b975bb3add8c1a  IBMPlexSans-Regular.woff2
+f78048030eab62e860efa39a0df79e2e5581bf122eb95b9bc42c0b8a4988d205  IBMPlexSans-SemiBold.woff2
+```

@@ -60,7 +60,7 @@ async function updatePrompt(status: LinkStatus) {
   if (needed && promptWindow === null) {
     // Reserve the slot first: two calls must not open two windows.
     promptWindow = chrome.windows.WINDOW_ID_NONE
-    const created = await chrome.windows.create({ url: 'popup.html', type: 'popup', width: 400, height: 320 })
+    const created = await chrome.windows.create({ url: 'popup.html', type: 'popup', width: 420, height: 400 })
     promptWindow = created?.id ?? null
   } else if (!needed && promptWindow !== null && promptWindow !== chrome.windows.WINDOW_ID_NONE) {
     const id = promptWindow

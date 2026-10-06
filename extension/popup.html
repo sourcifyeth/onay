@@ -3,39 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <title>Onay</title>
-    <style>
-      body {
-        margin: 16px;
-        min-width: 300px;
-        font:
-          14px system-ui,
-          sans-serif;
-      }
-      h1 {
-        margin: 0 0 8px;
-        font-size: 16px;
-      }
-      p {
-        margin: 8px 0 0;
-      }
-      #code {
-        font:
-          600 32px ui-monospace,
-          monospace;
-        letter-spacing: 2px;
-      }
-      #code:empty,
-      #waiting:empty,
-      #detail:empty {
-        display: none;
-      }
-    </style>
+    <link rel="stylesheet" href="popup.css" />
   </head>
-  <body>
-    <h1 id="title">Connecting to the Onay app...</h1>
-    <p id="code"></p>
-    <p id="detail"></p>
-    <p id="waiting"></p>
+  <body data-state="connecting">
+    <header class="brand">
+      <img src="icons/icon-32.png" alt="" width="20" height="20" />
+      <span>Onay</span>
+      <span class="dot"></span>
+    </header>
+    <main class="card">
+      <h1 id="title">Connecting to the Onay app…</h1>
+      <p id="code" class="code"></p>
+      <p id="detail"></p>
+      <p id="waiting" class="notice"></p>
+    </main>
+    <p class="hint">
+      Onay shows you what a site asks your wallet to sign. It never holds keys and never changes a request.
+    </p>
     <script type="module" src="popup.js"></script>
   </body>
 </html>

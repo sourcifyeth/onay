@@ -10,39 +10,55 @@ const detail = document.querySelector<HTMLElement>('#detail')!
 const code = document.querySelector<HTMLElement>('#code')!
 const waiting = document.querySelector<HTMLElement>('#waiting')!
 
+// A heading and one sentence that says what the user can do.
 function describe(status: LinkStatus): [string, string] {
   switch (status.state) {
     case 'idle':
     case 'connecting':
-      return ['Connecting to the Onay app...', '']
+      return ['Connecting to the Onay app…', '']
     case 'ready':
-      return ['Connected to the Onay app.', 'The app shows each signing request. Your wallet gets it at the same time.']
+      return [
+        'Connected to the Onay app',
+        'When a site asks your wallet to sign, the app shows you the request. Your wallet gets it at the same time.',
+      ]
     case 'pairing':
       return [
-        'Pair with the Onay app',
-        'Make sure that the Onay app shows this code. Then approve the pairing in the app.',
+        'Pair this extension with the app',
+        'The Onay app shows a code. If it is the same as this one, approve the pairing in the app.',
       ]
     case 'unavailable':
-      if (status.reason === 'not-installed') {
-        return ['The Onay app is not installed.', 'Install the app and start it once. This page connects by itself.']
+      switch (status.reason) {
+        case 'not-installed':
+          return ['The Onay app is not installed', 'Install the app and start it. This page connects by itself.']
+        case 'not-running':
+          return ['The Onay app is not running', 'Start the app. This page connects by itself.']
+        case 'refused':
+          return ['The Onay app refused the connection', status.message]
       }
-      if (status.reason === 'not-running') {
-        return ['The Onay app is not running.', 'Start the app. This page connects by itself.']
-      }
-      return ['The Onay app refused the connection.', status.message]
   }
 }
 
 let status: LinkStatus = { state: 'idle' }
 
 function show(update: StatusUpdate) {
+  showWaiting(update.waiting)
+  // A retry is not news. Keep the old text until the retry has a result.
+  if (status.state === 'unavailable' && update.status.state === 'connecting') return
   status = update.status
   const [heading, text] = describe(status)
+  document.body.dataset.state = status.state === 'idle' ? 'connecting' : status.state
   title.textContent = heading
   detail.textContent = text
   code.textContent = status.state === 'pairing' ? status.code : ''
+}
+
+function showWaiting(count: number) {
   waiting.textContent =
-    update.waiting > 0 ? `${update.waiting} signing request(s) wait for the app. Your wallet has them already.` : ''
+    count === 0
+      ? ''
+      : count === 1
+        ? 'One signing request waits for the app. Your wallet has it already.'
+        : `${count} signing requests wait for the app. Your wallet has them already.`
 }
 
 const port = chrome.runtime.connect({ name: 'status' })

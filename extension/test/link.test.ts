@@ -23,12 +23,15 @@ const decoder = new TextDecoder()
 class FakePort implements NativePort {
   sent: ClientFrame[] = []
   disconnected = false
+  closed = false
   #onMessage: ((message: unknown) => void)[] = []
   #onDisconnect: (() => void)[] = []
   onMessage = { addListener: (listener: (message: unknown) => void) => void this.#onMessage.push(listener) }
   onDisconnect = { addListener: (listener: () => void) => void this.#onDisconnect.push(listener) }
 
   postMessage(message: ClientFrame) {
+    // Chrome throws when the other side closed the port.
+    if (this.closed) throw new Error('Attempting to use a disconnected port object')
     this.sent.push(message)
   }
   disconnect() {
@@ -40,6 +43,7 @@ class FakePort implements NativePort {
   }
   // The other side closes the port.
   close() {
+    this.closed = true
     for (const listener of this.#onDisconnect) listener()
   }
 }

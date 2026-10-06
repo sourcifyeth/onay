@@ -67,6 +67,8 @@ After a code change, build again and click the reload icon on the extension card
 2. Open a dapp with a wallet extension installed, for example the [MetaMask test dapp](https://metamask.github.io/test-dapp/), and trigger a signature or a transaction.
 3. The wallet opens as usual. At the same time the request appears in the app under "Signing requests", with the site, the method, and the raw parameters. When you answer in the wallet, the app shows the outcome.
 
+To pair again, quit the app and delete its key store: `~/.local/share/dev.sourcify.onay/link.json` (Linux) or `~/Library/Application Support/dev.sourcify.onay/link.json` (macOS). At the next start the app makes a new key and knows no extension, so the extension shows a new pairing code. The development and the production app use the same file, so this resets both. To give the extension a new key too, run `indexedDB.deleteDatabase('onay')` in the console of its service worker (`chrome://extensions`, "service worker" link on the Onay card) and reload the extension.
+
 The Onay icon in the Chrome toolbar shows the state of the link. If the app is not running when a site asks for a signature, the extension opens a small window that asks you to start the app, and it forwards the request when the app is there.
 
 On Linux the app accepts a connection only from an approved browser that is installed by a package manager. It reads more browser names from `/etc/onay/custom_allowed_browsers`, one binary name per line, if that file belongs to root.

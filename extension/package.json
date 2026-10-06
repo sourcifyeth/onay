@@ -5,7 +5,7 @@
   "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
-    "build": "rm -rf dist && tsc && cp manifest.json popup.html dist/",
+    "build": "rm -rf dist && tsc && cp manifest.json popup.html popup.css dist/ && cp -r fonts icons dist/",
     "test": "pnpm build && tsc -p tsconfig.test.json && node --test \"test/*.test.ts\"",
     "package": "pnpm build && node scripts/store-build.mjs && cd dist-store && zip -q -r -X ../onay-extension.zip ."
   },

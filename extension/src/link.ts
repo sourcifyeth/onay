@@ -32,6 +32,8 @@ type Attempt = {
   appKey: Bytes | null
   sealer: Sealer | null
   opener: Opener | null
+  // The other side closed the port.
+  closed: boolean
 }
 
 const NOT_INSTALLED = 'Specified native messaging host not found.'
@@ -82,7 +84,14 @@ export class Link {
   start(): void {
     if (this.#attempt) return
     const port = this.#options.connect()
-    const attempt: Attempt = { port, extension: null, appKey: null, sealer: null, opener: null }
+    const attempt: Attempt = {
+      port,
+      extension: null,
+      appKey: null,
+      sealer: null,
+      opener: null,
+      closed: false,
+    }
     this.#attempt = attempt
     this.#setStatus({ state: 'connecting' })
 
@@ -97,6 +106,7 @@ export class Link {
       })
     })
     port.onDisconnect.addListener(() => {
+      attempt.closed = true
       // Read the reason now: the browser clears it after this call.
       const reason = this.#options.lastError()
       this.#inbox = this.#inbox.then(() => {
@@ -135,6 +145,9 @@ export class Link {
   async #sendHello(attempt: Attempt): Promise<void> {
     const identity = await this.#options.store.identity()
     attempt.extension = { publicKey: await publicKeyBytes(identity.publicKey), salt: randomSalt() }
+    // The relay can exit before the hello is ready. The disconnect handler
+    // then gives the reason.
+    if (attempt.closed) return
     attempt.port.postMessage({
       type: 'hello',
       version: VERSION,

@@ -1,0 +1,147 @@
+/* The few Sourcify design tokens this page uses (see mock/src/index.css). */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/IBMPlexSans-Regular.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/IBMPlexSans-Medium.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-weight: 600;
+  font-display: swap;
+  src: url(fonts/IBMPlexSans-SemiBold.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/IBMPlexMono-Regular.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/IBMPlexMono-Medium.woff2) format('woff2');
+}
+
+:root {
+  --font-sans: 'IBM Plex Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --cerulean-blue-100: #e8efff;
+  --cerulean-blue-500: #2b50aa;
+  --cerulean-blue-700: #142d6b;
+  --light-coral-100: #ffccd0;
+  --light-coral-500: #ff858d;
+  --green-500: #22c55e;
+  --gray-50: #f9fafb;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-800: #1f2937;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 16px;
+  min-width: 340px;
+  background: var(--gray-50);
+  color: var(--gray-800);
+  font: 14px/1.5 var(--font-sans);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+/* The state of the link, as a dot next to the name. */
+.dot {
+  width: 10px;
+  height: 10px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--gray-300);
+}
+[data-state='connecting'] .dot {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+[data-state='ready'] .dot {
+  background: var(--green-500);
+}
+[data-state='pairing'] .dot {
+  background: var(--cerulean-blue-500);
+}
+[data-state='unavailable'] .dot {
+  background: var(--light-coral-500);
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.card {
+  padding: 16px 20px;
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+}
+
+h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+p {
+  margin: 8px 0 0;
+  color: var(--gray-600);
+}
+
+.code {
+  margin: 12px 0;
+  padding: 10px 0;
+  border-radius: 8px;
+  background: var(--cerulean-blue-100);
+  color: var(--cerulean-blue-700);
+  font: 500 30px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.notice {
+  padding: 8px 12px;
+  border-left: 2px solid var(--light-coral-500);
+  border-radius: 8px;
+  background: var(--light-coral-100);
+  color: var(--gray-800);
+  font-size: 13px;
+}
+
+.hint {
+  margin-top: 12px;
+  color: var(--gray-500);
+  font-size: 12px;
+}
+
+.code:empty,
+.notice:empty,
+#detail:empty {
+  display: none;
+}
