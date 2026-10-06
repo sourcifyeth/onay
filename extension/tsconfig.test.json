@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    /* Type check only: node runs the tests from source */
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["chrome", "node"]
+  },
+  "include": ["src", "test"]
+}

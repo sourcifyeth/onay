@@ -18,6 +18,14 @@
     ],
     "category": "Utility",
     "shortDescription": "Local signing companion: a second check on every transaction before you sign",
-    "license": "GPL-3.0-only"
+    "license": "GPL-3.0-only",
+    "linux": {
+      "deb": {
+        "postInstallScript": "packaging/postinstall.sh"
+      },
+      "rpm": {
+        "postInstallScript": "packaging/postinstall.sh"
+      }
+    }
   }
 }

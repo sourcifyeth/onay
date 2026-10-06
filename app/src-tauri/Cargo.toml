@@ -18,3 +18,14 @@ tauri = { version = "=2.11.6", features = [] }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.151"
 onay-ipc = { path = "../ipc" }
+# The encrypted channel to the extension: X25519, HKDF-SHA-256, AES-256-GCM.
+x25519-dalek = { version = "=3.0.0", features = ["static_secrets"] }
+hkdf = "=0.13.0"
+sha2 = "=0.11.0"
+aes-gcm = "=0.11.1"
+getrandom = "=0.4.3"
+base64 = "=0.22.1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Peer credentials of the socket (SO_PEERCRED). Already in tauri's tree.
+libc = "=0.2.189"

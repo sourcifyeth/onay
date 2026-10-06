@@ -1,0 +1,37 @@
+{
+  "comment": "Test vectors for the channel, version 1. Checked by app/src-tauri/src/channel.rs and extension/test/channel.test.ts. All binary values are base64.",
+  "extensionSecret": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=",
+  "extensionPublic": "B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9/AsrhtHHw=",
+  "extensionSalt": "ERERERERERERERERERERERERERERERERERERERERERE=",
+  "appSecret": "oKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr8=",
+  "appPublic": "YFpyXSpK3+6xop4X7dYhwbdZPujNvESsbEq24vgF0jw=",
+  "appSalt": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI=",
+  "pairingCode": "811 156",
+  "messages": [
+    {
+      "from": "extension",
+      "plaintext": "{\"type\":\"request\",\"id\":\"1\",\"origin\":\"https://example.org\",\"method\":\"personal_sign\",\"params\":[\"0x68656c6c6f\",\"0x0000000000000000000000000000000000000001\"]}",
+      "sealed": "b/IwhBm5PPQmxBPCIoqFT1Msy0s1SsMUIV8ZHd5VmJqJsIFt83+ZaxDfbX5CPj2L+GHz6Ld5S+uOF3p/otJIOyDb7c2vKYXH5UrwBbcgpQZyH+Cl33CiO8+hOxR5TRf9QH4UC6SswWu4qKsw7DaXwuF1iQ4arvp+kxHI7DJGHrBP9dS18TM8zRZY7Q5D3ceSRgG7Kx2Xs0Dr6C0k+0C5oI1/X+P94XoxZMY="
+    },
+    {
+      "from": "app",
+      "plaintext": "{\"type\":\"paired\"}",
+      "sealed": "kLmiYSWOazRrnZnEfLB0obya34fCbfXmU4ukj8vTTV8l"
+    },
+    {
+      "from": "extension",
+      "plaintext": "{\"type\":\"settled\",\"id\":\"1\",\"outcome\":\"fulfilled\"}",
+      "sealed": "bZi03EE+sEHAZ3CqZ9ypdFd+LY5wuT06sf20fivFB537b+RHg0EI0PKW5k3Qh9zeg5xUt3esXagNTnn3diUl0DI="
+    },
+    {
+      "from": "extension",
+      "plaintext": "",
+      "sealed": "XUCFJZcyorg20Zdv2x508Q=="
+    },
+    {
+      "from": "app",
+      "plaintext": "ünïcödé ✓",
+      "sealed": "Vrw044Rf3djMceSXyNkpB+L2jYjsULeIOH7obugAjQ=="
+    }
+  ]
+}

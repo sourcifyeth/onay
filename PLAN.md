@@ -20,13 +20,13 @@ The rewrite proceeds in versions. Each version adds a small, reviewed set of fea
 
 ## Version 0 — the transaction verifier
 
-A companion that steps in before your wallet does. When any dapp asks you to sign, the extension intercepts the request and hands it to the app, which verifies everything locally and shows you what you are really about to do.
+A companion next to your wallet. When any dapp asks you to sign, the extension copies the request to the app, which verifies everything locally and shows you what you are really about to do. The wallet gets the same request at the same time.
 
 ```mermaid
 flowchart LR
   subgraph browser [Browser]
     dapp["dapp<br/>eth_sendTransaction"]
-    ext["extension<br/>intercepts"]
+    ext["extension<br/>copies the request"]
     wallet["wallet<br/>signs as usual"]
   end
   subgraph app [Onay app]
@@ -34,25 +34,25 @@ flowchart LR
     sim["local EVM<br/>call-tree trace"]
     sourcify["lib-sourcify<br/>recompile + compare"]
     cs["clear signing<br/>readable intent"]
-    review["you review<br/>confirm or reject"]
+    review["you review<br/>then decide in the wallet"]
   end
   dapp --> ext
-  ext -- forward --> helios
+  ext -- unchanged --> wallet
+  ext -- copy --> helios
   helios --> sim --> sourcify --> cs --> review
-  review -- approved --> wallet
 ```
 
-The verifier never signs anything itself: after your confirmation the original request continues untouched to your wallet, which still shows its own confirmation.
+The verifier is view only: it never signs and never holds a request back. The wallet receives the original request unchanged and at the same time, and you decide there after you looked at the app.
 
 ### Feature set
 
-- **Interception.** A thin extension wraps the page's EIP-1193 provider (the standard wallet-injection interface) and catches `eth_sendTransaction` and signing requests before the wallet sees them. If the app is not running, the extension prompts to open it, then forwards.
+- **Interception.** A thin extension wraps the page's EIP-1193 provider (the standard wallet-injection interface) and copies `eth_sendTransaction` and signing requests to the app. The call to the wallet is not delayed and not changed. If the app is not running, the extension asks you to open it, then forwards.
 - **Beyond the extension.** The app also accepts requests that never touched a browser: transaction data pasted by hand (a raw transaction, calldata, or an EIP-712 payload), and animated QR codes from air-gapped hardware wallets via [ERC-4527](https://eips.ethereum.org/EIPS/eip-4527), the `eth-sign-request` Uniform Resources format used by Keystone, OneKey, and AirGap.
 - **Call-tree simulation.** The transaction is executed locally (ethereumjs EVM) against verified chain state, for one purpose in this version: reconstructing the call tree, so the review shows every contract the transaction actually touches, not just the entry point. Effects preview (balance changes, storage writes, events) is deliberately out of scope until a later version.
 - **Local verification gate.** The app fetches the sources of every contract in the call tree from Sourcify, recompiles them locally, and compares the results against the on-chain bytecode. Sourcify's claim is never trusted; we reproduce it.
 - **Clear signing.** The verified ABI (Application Binary Interface) plus ERC-7730 descriptors render the request as human-readable intent.
-- **Review and continue.** You confirm or reject in the app; on confirm, the original request proceeds untouched to your wallet in the browser.
-- **Digest cross-check ([ERC-8213](https://github.com/ethereum/ERCs/pull/1639)).** After you confirm, the app displays the request's digest using the exact terminology the standard mandates: the Calldata Digest for transactions (`keccak256(uint256(len(calldata)) || calldata)`, chain-independent by design) and the EIP-712 Digest for typed-data signatures. A wallet that also implements ERC-8213 (Keycard Shell is the first hardware wallet to do so) shows the same value before signing; comparing the two proves the wallet received exactly the bytes you reviewed, even if the dapp or browser was compromised in between. This closes the last gap in the flow: the app verifies what you review, the digest verifies what you sign.
+- **Review next to the wallet.** The app shows its result while the wallet shows its own confirmation. You approve or reject in the wallet, as always.
+- **Digest cross-check ([ERC-8213](https://github.com/ethereum/ERCs/pull/1639)).** The app displays the request's digest using the exact terminology the standard mandates: the Calldata Digest for transactions (`keccak256(uint256(len(calldata)) || calldata)`, chain-independent by design) and the EIP-712 Digest for typed-data signatures. A wallet that also implements ERC-8213 (Keycard Shell is the first hardware wallet to do so) shows the same value before signing; comparing the two proves the wallet received exactly the bytes you reviewed, even if the dapp or browser was compromised in between. This closes the last gap in the flow: the app verifies what you review, the digest verifies what you sign.
 
 ### Chain support: every chain, two modes
 
@@ -68,8 +68,8 @@ Per-chain trust details (which mechanism Helios uses, what RPC mode trusts) stay
 The same architecture password managers converged on. The browser spawns a small relay binary (shipped and registered by the app) and talks to it over stdin/stdout via the Native Messaging API; the relay forwards to the running app over a Unix socket. No network socket is ever opened, so no other website, browser, or local process gets a surface to probe.
 
 - **Browser-enforced allowlist.** The host manifest names exactly which extension IDs may connect, and the extension can only address this one host.
-- **Encrypted pairing (KeePassXC model).** Extension and app exchange X25519 public keys; every message is sealed with a NaCl box and incrementing nonces. First connection requires explicit approval in the app.
-- **Peer verification (1Password model).** Where the OS supports it, the app verifies the connecting browser's code signature (macOS) or binary ownership (Linux) before accepting the channel.
+- **Encrypted pairing (KeePassXC model).** Extension and app each hold a long-term X25519 key. For each connection both sides derive new AES-256-GCM keys with HKDF from the key agreement and two random salts, and a counter nonce makes a lost, repeated, or reordered message fail. The first connection requires explicit approval in the app, with a code that both sides show. The primitives come from the browser's WebCrypto instead of a NaCl box, so the extension needs no crypto dependency and its private key cannot be exported.
+- **Peer verification (1Password model).** Before it accepts a connection, the app asks the kernel who is on the other end. The peer must be our relay, and the relay's parent must be an approved browser. On Linux that browser must look installed by a package manager: the binary and its directories belong to root. On macOS the check is the browser's code signature (not implemented yet). In a package, the relay is setgid to its own group, which hardens it against tampering by other programs of the same user.
 - **Rust reference implementations.** The relay exists in Rust already: [keepassxc-proxy-rust](https://github.com/varjolintu/keepassxc-proxy-rust) (a tiny standalone stdio→socket relay by the KeePassXC-Browser maintainer) and Bitwarden's [desktop_proxy](https://github.com/bitwarden/clients/tree/main/apps/desktop/desktop_native) (production Rust proxy with end-to-end encryption and replay-mitigating timestamps). Both are GPL-family, so they are study references for our own implementation, not vendored code.
 
 ### Securing the supply chain
@@ -101,7 +101,7 @@ Both ecosystems:
 
 ### UX
 
-The whole product in one interaction: a dapp request that would open the wallet is intercepted, the app verifies and explains it (verification result with sources and compiler settings, the exact function called, an "open files in your editor" action, clear signing as both extrapolated intent and a table of fields), and only after confirmation does the real wallet take over.
+The whole product in one interaction: a dapp request opens the wallet as usual, and at the same time the app verifies and explains it (verification result with sources and compiler settings, the exact function called, an "open files in your editor" action, clear signing as both extrapolated intent and a table of fields), so you can compare before you confirm in the wallet.
 
 The app's visual style follows Sourcify's design language (sourcify.dev, verify.sourcify.dev, repo.sourcify.dev).
 
@@ -121,13 +121,12 @@ Each step ends with something that runs and can be reviewed. Steps 3 to 6 work o
    - Ping from the extension, pong from the app, visible on both sides.
 2. **Interception and secure channel.** Extension catches signing requests via the page's wallet provider (EIP-1193).
    - Transactions, typed data (EIP-712) and plain messages; everything else passes through untouched.
-   - The app shows the raw request; Approve lets it continue to the wallet.
-   - Reject returns an error to the dapp. Both outcomes reach the browser correctly.
+   - The app shows the raw request.
+   - The wallet still receives the request at the same time; the app only serves as a second verification tool.
    - App not running: the extension asks to open it, then forwards.
-   - Encrypted pairing (X25519 keys, NaCl box), first connection approved in the app.
+   - Encrypted pairing (X25519 keys, HKDF, AES-256-GCM), first connection approved in the app.
    - Peer verification where the OS supports it.
-   - **To analyse first: can an attacker hand the app a different transaction than the one the wallet receives?**
-   - Open UX question: hold the wallet until the app answers (sequential), or open the wallet and the app at the same time (parallel)?
+   - **To analyse: can an attacker hand the app a different transaction than the one the wallet receives?**
 3. **Gate 1: Helios.** Embed Helios; read the target contract's bytecode as verified chain state.
    - Chain registry (chain id plus RPC); Helios where supported, RPC mode elsewhere.
    - RPC mode sits behind the same interface, with its permanent trust notice.
@@ -140,7 +139,7 @@ Each step ends with something that runs and can be reviewed. Steps 3 to 6 work o
 5. **Clear signing (ERC-7730).** Decode the call with the verified ABI (Application Binary Interface).
    - Render intent and field table from ERC-7730 descriptors; plain decoding as fallback.
    - Use our own ERC-7730 library.
-6. **Digest (ERC-8213).** After approval, show the Calldata Digest or EIP-712 Digest.
+6. **Digest (ERC-8213).** Show the Calldata Digest or EIP-712 Digest.
 7. **Call-tree simulation.** Run the transaction in a local EVM (ethereumjs) on verified state.
    - Collect every touched contract, run both gates on each, display them all.
    - This also covers delegatecalls and diamonds, replacing the step 4 proxy shortcut.

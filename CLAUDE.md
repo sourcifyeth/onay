@@ -12,7 +12,8 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 - `README.md` — how to run and build everything, for development and production. Keep it current when commands change.
 - `mock/` — Vite + React + TypeScript playground (client-only, no SSR). The one place where vibecoding is allowed: Version 0's whole UX is mocked here with fake data, and the app takes its UI from the mock one feature at a time.
 - `app/` — the Tauri app: Vite + React + TypeScript webview in `app/src/`, Rust in `app/src-tauri/`, and the native messaging relay crate in `app/relay/`. One Cargo workspace at `app/Cargo.toml`, lockfile committed.
-- `extension/` — the Chrome extension (Manifest V3). Zero runtime dependencies: TypeScript compiled by `tsc` into plain ES modules in `extension/dist/`, no bundler.
+- `extension/` — the Chrome extension (Manifest V3). Zero runtime dependencies: TypeScript compiled by `tsc` into plain ES modules in `extension/dist/`, no bundler. `inpage.ts` and `content.ts` are plain scripts, not modules: no imports or exports, types through `import('./messages.ts')`.
+- `testdata/` — test vectors that the Rust and the TypeScript implementation of the encrypted channel must both match.
 - `extension/key.pem` (gitignored) is the private key behind the `key` field in `extension/manifest.json`. It fixes the extension ID to `jhopbgoicoiceialjejgojebmeijklbn`, which the app's host manifest allowlists. Back it up; never commit it.
 
 ## Rules
@@ -35,5 +36,7 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 - `pnpm --filter extension build` — build the extension into `extension/dist/`; load that folder unpacked in Chrome (its ID must match the one above).
 - `pnpm --filter app bundle` — production package of the app with the relay inside (`app/target/release/bundle/`). Bundle settings live in `app/src-tauri/tauri.bundle.conf.json`, kept out of the main config so `tauri dev` needs no packaged relay.
 - `pnpm --filter extension package` — store zip of the extension (`extension/onay-extension.zip`), without the `key` field.
+- `pnpm --filter extension test` — build, type-check the tests, and run them with `node --test`.
 - `cargo build` in `app/` — build the Rust workspace (app and relay).
+- `cargo test` in `app/` — run the Rust tests.
 - `cargo deny check` in `app/` — advisories, licenses, sources, bans; same as CI (`cargo install --locked cargo-deny` once).

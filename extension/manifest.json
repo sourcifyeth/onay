@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "description": "Sends each signing request to the local Onay app for a second, independent check before your wallet signs.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsNx/nukjSxRaiHuRxlAssGZQzaAcGJmGG2UDkvQ7zFt+pxzKjJHaOflcFEQxmlOlaW5N8Bmm3P29+E3RBkmEwcXH4eDJjQXbOwOjEb6BYAPENXOQFnKgCaK5NW+A88r0sEKMAfGa/D5FartainGii6OL4fEd/nSA3u7K/l2xJW21WP6i43ahmnMXn69FlUsUgBNllh5TYA+jQw/VZoF1Kv8lzTR2/8REE24rFY55VACkShOLX3UhSWkGWhahp2jmI3dbw29SZP+UeavMSMjiOrDcttX9Fx98vzJSnM4/zN/ritsV6DtpxRpeXh6gvWk+PG5wljB1VudT99pMG831GQIDAQAB",
+  "minimum_chrome_version": "133",
   "permissions": [
     "nativeMessaging"
   ],
@@ -14,5 +15,30 @@
   "action": {
     "default_title": "Onay",
     "default_popup": "popup.html"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "inpage.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ]
 }

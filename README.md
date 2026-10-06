@@ -61,9 +61,15 @@ pnpm --filter extension build
 
 After a code change, build again and click the reload icon on the extension card.
 
-### 3. Test the link
+### 3. Pair and test
 
-Click the Onay icon in the Chrome toolbar and press "Ping the app". The popup shows "The app answered", and the app window shows the ping and the pong under "Messages". If you quit the app and ping again, the popup says that the app is not running.
+1. The first time the extension reaches the app, both show a six-digit code: the extension in a small window, the app in its main window. Check that the codes are equal and press "Approve" in the app. The pairing is stored on both sides.
+2. Open a dapp with a wallet extension installed, for example the [MetaMask test dapp](https://metamask.github.io/test-dapp/), and trigger a signature or a transaction.
+3. The wallet opens as usual. At the same time the request appears in the app under "Signing requests", with the site, the method, and the raw parameters. When you answer in the wallet, the app shows the outcome.
+
+The Onay icon in the Chrome toolbar shows the state of the link. If the app is not running when a site asks for a signature, the extension opens a small window that asks you to start the app, and it forwards the request when the app is there.
+
+On Linux the app accepts a connection only from an approved browser that is installed by a package manager. It reads more browser names from `/etc/onay/custom_allowed_browsers`, one binary name per line, if that file belongs to root.
 
 ### Checks
 
@@ -73,6 +79,7 @@ Run these before you push. Continuous integration (CI) runs the same commands.
 |---|---|---|
 | `pnpm -r build` | repo root | Type-checks and builds the mock, the app's web user interface, and the extension. |
 | `pnpm -r lint` | repo root | Runs oxlint. |
+| `pnpm -r test` | repo root | Runs the extension tests with the Node.js test runner. |
 | `cargo test` | `app/` | Runs the Rust tests, including one that drives the real relay binary. |
 | `cargo clippy --all-targets -- -D warnings` | `app/` | Rust lints. |
 | `cargo fmt --all --check` | `app/` | Rust formatting. |
@@ -93,7 +100,7 @@ This builds the relay in release mode, copies it to where Tauri expects an extra
 - Linux: a `.deb` in `deb/` and an `.rpm` in `rpm/`.
 - macOS: `Onay.app` in `macos/` and a `.dmg` in `dmg/`.
 
-The package contains two binaries side by side: `onay` (the app) and `onay-relay`. To install and run on Debian or Ubuntu:
+The package contains two binaries side by side: `onay` (the app) and `onay-relay`. On Linux its install script gives the relay its own group and the setgid bit, as hardening. To install and run on Debian or Ubuntu:
 
 ```
 sudo apt install ./app/target/release/bundle/deb/Onay_0.0.0_amd64.deb
@@ -126,6 +133,8 @@ web page -> extension -> Chrome -> relay -> app
 - The extension asks Chrome to connect to the host named `dev.sourcify.onay`.
 - Chrome reads the host manifest, checks that the extension ID is allowed, and starts the relay.
 - The relay connects to the app's socket and copies bytes in both directions. It does not read the messages.
+- The app checks that the relay was started by an approved browser. Then extension and app exchange public keys, and every later message is encrypted. The app's long-term key is in its data directory, the extension's key is in the browser's key store.
+- The extension only copies signing requests to the app. The wallet gets each request unchanged and at the same time.
 - No network port is opened at any point.
 
 ## License

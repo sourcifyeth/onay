@@ -1,30 +1,54 @@
-// Popup: one button that asks the service worker to ping the app.
+// Status page. It is the toolbar popup, and the service worker also opens
+// it as a window when the user must open the app or confirm a pairing.
 
-import type { PopupRequest, Reply } from './messages.ts'
+import type { LinkStatus, StatusAction, StatusUpdate } from './messages.ts'
 
-const button = document.querySelector<HTMLButtonElement>('#ping')!
-const result = document.querySelector<HTMLPreElement>('#result')!
+const RETRY_MS = 2000
 
-// Error texts from Chrome and from the relay, with a readable version.
-const READABLE_ERRORS: Record<string, string> = {
-  'Specified native messaging host not found.':
-    'The Onay app is not installed. Install it, start it once, and try again.',
-  'app not running': 'The Onay app is not running. Start it and try again.',
-  'Failed to start native messaging host.':
-    'The Onay app was removed or is damaged. Install it again.',
-  'Access to the specified native messaging host is forbidden.':
-    'The Onay app does not accept this extension. The extension ID is not the expected one.',
-  'no answer within 5 s': 'The Onay app did not answer in time.',
+const title = document.querySelector<HTMLElement>('#title')!
+const detail = document.querySelector<HTMLElement>('#detail')!
+const code = document.querySelector<HTMLElement>('#code')!
+const waiting = document.querySelector<HTMLElement>('#waiting')!
+
+function describe(status: LinkStatus): [string, string] {
+  switch (status.state) {
+    case 'idle':
+    case 'connecting':
+      return ['Connecting to the Onay app...', '']
+    case 'ready':
+      return ['Connected to the Onay app.', 'The app shows each signing request. Your wallet gets it at the same time.']
+    case 'pairing':
+      return ['Pair with the Onay app', 'Make sure that the Onay app shows this code. Then approve the pairing in the app.']
+    case 'unavailable':
+      if (status.reason === 'not-installed') {
+        return ['The Onay app is not installed.', 'Install the app and start it once. This page connects by itself.']
+      }
+      if (status.reason === 'not-running') {
+        return ['The Onay app is not running.', 'Start the app. This page connects by itself.']
+      }
+      return ['The Onay app refused the connection.', status.message]
+  }
 }
 
-function describe(reply: Reply, ms: number): string {
-  if (reply.type === 'pong') return `The app answered in ${ms} ms.`
-  return READABLE_ERRORS[reply.message] ?? `Error: ${reply.message}`
+let status: LinkStatus = { state: 'idle' }
+
+function show(update: StatusUpdate) {
+  status = update.status
+  const [heading, text] = describe(status)
+  title.textContent = heading
+  detail.textContent = text
+  code.textContent = status.state === 'pairing' ? status.code : ''
+  waiting.textContent =
+    update.waiting > 0
+      ? `${update.waiting} signing request(s) wait for the app. Your wallet has them already.`
+      : ''
 }
 
-button.addEventListener('click', async () => {
-  const started = performance.now()
-  result.textContent = 'Waiting for the app...'
-  const reply = await chrome.runtime.sendMessage<PopupRequest, Reply>({ type: 'ping' })
-  result.textContent = describe(reply, Math.round(performance.now() - started))
-})
+const port = chrome.runtime.connect({ name: 'status' })
+port.onMessage.addListener(show)
+
+// Try again while the app is not there. This also keeps the service
+// worker awake.
+setInterval(() => {
+  if (status.state === 'unavailable') port.postMessage({ type: 'retry' } satisfies StatusAction)
+}, RETRY_MS)
