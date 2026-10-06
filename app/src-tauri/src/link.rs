@@ -41,6 +41,8 @@ const MAX_REJECTED: usize = 5;
 const MAX_ID_LEN: usize = 128;
 const MAX_METHOD_LEN: usize = 64;
 const MAX_ORIGIN_LEN: usize = 2048;
+/// The largest chain ID that JavaScript can hold as a number.
+const MAX_CHAIN_ID: u64 = (1 << 53) - 1;
 
 // ---- Messages on the wire ----
 
@@ -86,7 +88,11 @@ enum ServerFrame {
 
 /// From the extension, inside a sealed frame.
 #[derive(Deserialize)]
-#[serde(tag = "type", rename_all = "kebab-case")]
+#[serde(
+    tag = "type",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
 enum ClientMessage {
     /// A page asked the wallet to sign.
     Request {
@@ -94,6 +100,9 @@ enum ClientMessage {
         origin: String,
         method: String,
         params: Value,
+        /// The wallet's chain, for eth_sendTransaction only. The page
+        /// reports it, so it is not verified.
+        chain_id: Option<u64>,
     },
     /// The wallet answered the page.
     Settled { id: String, outcome: Outcome },
@@ -149,6 +158,8 @@ pub struct SigningRequest {
     origin: String,
     method: String,
     params: Value,
+    /// Not verified: the page reports it.
+    chain_id: Option<u64>,
     /// Milliseconds since the Unix epoch.
     received_at: u64,
     /// The answer of the wallet, when it is known.
@@ -439,12 +450,16 @@ impl Link {
                 origin,
                 method,
                 params,
+                chain_id,
             } => {
                 if id.len() > MAX_ID_LEN
                     || method.len() > MAX_METHOD_LEN
                     || origin.len() > MAX_ORIGIN_LEN
                 {
                     return Err(protocol_error("a request field is too long"));
+                }
+                if chain_id.is_some_and(|chain_id| chain_id == 0 || chain_id > MAX_CHAIN_ID) {
+                    return Err(protocol_error("the chain ID is not valid"));
                 }
                 if state
                     .requests
@@ -459,6 +474,7 @@ impl Link {
                     origin,
                     method,
                     params,
+                    chain_id,
                     received_at: SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .map_or(0, |elapsed| elapsed.as_millis() as u64),
@@ -688,6 +704,57 @@ mod tests {
         assert!(client.paired);
         let snapshot = wait_for(&link, &changes, |s| s.connections.len() == 1);
         assert_eq!(snapshot.connections[0].pairing_code, None);
+    }
+
+    #[test]
+    fn transaction_keeps_its_chain_id_and_a_bad_one_closes_the_connection() {
+        let (link, changes) = link("chain", verified);
+        let identity = Identity::generate().unwrap();
+        let mut client = Client::connect(&link, &identity);
+        let snapshot = wait_for(&link, &changes, |s| s.connections.len() == 1);
+        link.answer_pairing(snapshot.connections[0].id, true)
+            .unwrap();
+        client.receive().unwrap();
+
+        let transaction = |id: &str, chain_id: Value| {
+            json!({
+                "type": "request",
+                "id": id,
+                "origin": "https://example.org",
+                "method": "eth_sendTransaction",
+                "params": [{ "to": "0x0000000000000000000000000000000000000001" }],
+                "chainId": chain_id,
+            })
+        };
+        client.send(transaction("a", json!(137)));
+        client.send(transaction("b", Value::Null));
+        client.send(request("c"));
+        let snapshot = wait_for(&link, &changes, |s| s.requests.len() == 3);
+        let chain_ids: Vec<_> = snapshot.requests.iter().map(|r| r.chain_id).collect();
+        assert_eq!(chain_ids, [Some(137), None, None]);
+
+        client.send(transaction("d", json!(0)));
+        assert_eq!(client.receive(), None);
+        let snapshot = wait_for(&link, &changes, |s| s.connections.is_empty());
+        assert_eq!(snapshot.requests.len(), 3);
+    }
+
+    #[test]
+    fn chain_id_beyond_the_javascript_limit_closes_the_connection() {
+        let (link, changes) = link("chain-limit", verified);
+        let identity = Identity::generate().unwrap();
+        let mut client = Client::connect(&link, &identity);
+        let snapshot = wait_for(&link, &changes, |s| s.connections.len() == 1);
+        link.answer_pairing(snapshot.connections[0].id, true)
+            .unwrap();
+        client.receive().unwrap();
+
+        let mut message = request("a");
+        message["chainId"] = json!(MAX_CHAIN_ID + 1);
+        client.send(message);
+        assert_eq!(client.receive(), None);
+        let snapshot = wait_for(&link, &changes, |s| s.connections.is_empty());
+        assert!(snapshot.requests.is_empty());
     }
 
     #[test]

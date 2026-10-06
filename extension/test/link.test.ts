@@ -134,6 +134,7 @@ const request = (id: string): ClientMessage => ({
   origin: 'https://example.org',
   method: 'personal_sign',
   params: ['0x68656c6c6f'],
+  chainId: null,
 })
 
 test('first connection: pairing, then sealed requests in order', async () => {

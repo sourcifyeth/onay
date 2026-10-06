@@ -49,9 +49,9 @@ flowchart LR
 ## One request, step by step
 
 1. The dapp calls `provider.request({ method: "eth_sendTransaction", ... })`.
-2. `inpage.ts` posts a copy to the window, then calls the wallet's original method with the same arguments. The wallet opens.
+2. `inpage.ts` asks the wallet for its chain with `eth_chainId`, then at once calls the wallet's original method with the same arguments. The wallet opens. When the chain answer comes, or after 2 seconds without one, `inpage.ts` posts a copy with the chain ID to the window. For the other signing methods it posts the copy first and does not ask for the chain.
 3. `content.ts` forwards the copy to the service worker.
-4. `background.ts` checks the method and the size, sets the origin, and hands the request to `link.ts`.
+4. `background.ts` checks the method, the size, and the chain ID, sets the origin, and hands the request to `link.ts`. The page can forge the chain ID, so the app shows it as reported, not as verified.
 5. `link.ts` seals it with the session key and sends it to the app through the relay. If the app is not there, the request waits and the status window asks the user to start the app.
 6. When the wallet answers the dapp, `inpage.ts` reports the outcome the same way.
 

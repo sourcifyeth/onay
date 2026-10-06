@@ -38,9 +38,23 @@ function Request({ request }: { request: SigningRequest }) {
         <p>
           <span className="font-semibold">{request.origin}</span> asks for{' '}
           <span className="font-mono">{request.method}</span>
+          {request.method === 'eth_sendTransaction' && (
+            <>
+              {' '}
+              on{' '}
+              {request.chainId === null ? (
+                <span className="text-[#ae373f]">an unknown chain</span>
+              ) : (
+                <span className="font-mono">chain {request.chainId}</span>
+              )}
+            </>
+          )}
         </p>
         <span className="shrink-0 text-gray-500">{new Date(request.receivedAt).toLocaleTimeString()}</span>
       </div>
+      {request.method === 'eth_sendTransaction' && (
+        <p className="mt-1 text-gray-600">The site reports the chain. Check that your wallet shows the same network.</p>
+      )}
       <pre className="mt-2 max-h-80 overflow-auto rounded bg-gray-100 p-2 font-mono text-xs break-all whitespace-pre-wrap">
         {JSON.stringify(request.params, null, 2)}
       </pre>

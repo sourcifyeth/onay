@@ -28,6 +28,8 @@ export type SigningRequest = {
   origin: string
   method: string
   params: unknown
+  // Not verified: the page reports it. Set only for eth_sendTransaction.
+  chainId: number | null
   // Milliseconds since the Unix epoch.
   receivedAt: number
   // The answer of the wallet, when it is known.

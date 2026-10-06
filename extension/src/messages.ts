@@ -5,9 +5,10 @@
 
 // From inpage.ts, by window.postMessage. The page can forge these, so the
 // service worker checks each field. `id` is a counter per page; a `settled`
-// message names the `request` it belongs to.
+// message names the `request` it belongs to. `chainId` is the wallet's
+// answer to eth_chainId, for eth_sendTransaction only.
 export type PageMessage =
-  | { onay: 'request'; id: string; method: string; params: unknown }
+  | { onay: 'request'; id: string; method: string; params: unknown; chainId: string | null }
   | { onay: 'settled'; id: string; outcome: Outcome }
 
 // How the wallet answered the page.
@@ -30,8 +31,10 @@ export type ServerFrame =
 
 // Inside a sealed frame. `id` is the page counter with the browser's ID of
 // the document in front, so requests of different tabs never collide.
+// `chainId` is set only for eth_sendTransaction. The page reports it, so
+// it is not verified.
 export type ClientMessage =
-  | { type: 'request'; id: string; origin: string; method: string; params: unknown }
+  | { type: 'request'; id: string; origin: string; method: string; params: unknown; chainId: number | null }
   | { type: 'settled'; id: string; outcome: Outcome }
 
 // Inside a sealed frame.

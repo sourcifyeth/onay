@@ -6,10 +6,16 @@
 // The page can see and change everything here. Nothing in this file is a
 // security boundary. It is a plain script, not a module: no imports, no
 // exports, and no dependencies.
+//
+// For eth_sendTransaction, the report also has the chain of the wallet.
+// The script asks the wallet for it just before the call. Only the report
+// waits for the answer, not the call.
 ;(() => {
   type PageMessage = import('./messages.ts').PageMessage
   type Outcome = import('./messages.ts').Outcome
   type Method = (this: unknown, ...args: unknown[]) => unknown
+  // A reported request. `sent` is set while the report waits for the chain.
+  type Report = { id: string; sent: Promise<void> | null }
 
   // Must match the list in background.ts.
   const SIGNING_METHODS = new Set([
@@ -22,6 +28,7 @@
     'personal_sign',
     'eth_sign',
   ])
+  const CHAIN_ID_TIMEOUT_MS = 2000
 
   // Taken now, before a page script can replace it.
   const post = window.postMessage.bind(window)
@@ -37,8 +44,25 @@
     }
   }
 
-  // Reports the request if it asks for a signature. Returns its ID.
-  function report(method: unknown, params: unknown): string | null {
+  // Asks the wallet for its chain. Gives null if no answer comes in time.
+  function askChainId(provider: object, request: Method | null): Promise<string | null> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(null), CHAIN_ID_TIMEOUT_MS)
+      const done = (chainId: unknown) => {
+        clearTimeout(timer)
+        resolve(typeof chainId === 'string' ? chainId : null)
+      }
+      try {
+        if (!request) return done(null)
+        Promise.resolve(Reflect.apply(request, provider, [{ method: 'eth_chainId' }])).then(done, () => done(null))
+      } catch {
+        done(null)
+      }
+    })
+  }
+
+  // Reports the request if it asks for a signature.
+  function report(method: unknown, params: unknown, chain: () => Promise<string | null>): Report | null {
     if (typeof method !== 'string' || !SIGNING_METHODS.has(method)) return null
     let plain: unknown = null
     try {
@@ -48,31 +72,57 @@
       // Report the request without its parameters.
     }
     const id = String(++count)
-    tell({ onay: 'request', id, method, params: plain })
-    return id
+    if (method !== 'eth_sendTransaction') {
+      tell({ onay: 'request', id, method, params: plain, chainId: null })
+      return { id, sent: null }
+    }
+    const sent = chain().then((chainId) => tell({ onay: 'request', id, method, params: plain, chainId }))
+    return { id, sent }
   }
 
-  // Reports each request in a JSON-RPC payload, single or batch.
-  function reportPayload(payload: unknown): string[] {
+  // Reports each request in a JSON-RPC payload, single or batch. All
+  // requests of one payload share one chain query.
+  function reportPayload(payload: unknown, askChain: () => Promise<string | null>): Report[] {
+    let chainId: Promise<string | null> | null = null
+    const once = () => (chainId ??= askChain())
     const requests = Array.isArray(payload) ? payload : [payload]
-    const ids: string[] = []
+    const reports: Report[] = []
     for (const request of requests) {
       if (typeof request !== 'object' || request === null) continue
-      const id = report((request as { method?: unknown }).method, (request as { params?: unknown }).params)
-      if (id !== null) ids.push(id)
+      const reported = report((request as { method?: unknown }).method, (request as { params?: unknown }).params, once)
+      if (reported !== null) reports.push(reported)
     }
-    return ids
+    return reports
   }
 
-  function settle(ids: string[], outcome: Outcome) {
-    for (const id of ids) tell({ onay: 'settled', id, outcome })
+  // The settled message never comes before its request.
+  function settle(reports: Report[], outcome: Outcome) {
+    for (const { id, sent } of reports) {
+      const message: PageMessage = { onay: 'settled', id, outcome }
+      if (sent) sent.then(() => tell(message))
+      else tell(message)
+    }
+  }
+
+  // Calls the wallet. A call that throws is reported as rejected.
+  function call(reports: Report[], original: Method, self: unknown, args: unknown[]): unknown {
+    try {
+      return Reflect.apply(original, self, args)
+    } catch (error) {
+      settle(reports, 'rejected')
+      throw error
+    }
   }
 
   // Reports how the wallet answers. The page gets the same result object.
-  function watchResult(ids: string[], result: unknown): unknown {
+  function watchResult(reports: Report[], result: unknown): unknown {
+    if (reports.length === 0) return result
     const then = (result as { then?: unknown } | null)?.then
-    if (ids.length > 0 && typeof then === 'function') {
-      Reflect.apply(then, result, [() => settle(ids, 'fulfilled'), () => settle(ids, 'rejected')])
+    if (typeof then === 'function') {
+      Reflect.apply(then, result, [() => settle(reports, 'fulfilled'), () => settle(reports, 'rejected')])
+    } else {
+      // The synchronous form of send gives the response itself.
+      settle(reports, hasError(result) ? 'rejected' : 'fulfilled')
     }
     return result
   }
@@ -85,9 +135,9 @@
   }
 
   // A callback that reports the answer and then calls the page's callback.
-  function watchCallback(ids: string[], callback: Method): Method {
+  function watchCallback(reports: Report[], callback: Method): Method {
     return function (this: unknown, ...args: unknown[]) {
-      settle(ids, args[0] || hasError(args[1]) ? 'rejected' : 'fulfilled')
+      settle(reports, args[0] || hasError(args[1]) ? 'rejected' : 'fulfilled')
       return Reflect.apply(callback, this, args)
     }
   }
@@ -108,6 +158,9 @@
     if (typeof candidate !== 'object' || candidate === null || watched.has(candidate)) return
     watched.add(candidate)
     const provider = candidate as Record<string, unknown>
+    // Taken before the replacement, so the chain query is not reported.
+    const request = typeof provider.request === 'function' ? (provider.request as Method) : null
+    const askChain = () => askChainId(provider, request)
 
     // request({ method, params }): the EIP-1193 call.
     replace(
@@ -115,8 +168,8 @@
       'request',
       (original) =>
         function (this: unknown, ...args: unknown[]) {
-          const ids = reportPayload(args[0])
-          return watchResult(ids, Reflect.apply(original, this, args))
+          const reports = reportPayload(args[0], askChain)
+          return watchResult(reports, call(reports, original, this, args))
         },
     )
 
@@ -126,9 +179,9 @@
       'sendAsync',
       (original) =>
         function (this: unknown, ...args: unknown[]) {
-          const ids = reportPayload(args[0])
-          if (ids.length > 0 && typeof args[1] === 'function') args[1] = watchCallback(ids, args[1] as Method)
-          return Reflect.apply(original, this, args)
+          const reports = reportPayload(args[0], askChain)
+          if (reports.length > 0 && typeof args[1] === 'function') args[1] = watchCallback(reports, args[1] as Method)
+          return call(reports, original, this, args)
         },
     )
 
@@ -140,15 +193,16 @@
       (original) =>
         function (this: unknown, ...args: unknown[]) {
           if (typeof args[0] === 'string') {
-            const id = report(args[0], args[1])
-            return watchResult(id === null ? [] : [id], Reflect.apply(original, this, args))
+            const reported = report(args[0], args[1], askChain)
+            const reports = reported === null ? [] : [reported]
+            return watchResult(reports, call(reports, original, this, args))
           }
-          const ids = reportPayload(args[0])
-          if (ids.length > 0 && typeof args[1] === 'function') {
-            args[1] = watchCallback(ids, args[1] as Method)
-            return Reflect.apply(original, this, args)
+          const reports = reportPayload(args[0], askChain)
+          if (reports.length > 0 && typeof args[1] === 'function') {
+            args[1] = watchCallback(reports, args[1] as Method)
+            return call(reports, original, this, args)
           }
-          return watchResult(ids, Reflect.apply(original, this, args))
+          return watchResult(reports, call(reports, original, this, args))
         },
     )
   }

@@ -11,7 +11,7 @@ const source = readFileSync(new URL('../dist/inpage.js', import.meta.url), 'utf8
 
 type Listener = (event: { type: string; detail?: unknown }) => void
 
-function page(ethereum?: object) {
+function page(ethereum?: object, timers = { setTimeout, clearTimeout }) {
   const posted: PageMessage[] = []
   const listeners = new Map<string, Listener[]>()
   const addEventListener = (type: string, listener: Listener) => {
@@ -36,24 +36,30 @@ function page(ethereum?: object) {
       this.type = type
     }
   }
-  vm.runInNewContext(source, { window, document: { addEventListener }, Event })
+  vm.runInNewContext(source, { window, document: { addEventListener }, Event, ...timers })
   return { window, posted, fire }
 }
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 
-// A wallet provider that records its calls.
-function wallet(answer: () => Promise<unknown> = async () => '0xsigned') {
+// A wallet provider that records its calls. It is on chain 0x1.
+function wallet(
+  answer: () => Promise<unknown> = async () => '0xsigned',
+  chainId: () => Promise<unknown> = async () => '0x1',
+) {
   const calls: { self: unknown; args: unknown[] }[] = []
   const provider = {
     calls,
     request(this: unknown, ...args: unknown[]) {
       calls.push({ self: this, args })
-      return answer()
+      return (args[0] as { method?: unknown } | undefined)?.method === 'eth_chainId' ? chainId() : answer()
     },
   }
   return provider
 }
+
+const methods = (provider: ReturnType<typeof wallet>) =>
+  provider.calls.map((call) => (call.args[0] as { method: string }).method)
 
 test('a signing request is reported, and the wallet gets the same call', async () => {
   const provider = wallet()
@@ -68,7 +74,7 @@ test('a signing request is reported, and the wallet gets the same call', async (
 
   await tick()
   assert.deepEqual(posted, [
-    { onay: 'request', id: '1', method: 'personal_sign', params: ['0x68656c6c6f', '0xabc'] },
+    { onay: 'request', id: '1', method: 'personal_sign', params: ['0x68656c6c6f', '0xabc'], chainId: null },
     { onay: 'settled', id: '1', outcome: 'fulfilled' },
   ])
 })
@@ -82,10 +88,73 @@ test('the report comes before the wallet is called', () => {
     },
   })
   ;(state.window.ethereum as { request: (args: unknown) => unknown }).request({
-    method: 'eth_sendTransaction',
-    params: [{}],
+    method: 'personal_sign',
+    params: ['0x68656c6c6f'],
   })
   assert.ok(reportedFirst)
+})
+
+test('a transaction is reported with the chain of the wallet', async () => {
+  const provider = wallet()
+  const { posted } = page(provider)
+  const args = { method: 'eth_sendTransaction', params: [{ to: '0x1' }] }
+
+  const result = provider.request(args)
+  // Both calls go to the wallet at once, the chain query first.
+  assert.deepEqual(methods(provider), ['eth_chainId', 'eth_sendTransaction'])
+  assert.equal(provider.calls[1].args[0], args)
+  assert.equal(await result, '0xsigned')
+
+  await tick()
+  assert.deepEqual(posted, [
+    { onay: 'request', id: '1', method: 'eth_sendTransaction', params: [{ to: '0x1' }], chainId: '0x1' },
+    { onay: 'settled', id: '1', outcome: 'fulfilled' },
+  ])
+})
+
+test('the settled message waits for a slow chain answer', async () => {
+  let answerChain = (_chainId: string) => {}
+  const provider = wallet(
+    () => Promise.reject(new Error('rejected')),
+    () => new Promise((resolve) => (answerChain = resolve)),
+  )
+  const { posted } = page(provider)
+
+  await assert.rejects(provider.request({ method: 'eth_sendTransaction', params: [{}] }) as Promise<unknown>)
+  await tick()
+  assert.equal(posted.length, 0)
+
+  answerChain('0x89')
+  await tick()
+  assert.deepEqual(
+    posted.map((message) => (message.onay === 'request' ? message.chainId : message.outcome)),
+    ['0x89', 'rejected'],
+  )
+})
+
+test('no chain answer in time, or a bad one, gives null', async () => {
+  const now = { setTimeout: (run: () => void) => (run(), 0), clearTimeout() {} }
+  const silent = wallet(undefined, () => new Promise(() => {}))
+  const first = page(silent, now as unknown as { setTimeout: typeof setTimeout; clearTimeout: typeof clearTimeout })
+  await silent.request({ method: 'eth_sendTransaction', params: [{}] })
+  await tick()
+  assert.equal(first.posted[0].onay === 'request' && first.posted[0].chainId, null)
+
+  for (const answer of [() => Promise.resolve(1), () => Promise.reject(new Error('no'))]) {
+    const provider = wallet(undefined, answer)
+    const { posted } = page(provider)
+    await provider.request({ method: 'eth_sendTransaction', params: [{}] })
+    await tick()
+    assert.equal(posted[0].onay === 'request' && posted[0].chainId, null)
+  }
+})
+
+test('other signing methods do not ask for the chain', async () => {
+  const provider = wallet()
+  page(provider)
+  await provider.request({ method: 'personal_sign', params: [] })
+  await provider.request({ method: 'eth_signTypedData_v4', params: [] })
+  assert.deepEqual(methods(provider), ['personal_sign', 'eth_signTypedData_v4'])
 })
 
 test('a rejection by the wallet reaches the page and is reported', async () => {
@@ -119,8 +188,10 @@ test('every signing method is reported, other methods are not', async () => {
   }
   await tick()
   const reported = posted.filter((message) => message.onay === 'request').map((message) => message.method)
-  assert.deepEqual(reported, signing)
-  assert.equal(provider.calls.length, signing.length + 4)
+  // The transaction comes later: its report waits for the chain.
+  assert.deepEqual(reported.sort(), [...signing].sort())
+  // One more call: the chain query for eth_sendTransaction.
+  assert.equal(provider.calls.length, signing.length + 5)
 })
 
 test('odd calls go to the wallet unchanged and report nothing', async () => {
@@ -137,8 +208,15 @@ test('parameters that are not plain data do not stop the call', async () => {
   const provider = wallet()
   const { posted } = page(provider)
   await provider.request({ method: 'eth_sendTransaction', params: [{ value: 10n }] })
-  assert.equal(provider.calls.length, 1)
-  assert.deepEqual(posted[0], { onay: 'request', id: '1', method: 'eth_sendTransaction', params: null })
+  assert.deepEqual(methods(provider), ['eth_chainId', 'eth_sendTransaction'])
+  await tick()
+  assert.deepEqual(posted[0], {
+    onay: 'request',
+    id: '1',
+    method: 'eth_sendTransaction',
+    params: null,
+    chainId: '0x1',
+  })
 })
 
 test('a provider announced with EIP-6963 is watched', async () => {
@@ -195,8 +273,10 @@ test('sendAsync with a callback', async () => {
 
   assert.equal(seen.length, 1)
   assert.equal(seen[0][0], null)
+  await tick()
+  // This provider has no request function to ask for the chain.
   assert.deepEqual(posted, [
-    { onay: 'request', id: '1', method: 'eth_sendTransaction', params: [{ to: '0x1' }] },
+    { onay: 'request', id: '1', method: 'eth_sendTransaction', params: [{ to: '0x1' }], chainId: null },
     { onay: 'settled', id: '1', outcome: 'rejected' },
   ])
 })
@@ -216,6 +296,7 @@ test('a batch reports each signing request in it', async () => {
     ],
     () => {},
   )
+  await tick()
   assert.deepEqual(
     posted.map((message) => [message.onay, message.id]),
     [
@@ -252,4 +333,53 @@ test('a frozen provider keeps working and is not watched', async () => {
   const { posted } = page(provider)
   assert.equal(await provider.request({ method: 'personal_sign', params: [] }), '0xsigned')
   assert.deepEqual(posted, [])
+})
+
+test('a batch with two transactions asks for the chain once', async () => {
+  const provider = wallet(async () => [{ result: '0xa' }, { result: '0xb' }])
+  const { posted } = page(provider)
+  await provider.request([
+    { method: 'eth_sendTransaction', params: [{ to: '0x1' }] },
+    { method: 'eth_sendTransaction', params: [{ to: '0x2' }] },
+  ])
+  assert.equal(provider.calls.length, 2)
+  assert.equal(methods(provider)[0], 'eth_chainId')
+  await tick()
+  assert.deepEqual(
+    posted.map((message) =>
+      message.onay === 'request' ? [message.id, message.chainId] : [message.id, message.outcome],
+    ),
+    [
+      ['1', '0x1'],
+      ['2', '0x1'],
+      ['1', 'fulfilled'],
+      ['2', 'fulfilled'],
+    ],
+  )
+})
+
+test('the synchronous send reports the answer, and a throw as rejected', async () => {
+  const provider = {
+    request: async () => '0x1',
+    send(payload: { method: string }) {
+      if (payload.method === 'eth_sendTransaction') throw new Error('sync method not supported')
+      return { id: 1, jsonrpc: '2.0', result: '0xsigned' }
+    },
+  }
+  const { posted } = page(provider)
+
+  assert.throws(() => provider.send({ method: 'eth_sendTransaction' }), /not supported/)
+  assert.deepEqual(provider.send({ method: 'personal_sign' }), { id: 1, jsonrpc: '2.0', result: '0xsigned' })
+  await tick()
+  assert.deepEqual(
+    posted.map((message) =>
+      message.onay === 'request' ? [message.id, message.chainId] : [message.id, message.outcome],
+    ),
+    [
+      ['2', null],
+      ['2', 'fulfilled'],
+      ['1', '0x1'],
+      ['1', 'rejected'],
+    ],
+  )
 })

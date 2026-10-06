@@ -94,6 +94,13 @@ function isOutcome(value: unknown): value is Outcome {
   return value === 'fulfilled' || value === 'rejected'
 }
 
+// The wallet gives the chain ID as a hex string. Other values give null.
+function parseChainId(value: unknown): number | null {
+  if (typeof value !== 'string' || !/^0x[0-9a-fA-F]{1,14}$/.test(value)) return null
+  const chainId = Number(value)
+  return Number.isSafeInteger(chainId) && chainId > 0 ? chainId : null
+}
+
 // Messages from content.ts. A page can forge them, so check each field.
 // The origin comes from the browser, not from the page.
 chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
@@ -106,7 +113,15 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
 
   if (message.onay === 'request') {
     if (typeof message.method !== 'string' || !SIGNING_METHODS.has(message.method)) return
-    const request: ClientMessage = { type: 'request', id, origin, method: message.method, params: message.params }
+    const chainId = message.method === 'eth_sendTransaction' ? parseChainId(message.chainId) : null
+    const request: ClientMessage = {
+      type: 'request',
+      id,
+      origin,
+      method: message.method,
+      params: message.params,
+      chainId,
+    }
     if (JSON.stringify(request).length > MAX_REQUEST_CHARS) return
     deliver(request)
   } else if (message.onay === 'settled' && isOutcome(message.outcome)) {
