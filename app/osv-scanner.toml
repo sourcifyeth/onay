@@ -47,3 +47,19 @@ reason = "hickory-proto 0.25, via helios > reqwest 0.12; the resolver encodes on
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0436"
 reason = "unmaintained paste, a compile-time macro, via helios > alloy-primitives"
+
+[[IgnoredVulns]]
+id = "GHSA-5j98-2g5x-46v6"
+reason = "hickory-resolver 0.25, via helios > reqwest 0.12; hides DNSSEC validation failures, and DNSSEC validation is not enabled; fixed in 0.26, which reqwest 0.12 does not accept"
+
+[[IgnoredVulns]]
+id = "GHSA-6f2x-v7q7-m7m5"
+reason = "hickory-resolver 0.25, via helios > reqwest 0.12; sends extra queries for unrelated CNAME records, only to the system resolver; fixed in 0.26, which reqwest 0.12 does not accept"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0388"
+reason = "unmaintained derivative, in the lockfile only: ark-ff 0.3 and 0.4 use it, and they are optional dependencies of ruint (via helios > alloy-primitives) that are not built"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0384"
+reason = "unmaintained instant, via helios-verifiable-api-client > reqwest-retry > parking_lot 0.11"
