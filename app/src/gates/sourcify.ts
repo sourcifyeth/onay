@@ -193,3 +193,17 @@ function asCount(value: unknown, field: string): number {
   if (!Number.isSafeInteger(count)) throw unexpected(field)
   return count
 }
+
+export function describeCompiler(claim: Found): string {
+  const settings = claim.stdJsonInput.settings as {
+    optimizer?: { enabled?: unknown; runs?: unknown }
+    evmVersion?: unknown
+  }
+  const parts = [`solc ${claim.compilerVersion}`]
+  const optimizer = settings?.optimizer
+  if (optimizer?.enabled === true)
+    parts.push(`optimizer ${typeof optimizer.runs === 'number' ? `${optimizer.runs} runs` : 'on'}`)
+  else parts.push('optimizer off')
+  if (typeof settings?.evmVersion === 'string') parts.push(settings.evmVersion)
+  return parts.join(' · ')
+}

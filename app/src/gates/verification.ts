@@ -3,9 +3,9 @@
 
 import { chainById, type ChainConfig } from '../chains.ts'
 import type { Hex, SigningRequest } from '../messages.ts'
-import { heliosGateFor, chainReady } from './helios.ts'
+import { chainReady, heliosGateFor, type Head } from './helios.ts'
 import { initial, MAX_CONTRACTS, passedCount, pending, update, type Contract } from './contracts.ts'
-import { errorText, runGate, type LogLine } from './gate.ts'
+import { errorText, runGate, type Log, type LogLine } from './gate.ts'
 import { sourcifyGateFor } from './sourcify.ts'
 import { chainOf, contractsOf } from './request.ts'
 import { solcFor } from './solc.ts'
@@ -13,14 +13,18 @@ import { solcFor } from './solc.ts'
 export type TimedLine = LogLine & {
   // Milliseconds since the verification started.
   at: number
+  // Set on the lines of the gates of one contract.
+  address?: Hex
 }
 
 export type Verification = {
   // Null when the request names no chain. Messages have none.
   chainId: number | null
-  // How the chain gate reads the chain. Null if the chain is not in the
+  // How the gates read the chain. Null if the chain is not in the
   // settings.
-  mode: ChainConfig['mode'] | null
+  chain: ChainConfig | null
+  // Set once the chain is ready.
+  head: Head | null
   // The contracts that the request names, and the ones that the gates
   // find.
   contracts: Contract[]
@@ -70,7 +74,8 @@ function start(request: SigningRequest): VerificationStore {
   const listeners = new Set<() => void>()
   let snapshot: Verification = {
     chainId,
-    mode: chain?.mode ?? null,
+    chain: chain ?? null,
+    head: null,
     contracts: contracts ?? [],
     lines: [],
     status: 'running',
@@ -80,7 +85,11 @@ function start(request: SigningRequest): VerificationStore {
     snapshot = { ...snapshot, ...change }
     for (const listener of listeners) listener()
   }
-  const log = (line: LogLine) => set({ lines: [...snapshot.lines, { ...line, at: performance.now() - started }] })
+  const logFor =
+    (address?: Hex): Log =>
+    (line) =>
+      set({ lines: [...snapshot.lines, { ...line, at: performance.now() - started, address }] })
+  const log = logFor()
   const report = (address: Hex, change: Partial<Omit<Contract, 'address'>>) =>
     set({ contracts: update(snapshot.contracts, address, change) })
 
@@ -114,9 +123,10 @@ function start(request: SigningRequest): VerificationStore {
       return fail(reason)
     }
 
-    let block: number
+    let head: Head
     try {
-      block = await chainReady(chain, log)
+      head = await chainReady(chain, log)
+      set({ head })
     } catch (error) {
       const reason = errorText(error)
       log({ source: chain.mode, text: reason, ok: false })
@@ -139,7 +149,9 @@ function start(request: SigningRequest): VerificationStore {
     const heliosGate = heliosGateFor(chain)
     const sourcifyGate = sourcifyGateFor(chain.id, fetch, solc)
     const check = async (address: Hex) => {
-      const read = await runGate(heliosGate, { address, block }, log, (helios) => report(address, { helios }))
+      const log = logFor(address)
+      const input = { address, block: head.block }
+      const read = await runGate(heliosGate, input, log, (helios) => report(address, { helios }))
       if (read === null) report(address, { sourcify: { status: 'skipped', reason: 'no code to compare with' } })
       else if (read.code === '0x') report(address, { sourcify: { status: 'skipped', reason: 'not a contract' } })
       else await runGate(sourcifyGate, { address, code: read.code }, log, (sourcify) => report(address, { sourcify }))

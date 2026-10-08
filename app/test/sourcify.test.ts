@@ -3,7 +3,7 @@ import { test } from 'node:test'
 
 import type { Hex } from '../src/messages.ts'
 import type { Fetch, LogLine } from '../src/gates/gate.ts'
-import { lookup, lookupUrl, parseLookup, SOURCIFY_SERVER } from '../src/gates/sourcify.ts'
+import { describeCompiler, lookup, lookupUrl, parseLookup, SOURCIFY_SERVER } from '../src/gates/sourcify.ts'
 
 const ADDRESS: Hex = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'
 
@@ -133,4 +133,14 @@ test('lookup: other answers and no answer are failures', async () => {
     throw new TypeError('fetch failed')
   }
   await assert.rejects(lookup(1, ADDRESS, down, log), /did not answer: fetch failed/)
+})
+
+test('describeCompiler: the version, the optimizer and the EVM version', () => {
+  const claim = parseLookup(FOUND)
+  assert.equal(describeCompiler(claim), 'solc 0.4.24+commit.e67f0147 · optimizer off')
+  const settings = { optimizer: { enabled: true, runs: 200 }, evmVersion: 'shanghai' }
+  const on = parseLookup({ ...FOUND, stdJsonInput: { ...FOUND.stdJsonInput, settings } })
+  assert.equal(describeCompiler(on), 'solc 0.4.24+commit.e67f0147 · optimizer 200 runs · shanghai')
+  const bare = parseLookup({ ...FOUND, stdJsonInput: { language: 'Solidity', sources: {} } })
+  assert.equal(describeCompiler(bare), 'solc 0.4.24+commit.e67f0147 · optimizer off')
 })

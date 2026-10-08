@@ -22,13 +22,19 @@ export type ChainCode = Target & {
 const SYNC_TIMEOUT = 120_000
 const RPC_TIMEOUT = 15_000
 
-// Returns the block that each gate of the request reads from, so that all
-// see the same state.
-export function chainReady(chain: ChainConfig, log: Log): Promise<number> {
+export type Head = {
+  // The block that each gate of the request reads from, so that all see
+  // the same state.
+  block: number
+  // The finalized checkpoint that Helios synced from. Null in RPC mode.
+  checkpoint: Hex | null
+}
+
+export function chainReady(chain: ChainConfig, log: Log): Promise<Head> {
   return chain.mode === 'helios' ? heliosReady(chain, log) : rpcReady(chain, log)
 }
 
-async function heliosReady(chain: ChainConfig, log: Log): Promise<number> {
+async function heliosReady(chain: ChainConfig, log: Log): Promise<Head> {
   log({ source: 'helios', text: `waiting for the light client · ${chain.name}` })
   const ready = heliosStarted(chain.id).then(() =>
     invoke<ChainReady>('chain_ready', { chainId: chain.id } satisfies ChainReadyArgs),
@@ -40,10 +46,10 @@ async function heliosReady(chain: ChainConfig, log: Log): Promise<number> {
     ok: true,
   })
   log({ source: 'helios', text: `head is recent · block ${block.toLocaleString('en-US')} · under 60 s old`, ok: true })
-  return block
+  return { block, checkpoint: checkpoint ?? null }
 }
 
-async function rpcReady(chain: ChainConfig, log: Log): Promise<number> {
+async function rpcReady(chain: ChainConfig, log: Log): Promise<Head> {
   log({ source: 'rpc', text: `you are trusting ${new URL(chain.executionRpc).host} · its answers cannot be verified` })
   const chainId = parseQuantity(await rpcRequest(chain.executionRpc, 'eth_chainId', []))
   if (chainId !== chain.id) throw new Error(`the endpoint serves chain ${chainId}, not chain ${chain.id}`)
@@ -51,7 +57,7 @@ async function rpcReady(chain: ChainConfig, log: Log): Promise<number> {
   const block = parseQuantity(await rpcRequest(chain.executionRpc, 'eth_blockNumber', []))
   if (block === null) throw new Error('eth_blockNumber gave no block number')
   log({ source: 'rpc', text: `head · block ${block.toLocaleString('en-US')}` })
-  return block
+  return { block, checkpoint: null }
 }
 
 export function heliosGateFor(chain: ChainConfig): Gate<Target, ChainCode> {
