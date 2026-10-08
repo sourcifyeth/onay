@@ -8,7 +8,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { heliosStarted, type ChainConfig } from '../chains.ts'
 import type { ChainReady, ChainReadyArgs, ChainRequestArgs, Hex } from '../messages.ts'
-import type { Gate, Log } from './gate.ts'
+import { errorText, type Gate, type Log } from './gate.ts'
 
 export type Target = { address: Hex; block: number }
 
@@ -63,7 +63,9 @@ export function chainGateFor(chain: ChainConfig): Gate<Target, ChainCode> {
             chainId: chain.id,
             method: 'eth_getCode',
             params,
-          } satisfies ChainRequestArgs)
+          } satisfies ChainRequestArgs).catch((error) => {
+            throw new Error(explainProofError(errorText(error), chain))
+          })
         : await rpcRequest(chain.executionRpc, 'eth_getCode', params)
       if (typeof code !== 'string' || !/^0x[0-9a-fA-F]*$/.test(code)) throw new Error('eth_getCode gave no code')
       // Helios rejects code that does not match the account proof.
@@ -77,6 +79,20 @@ export function chainGateFor(chain: ChainConfig): Gate<Target, ChainCode> {
       return { ...target, code: code as Hex }
     },
   }
+}
+
+// Helios asks the execution endpoint for a proof at its own head block.
+// Some endpoints serve proofs for their newest block only, or need a key
+// for older blocks. Both errors come from the endpoint, so say so.
+function explainProofError(message: string, chain: ChainConfig): string {
+  const host = new URL(chain.executionRpc).host
+  if (/proof window/i.test(message)) {
+    return `${host} serves proofs for its newest block only, and Helios is a few blocks behind it. Choose an execution endpoint that serves eth_getProof for recent blocks, in the settings.`
+  }
+  if (/archive/i.test(message)) {
+    return `${host} needs a key for this block. Choose another execution endpoint in the settings.`
+  }
+  return message
 }
 
 // One JSON-RPC call to an endpoint in RPC mode.

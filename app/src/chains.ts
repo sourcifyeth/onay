@@ -26,26 +26,32 @@ export type ChainConfig = {
 // - OP Stack: the Helios server gets no blocks on the mainnet chains, so
 //   the default servers do not answer.
 //   https://github.com/a16z/helios/pull/801
+//
+// The execution endpoint of a Helios chain must answer eth_getProof for
+// blocks a few behind its head, because Helios asks at its own head, which
+// lags the node. Publicnode serves proofs for the newest block only, so it
+// is not used here. Checked on 2026-10-08: dRPC and Tenderly serve proofs
+// at least 10 blocks back.
 const DEFAULT_CHAINS: ChainConfig[] = [
   {
     id: 1,
     name: 'Ethereum mainnet',
     mode: 'helios',
-    executionRpc: 'https://ethereum-rpc.publicnode.com',
+    executionRpc: 'https://eth.drpc.org',
     consensusRpc: 'https://ethereum-beacon-api.publicnode.com',
   },
   {
     id: 11155111,
     name: 'Sepolia',
     mode: 'helios',
-    executionRpc: 'https://ethereum-sepolia-rpc.publicnode.com',
+    executionRpc: 'https://sepolia.gateway.tenderly.co',
     consensusRpc: 'https://ethereum-sepolia-beacon-api.publicnode.com',
   },
   {
     id: 560048,
     name: 'Hoodi',
     mode: 'helios',
-    executionRpc: 'https://ethereum-hoodi-rpc.publicnode.com',
+    executionRpc: 'https://hoodi.drpc.org',
     consensusRpc: 'https://ethereum-hoodi-beacon-api.publicnode.com',
   },
   { id: 42161, name: 'Arbitrum One', mode: 'rpc', executionRpc: 'https://arb1.arbitrum.io/rpc' },
