@@ -9,6 +9,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { heliosStarted, type ChainConfig } from '../chains.ts'
 import type { ChainReady, ChainReadyArgs, ChainRequestArgs, Hex } from '../messages.ts'
 import { errorText, type Gate, type Log } from './gate.ts'
+import { parseQuantity } from './request.ts'
 
 export type Target = { address: Hex; block: number }
 
@@ -44,10 +45,11 @@ async function heliosReady(chain: ChainConfig, log: Log): Promise<number> {
 
 async function rpcReady(chain: ChainConfig, log: Log): Promise<number> {
   log({ source: 'rpc', text: `you are trusting ${new URL(chain.executionRpc).host} · its answers cannot be verified` })
-  const chainId = Number(await rpcRequest(chain.executionRpc, 'eth_chainId', []))
+  const chainId = parseQuantity(await rpcRequest(chain.executionRpc, 'eth_chainId', []))
   if (chainId !== chain.id) throw new Error(`the endpoint serves chain ${chainId}, not chain ${chain.id}`)
   log({ source: 'rpc', text: `chain id ${chainId} matches`, ok: true })
-  const block = Number(await rpcRequest(chain.executionRpc, 'eth_blockNumber', []))
+  const block = parseQuantity(await rpcRequest(chain.executionRpc, 'eth_blockNumber', []))
+  if (block === null) throw new Error('eth_blockNumber gave no block number')
   log({ source: 'rpc', text: `head · block ${block.toLocaleString('en-US')}` })
   return block
 }
@@ -95,16 +97,22 @@ function explainProofError(message: string, chain: ChainConfig): string {
   return message
 }
 
-// One JSON-RPC call to an endpoint in RPC mode.
+let nextRpcId = 1
+
+// One JSON-RPC call to an endpoint in RPC mode. The answer must carry the
+// id of the request.
 async function rpcRequest(url: string, method: string, params: unknown[]): Promise<unknown> {
+  const id = nextRpcId++
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    body: JSON.stringify({ jsonrpc: '2.0', id, method, params }),
     signal: AbortSignal.timeout(RPC_TIMEOUT),
   })
   if (!response.ok) throw new Error(`${method}: the endpoint answered HTTP ${response.status}`)
-  const answer = (await response.json()) as { result?: unknown; error?: { message?: unknown } }
+  const answer = (await response.json()) as { id?: unknown; result?: unknown; error?: { message?: unknown } } | null
+  if (typeof answer !== 'object' || answer === null) throw new Error(`${method}: the endpoint gave no JSON object`)
+  if (answer.id !== id) throw new Error(`${method}: the answer has another id than the request`)
   if (answer.error) throw new Error(`${method}: ${String(answer.error.message ?? 'error')}`)
   return answer.result
 }

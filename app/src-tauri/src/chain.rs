@@ -31,8 +31,15 @@ impl Chains {
         }
     }
 
+    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<u64, Arc<EthereumClient>>> {
+        // A panic in another thread must not stop the chains. Same as link.rs.
+        self.clients
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     fn client(&self, chain_id: u64) -> Result<Arc<EthereumClient>, String> {
-        let clients = self.clients.lock().unwrap();
+        let clients = self.lock();
         let client = clients.get(&chain_id).cloned();
         client.ok_or_else(|| format!("Helios does not run for chain {chain_id}"))
     }
@@ -42,7 +49,7 @@ impl Chains {
         chain_id: u64,
         client: Option<EthereumClient>,
     ) -> Option<Arc<EthereumClient>> {
-        let mut clients = self.clients.lock().unwrap();
+        let mut clients = self.lock();
         match client {
             Some(client) => clients.insert(chain_id, Arc::new(client)),
             None => clients.remove(&chain_id),

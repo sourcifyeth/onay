@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import type { SigningRequest } from '../src/messages.ts'
-import { chainOf, contractsOf, parseChainId } from '../src/gates/request.ts'
+import { chainOf, contractsOf, parseChainId, parseQuantity } from '../src/gates/request.ts'
 
 const A = '0xff75a951eeb963dd34a1712edc3c358f08e6b0aa'
 const B = '0x1111111111111111111111111111111111111111'
@@ -81,4 +81,12 @@ test('chainOf: no chain', () => {
   const result = chainOf(request('personal_sign', ['0x68656c6c6f', A]))
   assert.deepEqual(result, { chainId: null, reason: 'the request names no chain' })
   assert.equal(chainOf(request('eth_sendTransaction', [{ to: A, chainId: 'nonsense' }])).chainId, null)
+})
+
+test('parseQuantity takes hex strings only', () => {
+  assert.equal(parseQuantity('0x1a'), 26)
+  assert.equal(parseQuantity('0x0'), 0)
+  for (const value of ['', '0x', '26', 26, '0xzz', ' 0x1', null, '0x20000000000000']) {
+    assert.equal(parseQuantity(value), null, String(value))
+  }
 })

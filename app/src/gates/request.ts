@@ -38,6 +38,13 @@ function chainNamedIn({ method, params }: SigningRequest): number | null {
   }
 }
 
+// A JSON-RPC quantity: a hex string such as "0x1a", as a number.
+export function parseQuantity(value: unknown): number | null {
+  if (typeof value !== 'string' || !/^0x[0-9a-fA-F]+$/.test(value)) return null
+  const quantity = Number(value)
+  return Number.isSafeInteger(quantity) ? quantity : null
+}
+
 // A chain id as a number, a decimal string, or a hex string.
 export function parseChainId(value: unknown): number | null {
   if (typeof value !== 'number' && typeof value !== 'string') return null
