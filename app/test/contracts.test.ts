@@ -17,6 +17,7 @@ const verified = {
   claim: {} as Verified['claim'],
   runtimeMatch: 'perfect',
   creationMatch: null,
+  creationNote: 'Sourcify does not know the creation transaction',
   transformations: { runtime: { list: [], values: {} }, creation: { list: [], values: {} } },
   abi: [],
 } satisfies Verified

@@ -6,6 +6,7 @@
 // it as it is.
 
 import type { Hex } from '../messages.ts'
+import type { CreationRead, CreationReader } from './creation.ts'
 import type { Fetch, Gate, Log } from './gate.ts'
 import type { Solc } from './solc.ts'
 import { verify, type Verified } from './verify.ts'
@@ -57,22 +58,28 @@ export function lookupUrl(chainId: number, address: Hex): string {
   return `${SOURCIFY_SERVER}/v2/contract/${chainId}/${address}?fields=${FIELDS}`
 }
 
-// Verifications by chain and code, so that a contract that is in many
-// requests, or at many addresses, compiles once.
+// Verifications by chain, address and code, so that a contract that is in
+// many requests compiles once.
 const verified = new Map<string, Promise<Verified>>()
 
 export function sourcifyGateFor(
   chainId: number,
   fetch: Fetch,
   solc: Solc,
+  readCreation: CreationReader,
 ): Gate<{ address: Hex; code: Hex }, Verified> {
   return {
     source: 'sourcify',
     async run({ address, code }, log) {
-      const key = `${chainId}:${code}`
+      const key = `${chainId}:${address}:${code}`
       let result = verified.get(key)
       if (result) {
-        log({ source: 'sourcify', text: `${address} · same code verified before in this session`, ok: true })
+        log({
+          source: 'sourcify',
+          text: `${address} · same code verified before in this session`,
+          ok: true,
+          proof: true,
+        })
         return result
       }
       result = (async () => {
@@ -80,7 +87,11 @@ export function sourcifyGateFor(
         if (!found) throw new Error('not verified on Sourcify · nothing to compile')
         if (found.language !== 'Solidity')
           throw new Error(`${found.language} sources · only Solidity can be compiled here`)
-        return verify(chainId, address, code, found, solc, log)
+        const read = await readCreationOf(address, found, readCreation)
+        const value = await verify(chainId, address, code, found, read, solc, log)
+        // A creation read that failed on the way is tried again next time.
+        if (read.retry) verified.delete(key)
+        return value
       })()
       verified.set(key, result)
       return result.catch((error: unknown) => {
@@ -90,6 +101,15 @@ export function sourcifyGateFor(
       })
     },
   }
+}
+
+// The creation transaction that Sourcify names, read from the chain. A
+// read that fails does not fail the gate: the runtime code is what runs.
+function readCreationOf(address: Hex, found: Found, readCreation: CreationReader): Promise<CreationRead> {
+  if (!found.deployment) {
+    return Promise.resolve({ creation: null, reason: 'Sourcify does not know the creation transaction', retry: false })
+  }
+  return readCreation(address, found.deployment.transactionHash)
 }
 
 // What Sourcify claims. Null if it has nothing for the address.
@@ -117,10 +137,12 @@ function logFound(lookup: Found, log: Log) {
   log({
     source: 'sourcify',
     text: `${lookup.name} · ${lookup.language} ${lookup.compilerVersion} · ${files} ${files === 1 ? 'file' : 'files'}`,
+    proof: false,
   })
   log({
     source: 'sourcify',
     text: `claims runtime ${matchText(lookup.runtimeMatch)} · creation ${matchText(lookup.creationMatch)} · not trusted, reproduced next`,
+    proof: false,
   })
 }
 

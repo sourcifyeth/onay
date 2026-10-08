@@ -92,6 +92,7 @@ async function fetchSoljson(builds: Build[], version: string, fetch: Fetch, log:
     source: 'solc',
     text: `${build.longVersion} · ${cached ? 'from the cache' : 'downloaded'} · sha256 matches the official list`,
     ok: true,
+    proof: true,
   })
   if (!cached) await keep(url, bytes)
   return new TextDecoder().decode(bytes)

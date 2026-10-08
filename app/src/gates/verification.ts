@@ -3,7 +3,7 @@
 
 import { chainById, type ChainConfig } from '../chains.ts'
 import type { Hex, SigningRequest } from '../messages.ts'
-import { chainReady, heliosGateFor, type Head } from './helios.ts'
+import { chainReady, creationReaderFor, heliosGateFor, type Head } from './helios.ts'
 import { initial, MAX_CONTRACTS, passedCount, pending, update, type Contract } from './contracts.ts'
 import { errorText, runGate, type Log, type LogLine } from './gate.ts'
 import { sourcifyGateFor } from './sourcify.ts'
@@ -145,11 +145,12 @@ function start(request: SigningRequest): VerificationStore {
       set({ status: ok ? 'passed' : 'failed' })
     }
     // Contracts in parallel. For each one: the code from the chain, then
-    // the sources from Sourcify, compiled and compared with the code.
+    // the sources from Sourcify, compiled and compared with the code and,
+    // if the chain gate can read it, with the creation transaction.
     const heliosGate = heliosGateFor(chain)
-    const sourcifyGate = sourcifyGateFor(chain.id, fetch, solc)
     const check = async (address: Hex) => {
       const log = logFor(address)
+      const sourcifyGate = sourcifyGateFor(chain.id, fetch, solc, creationReaderFor(chain, log))
       const input = { address, block: head.block }
       const read = await runGate(heliosGate, input, log, (helios) => report(address, { helios }))
       if (read === null) report(address, { sourcify: { status: 'skipped', reason: 'no code to compare with' } })

@@ -4,6 +4,7 @@
 import type { Contract } from './gates/contracts.ts'
 import { describeCompiler, type MatchStatus } from './gates/sourcify.ts'
 import type { Verification } from './gates/verification.ts'
+import type { Match } from './gates/verify.ts'
 import { CollapsibleLog } from './Log.tsx'
 import { InfoTip, Row, Step } from './Step.tsx'
 
@@ -11,6 +12,10 @@ const NOT_ON_SOURCIFY = /not verified on Sourcify/
 
 function matchText(status: MatchStatus): string {
   return status === null ? 'no match' : status.replace('_', ' ')
+}
+
+function matchKind(match: Match): string {
+  return match === 'perfect' ? 'exact match' : 'match · the metadata hash differs'
 }
 
 function BlackBoxWarning() {
@@ -52,8 +57,7 @@ function LocalVerification({ contract }: { contract: Contract }) {
   const reproduced = state.status === 'passed'
   let result
   if (state.status === 'passed') {
-    const match = state.value.runtimeMatch === 'perfect' ? 'exact match' : 'match'
-    result = <span className="text-sm text-green-700">✓ reproduced · {match}</span>
+    result = <span className="text-sm text-green-700">✓ reproduced</span>
   } else if (state.status === 'failed') {
     result = (
       <span className="text-sm text-light-coral-700">
@@ -78,6 +82,19 @@ function LocalVerification({ contract }: { contract: Contract }) {
       </p>
       {state.status === 'passed' && (
         <div className="divide-y divide-gray-100">
+          <Row label="Runtime bytecode">
+            <span className="text-sm text-green-700">✓ {matchKind(state.value.runtimeMatch)}</span>
+          </Row>
+          <Row label="Creation bytecode">
+            {state.value.creationMatch ? (
+              <span className="text-sm text-green-700">
+                ✓ {matchKind(state.value.creationMatch)}
+                {state.value.creationNote && <span className="text-gray-500"> · {state.value.creationNote}</span>}
+              </span>
+            ) : (
+              <span className="text-sm text-gray-500">not compared · {state.value.creationNote}</span>
+            )}
+          </Row>
           <Row label="Compiler">
             <span className="font-mono text-[13px]">{describeCompiler(state.value.claim)}</span>
           </Row>

@@ -19,6 +19,9 @@ export type LogLine = {
   text: string
   // True shows a check mark, false a cross.
   ok?: boolean
+  // True: checked on this machine, shown with the local icon. False:
+  // taken from a third party, shown with the cloud icon.
+  proof?: boolean
 }
 
 export type Log = (line: LogLine) => void

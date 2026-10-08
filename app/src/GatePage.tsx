@@ -1,8 +1,7 @@
-import { Fragment, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, useSyncExternalStore } from 'react'
 import type { SigningRequest } from './messages.ts'
 import { chainName } from './chains.ts'
 import { ChainDataStep } from './ChainDataStep.tsx'
-import { LocallyVerifiedIcon, ThirdPartyIcon } from './Icons.tsx'
 import { Cursor, LogLineView } from './Log.tsx'
 import { VerificationStep } from './VerificationStep.tsx'
 import type { GateState } from './gates/gate.ts'
@@ -86,14 +85,12 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
 function Section({
   title,
   color,
-  icon,
   subtitle,
   lines,
   state,
 }: {
   title: string
   color: string
-  icon: ReactNode
   subtitle: string
   lines: TimedLine[]
   state: 'running' | 'passed' | 'failed'
@@ -109,7 +106,6 @@ function Section({
           <span className={`relative inline-flex h-2 w-2 rounded-full ${dot}`} />
         </span>
         <span className={color}>{title}</span>
-        {icon}
         <span className="truncate text-gray-500">· {subtitle}</span>
       </div>
       <div className="pt-1 pl-4">
@@ -137,8 +133,6 @@ function GateLog({ verification, shown, done }: { verification: Verification; sh
   const sourcify = visible.filter((line) => line.source === 'sourcify' || line.source === 'solc')
   const chainLines = visible.filter((line) => line.source === mode)
   const target = contracts.length === 1 ? contracts[0].address : `${contracts.length} contracts`
-  const local = <LocallyVerifiedIcon className="h-3.5 w-3.5 shrink-0" title="Verified on this machine" />
-  const thirdParty = <ThirdPartyIcon className="h-3.5 w-3.5 shrink-0" title="From a third party, not verified" />
   return (
     <div className="font-mono text-xs leading-relaxed">
       {browser.map((line, index) => (
@@ -148,7 +142,6 @@ function GateLog({ verification, shown, done }: { verification: Verification; sh
         <Section
           title={mode}
           color={mode === 'helios' ? 'text-cerulean-blue-500' : 'text-amber-600'}
-          icon={mode === 'helios' ? local : thirdParty}
           subtitle={chainId === null ? target : `${target} on ${chainName(chainId)}`}
           lines={chainLines}
           state={done ? gateStatus(contracts.map((contract) => contract.helios)) : 'running'}
@@ -160,7 +153,6 @@ function GateLog({ verification, shown, done }: { verification: Verification; sh
         <Section
           title="sourcify"
           color="text-cerulean-blue-500"
-          icon={local}
           subtitle={`${target} · sources from sourcify.dev, compiled here`}
           lines={sourcify}
           state={done ? gateStatus(contracts.map((contract) => contract.sourcify)) : 'running'}
