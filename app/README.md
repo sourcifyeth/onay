@@ -7,6 +7,7 @@ A Tauri desktop app: a Rust program that shows a web page in its window. The Rus
 ```
 pnpm tauri dev         # build the relay, start the page with hot reload, open the window
 pnpm build             # type-check and build the page only
+pnpm test              # type-check and run the tests of the page's pure modules
 pnpm bundle            # the package with the relay inside, in target/release/bundle/
 cargo build            # both binaries
 cargo test             # all Rust tests
@@ -15,7 +16,7 @@ cargo fmt --all --check
 cargo deny check       # advisories, licenses, sources, bans
 ```
 
-The Rust tests cover the channel against the shared vectors, the key store, the peer rules, the whole link with a fake extension over a socket pair, and the relay binary against a fake app. The page has no automated test.
+The Rust tests cover the channel against the shared vectors, the key store, the peer rules, the whole link with a fake extension over a socket pair, and the relay binary against a fake app. The page tests in `test/` cover the pure gate modules: what a request names, and how a gate reports.
 
 The package settings live in `src-tauri/tauri.bundle.conf.json`, apart from the main Tauri config, so that `tauri dev` works without a packaged relay. `src-tauri/packaging/postinstall.sh` is the install script of the Linux packages.
 

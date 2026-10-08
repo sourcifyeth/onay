@@ -26,6 +26,16 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 - The user tests interactive UIs by hand: deliver, then ask for feedback; don't click through flows with browser tooling.
 - Prose style in docs: no em dashes, no hard-wrapped paragraphs (one paragraph = one line), expand acronyms on first use.
 
+## Testing
+
+- Every module with logic gets unit tests in the same change: one module, everything outside it replaced by a fake, next to the code. A `#[cfg(test)]` block in Rust, `extension/test/` with `node --test` for the extension.
+- Keep logic apart from the platform so that it can run under test. Rust modules take a closure or a trait for the system call they need (`peer.rs` takes the file owner lookup, `link.rs` takes the peer verdict). TypeScript modules take the browser or Tauri calls as parameters (`link.ts` takes the port and the store), and the pure parts of a module live in functions with no imports of `chrome` or `@tauri-apps/api`.
+- Integration tests cover the places where real parts can disagree: the link over a socket pair, the relay binary in `relay/tests/`, the built `dist/inpage.js` inside a fake page. They run the real artifact where a fake would hide a difference.
+- Two implementations of one protocol must match shared vectors. `testdata/` holds them, and a third, independent script generates them. Both test suites check them.
+- Prefer the built-in runners: Rust's test harness, Node's `node --test` with type stripping. Add Vitest to the app only when a React component needs a test.
+- No browser-driven tests. The user tests interactive UIs by hand.
+- CI runs all of it: `cargo test`, `pnpm -r test`, clippy, rustfmt, lint, and the format check.
+
 ## Commands
 
 - `pnpm install` — install everything (workspace).
@@ -34,6 +44,7 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 - `pnpm --filter mock build` — typecheck + build the mock.
 - `pnpm --filter app tauri dev` — run the app (needs the Tauri Linux prerequisites: webkit2gtk 4.1 dev headers and friends).
 - `pnpm --filter app build` — typecheck + build the app webview only.
+- `pnpm --filter app test` — type-check and run the webview tests with `node --test` (pure modules only, no React).
 - `pnpm --filter extension build` — build the extension into `extension/dist/`; load that folder unpacked in Chrome (its ID must match the one above).
 - `pnpm --filter app bundle` — production package of the app with the relay inside (`app/target/release/bundle/`). Bundle settings live in `app/src-tauri/tauri.bundle.conf.json`, kept out of the main config so `tauri dev` needs no packaged relay.
 - `pnpm --filter extension package` — store zip of the extension (`extension/onay-extension.zip`), without the `key` field.
