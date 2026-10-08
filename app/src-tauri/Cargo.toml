@@ -25,6 +25,10 @@ sha2 = "=0.11.0"
 aes-gcm = "=0.11.1"
 getrandom = "=0.4.3"
 base64 = "=0.22.1"
+# The Helios light client. It is not on crates.io: pinned to tag 0.12.0.
+helios-ethereum = { git = "https://github.com/a16z/helios", rev = "2af9b41887e069144ee56cd710f3ddca195473f8" }
+# Types of the Helios API. Same version as in Helios's tree.
+alloy = { version = "=2.1.0", default-features = false, features = ["eips", "rpc-types-eth"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # Peer credentials of the socket (SO_PEERCRED). Already in tauri's tree.

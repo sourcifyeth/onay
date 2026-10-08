@@ -1,6 +1,7 @@
 // No console window on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod chain;
 mod channel;
 mod host_manifest;
 mod link;
@@ -107,12 +108,18 @@ fn main() {
     tauri::Builder::default()
         .setup(|app| {
             app.manage(start_link(app.handle()));
+            let helios_dir = app.path().app_data_dir()?.join("helios");
+            app.manage(chain::Chains::new(helios_dir));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             link_state,
             answer_pairing,
-            dismiss_request
+            dismiss_request,
+            chain::start_chain,
+            chain::stop_chain,
+            chain::chain_ready,
+            chain::chain_request
         ])
         .run(tauri::generate_context!())
         .expect("error while running the Onay app");

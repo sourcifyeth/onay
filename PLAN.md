@@ -58,7 +58,7 @@ The verifier is view only: it never signs and never holds a request back. The wa
 
 The design is chain-generic from day one: any EVM chain can be added with a chain id and an RPC endpoint. Source verification is always local and trustless on every chain; only the way chain state is fetched differs.
 
-- **Helios mode (automatic).** Where Helios supports the chain, state is verified by the light client. Today: Ethereum mainnet and testnets, the OP Stack family (OP Mainnet, Base, Worldchain, Zora, Unichain), and Linea. Requires an execution RPC with `eth_getProof`.
+- **Helios mode (automatic).** Where Helios supports the chain, state is verified by the light client. Today: Ethereum mainnet and testnets, the OP Stack family (OP Mainnet, Base, Worldchain, Zora, Unichain), and Linea. Requires an execution RPC that answers `eth_getProof` for recent blocks, not only for its newest one, because Helios asks at its own head.
 - **RPC mode (any other chain).** State comes straight from an RPC endpoint the user provides. Running your own node makes this fully secure. RPC mode shows a permanent notice: **only use RPC endpoints you fully trust.**
 
 Per-chain trust details (which mechanism Helios uses, what RPC mode trusts) stay available in an info view for users who want them, without cluttering the main flow.
@@ -161,7 +161,7 @@ Each step ends with something that runs and can be reviewed. Steps 3 to 6 work o
 - Verification pipeline in TypeScript, in the app's webview: lib-sourcify, ethereumjs, viem, ERC-7730.
 - Rust side: relay, native messaging socket, pairing crypto, Helios, file access.
 - Helios reaches the webview through Tauri IPC, never a localhost port.
-- RPC mode is just another EIP-1193 provider; the pipeline cannot tell them apart.
+- RPC mode is just another EIP-1193 provider, in the webview: a plain fetch to the user's endpoint, so the webview's Content Security Policy must allow any HTTPS host and local nodes. The pipeline cannot tell the two modes apart.
 - The Chrome extension only intercepts and forwards; it never verifies anything.
 
 ## Version 1+
