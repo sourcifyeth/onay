@@ -146,7 +146,7 @@ function GateLog({ verification, shown, done }: { verification: Verification; sh
   const { contracts, chainId, mode, status } = verification
   const visible = verification.lines.slice(0, shown)
   const browser = visible.filter((line) => line.source === 'browser')
-  const sourcify = visible.filter((line) => line.source === 'sourcify')
+  const sourcify = visible.filter((line) => line.source === 'sourcify' || line.source === 'solc')
   const chain = visible.filter((line) => line.source === mode)
   const target = contracts.length === 1 ? contracts[0].address : `${contracts.length} contracts`
   const thirdParty = <ThirdPartyIcon className="h-3.5 w-3.5 shrink-0" title="From a third party, not verified" />

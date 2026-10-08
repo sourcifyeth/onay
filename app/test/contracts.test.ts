@@ -3,6 +3,7 @@ import { test } from 'node:test'
 
 import type { Hex } from '../src/messages.ts'
 import { add, initial, MAX_CONTRACTS, passedCount, pending, update, type Contract } from '../src/gates/contracts.ts'
+import type { Verified } from '../src/gates/verify.ts'
 
 const A: Hex = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 const B: Hex = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
@@ -12,7 +13,14 @@ function address(n: number): Hex {
 }
 
 const waiting = { status: 'waiting' } as const
-const passed = { status: 'passed', value: { found: false } } as const
+const verified = {
+  claim: {} as Verified['claim'],
+  runtimeMatch: 'perfect',
+  creationMatch: null,
+  transformations: { runtime: { list: [], values: {} }, creation: { list: [], values: {} } },
+  abi: [],
+} satisfies Verified
+const passed = { status: 'passed', value: verified } as const
 const code = (contract: Contract) => ({ address: contract.address, block: 1, code: '0x60' as Hex })
 
 test('initial: one waiting contract for each address, in the order of the request', () => {

@@ -1,10 +1,14 @@
-// What Sourcify says about a contract: the sources and the compiler
-// settings that it verified, and the creation transaction. All of it is a
-// claim. Gate 2 recompiles the sources, Gate 1 reads the transaction. This
-// module takes `fetch` as a parameter, so the tests run it as it is.
+// The second gate: what Sourcify says about a contract, reproduced. The
+// server gives the sources, the compiler settings and the creation
+// transaction, all of it a claim. The gate recompiles the sources and
+// compares the result with the code that the first gate read. This
+// module takes `fetch` and the compiler as parameters, so the tests run
+// it as it is.
 
 import type { Hex } from '../messages.ts'
 import type { Fetch, Gate, Log } from './gate.ts'
+import type { Solc } from './solc.ts'
+import { verify, type Verified } from './verify.ts'
 
 export const SOURCIFY_SERVER = 'https://sourcify.dev/server'
 
@@ -28,25 +32,24 @@ export type Deployment = {
   deployer: Hex
 }
 
-export type Lookup =
-  | { found: false }
-  | {
-      found: true
-      runtimeMatch: MatchStatus
-      creationMatch: MatchStatus
-      language: string
-      compilerVersion: string
-      name: string
-      stdJsonInput: StdJsonInput
-      // Null if Sourcify does not know the creation transaction.
-      deployment: Deployment | null
-    }
+export type Found = {
+  runtimeMatch: MatchStatus
+  creationMatch: MatchStatus
+  language: string
+  compilerVersion: string
+  // The contract in the sources: its name, and the path of its file.
+  name: string
+  path: string
+  stdJsonInput: StdJsonInput
+  // Null if Sourcify does not know the creation transaction.
+  deployment: Deployment | null
+}
 
 const FIELDS = [
   'stdJsonInput',
   'compilation.language',
   'compilation.compilerVersion',
-  'compilation.name',
+  'compilation.fullyQualifiedName',
   'deployment',
 ].join(',')
 
@@ -54,34 +57,62 @@ export function lookupUrl(chainId: number, address: Hex): string {
   return `${SOURCIFY_SERVER}/v2/contract/${chainId}/${address}?fields=${FIELDS}`
 }
 
-export function sourcifyGateFor(chainId: number, fetch: Fetch): Gate<{ address: Hex }, Lookup> {
+// Verifications by chain and code, so that a contract that is in many
+// requests, or at many addresses, compiles once.
+const verified = new Map<string, Promise<Verified>>()
+
+export function sourcifyGateFor(
+  chainId: number,
+  fetch: Fetch,
+  solc: Solc,
+): Gate<{ address: Hex; code: Hex }, Verified> {
   return {
     source: 'sourcify',
-    async run({ address }, log) {
-      log({ source: 'sourcify', text: `looking up ${address}` })
-      let response: Response
-      try {
-        response = await fetch(lookupUrl(chainId, address), {
-          headers: { accept: 'application/json' },
-          signal: AbortSignal.timeout(TIMEOUT),
-        })
-      } catch (error) {
-        throw new Error(`Sourcify did not answer: ${error instanceof Error ? error.message : String(error)}`)
+    async run({ address, code }, log) {
+      const key = `${chainId}:${code}`
+      let result = verified.get(key)
+      if (result) {
+        log({ source: 'sourcify', text: `${address} · same code verified before in this session`, ok: true })
+        return result
       }
-      if (response.status === 404) {
-        log({ source: 'sourcify', text: 'no sources · not verified on Sourcify' })
-        return { found: false }
-      }
-      if (response.status === 429) throw new Error('Sourcify answered 429: too many requests, try again later')
-      if (!response.ok) throw new Error(`Sourcify answered HTTP ${response.status}`)
-      const lookup = parseLookup(await response.json())
-      logFound(lookup, log)
-      return lookup
+      result = (async () => {
+        const found = await lookup(chainId, address, fetch, log)
+        if (!found) throw new Error('not verified on Sourcify · nothing to compile')
+        if (found.language !== 'Solidity')
+          throw new Error(`${found.language} sources · only Solidity can be compiled here`)
+        return verify(chainId, address, code, found, solc, log)
+      })()
+      verified.set(key, result)
+      return result.catch((error: unknown) => {
+        // The next request tries again.
+        verified.delete(key)
+        throw error
+      })
     },
   }
 }
 
-function logFound(lookup: Lookup & { found: true }, log: Log) {
+// What Sourcify claims. Null if it has nothing for the address.
+export async function lookup(chainId: number, address: Hex, fetch: Fetch, log: Log): Promise<Found | null> {
+  log({ source: 'sourcify', text: `looking up ${address}` })
+  let response: Response
+  try {
+    response = await fetch(lookupUrl(chainId, address), {
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(TIMEOUT),
+    })
+  } catch (error) {
+    throw new Error(`Sourcify did not answer: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  if (response.status === 404) return null
+  if (response.status === 429) throw new Error('Sourcify answered 429: too many requests, try again later')
+  if (!response.ok) throw new Error(`Sourcify answered HTTP ${response.status}`)
+  const found = parseLookup(await response.json())
+  logFound(found, log)
+  return found
+}
+
+function logFound(lookup: Found, log: Log) {
   const files = Object.keys(lookup.stdJsonInput.sources).length
   log({
     source: 'sourcify',
@@ -89,7 +120,7 @@ function logFound(lookup: Lookup & { found: true }, log: Log) {
   })
   log({
     source: 'sourcify',
-    text: `claims runtime ${matchText(lookup.runtimeMatch)} · creation ${matchText(lookup.creationMatch)} · not trusted, reproduced below`,
+    text: `claims runtime ${matchText(lookup.runtimeMatch)} · creation ${matchText(lookup.creationMatch)} · not trusted, reproduced next`,
   })
 }
 
@@ -99,19 +130,23 @@ function matchText(status: MatchStatus): string {
 
 // The body of a 200 answer. The server is not trusted, so each field that
 // the app reads is checked.
-export function parseLookup(body: unknown): Lookup & { found: true } {
+export function parseLookup(body: unknown): Found {
   const record = asRecord(body, 'the answer')
   const compilation = asRecord(record.compilation, 'compilation')
   const stdJsonInput = asRecord(record.stdJsonInput, 'stdJsonInput')
   const sources = asRecord(stdJsonInput.sources, 'stdJsonInput.sources')
   const settings = asRecord(stdJsonInput.settings ?? {}, 'stdJsonInput.settings')
+  // "path/File.sol:Name"
+  const qualified = asString(compilation.fullyQualifiedName, 'compilation.fullyQualifiedName')
+  const colon = qualified.lastIndexOf(':')
+  if (colon < 1 || colon === qualified.length - 1) throw unexpected('compilation.fullyQualifiedName')
   return {
-    found: true,
     runtimeMatch: asMatch(record.runtimeMatch, 'runtimeMatch'),
     creationMatch: asMatch(record.creationMatch, 'creationMatch'),
     language: asString(compilation.language, 'compilation.language'),
     compilerVersion: asString(compilation.compilerVersion, 'compilation.compilerVersion'),
-    name: asString(compilation.name, 'compilation.name'),
+    name: qualified.slice(colon + 1),
+    path: qualified.slice(0, colon),
     stdJsonInput: { language: asString(stdJsonInput.language, 'stdJsonInput.language'), sources, settings },
     deployment: record.deployment == null ? null : parseDeployment(record.deployment),
   }

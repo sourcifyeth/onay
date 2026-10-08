@@ -8,6 +8,7 @@ import { initial, MAX_CONTRACTS, passedCount, pending, update, type Contract } f
 import { errorText, runGate, type LogLine } from './gate.ts'
 import { sourcifyGateFor } from './sourcify.ts'
 import { chainOf, contractsOf } from './request.ts'
+import { solcFor } from './solc.ts'
 
 export type TimedLine = LogLine & {
   // Milliseconds since the verification started.
@@ -34,6 +35,9 @@ export type VerificationStore = {
 }
 
 const stores = new Map<string, VerificationStore>()
+
+// One compiler for the app: it keeps the downloaded builds.
+const solc = solcFor(fetch)
 
 export function requestKey(request: SigningRequest): string {
   return `${request.connection}:${request.id}`
@@ -131,14 +135,14 @@ function start(request: SigningRequest): VerificationStore {
       set({ status: ok ? 'passed' : 'failed' })
     }
     // Contracts in parallel. For each one: the code from the chain, then
-    // what Sourcify claims about it.
+    // the sources from Sourcify, compiled and compared with the code.
     const heliosGate = heliosGateFor(chain)
-    const sourcifyGate = sourcifyGateFor(chain.id, fetch)
+    const sourcifyGate = sourcifyGateFor(chain.id, fetch, solc)
     const check = async (address: Hex) => {
       const read = await runGate(heliosGate, { address, block }, log, (helios) => report(address, { helios }))
       if (read === null) report(address, { sourcify: { status: 'skipped', reason: 'no code to compare with' } })
       else if (read.code === '0x') report(address, { sourcify: { status: 'skipped', reason: 'not a contract' } })
-      else await runGate(sourcifyGate, { address }, log, (sourcify) => report(address, { sourcify }))
+      else await runGate(sourcifyGate, { address, code: read.code }, log, (sourcify) => report(address, { sourcify }))
       if (!pending(snapshot.contracts)) end()
     }
     for (const { address } of contracts) void check(address)

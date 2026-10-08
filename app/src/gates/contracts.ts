@@ -6,12 +6,12 @@
 import type { Hex } from '../messages.ts'
 import type { ChainCode } from './helios.ts'
 import type { GateState } from './gate.ts'
-import type { Lookup } from './sourcify.ts'
+import type { Verified } from './verify.ts'
 
 export type Contract = {
   address: Hex
   helios: GateState<ChainCode>
-  sourcify: GateState<Lookup>
+  sourcify: GateState<Verified>
 }
 
 type States = Omit<Contract, 'address'>

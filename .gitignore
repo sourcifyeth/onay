@@ -13,3 +13,6 @@ extension/*.zip
 
 # private key that fixes the extension ID; back it up, never commit it
 extension/key.pem
+
+# Compiler builds that the app tests download
+app/test/.cache/
