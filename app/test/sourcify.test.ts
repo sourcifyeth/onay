@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import type { Hex } from '../src/messages.ts'
-import type { LogLine } from '../src/gates/gate.ts'
-import { sourcifyGateFor, lookupUrl, parseLookup, SOURCIFY_SERVER, type Fetch } from '../src/gates/sourcify.ts'
+import type { Fetch, LogLine } from '../src/gates/gate.ts'
+import { lookupUrl, parseLookup, SOURCIFY_SERVER, sourcifyGateFor } from '../src/gates/sourcify.ts'
 
 const ADDRESS: Hex = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'
 

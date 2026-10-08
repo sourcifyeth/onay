@@ -12,7 +12,7 @@ export type GateState<T> =
 
 // Where a line comes from. The page shows the lines of each gate under
 // its own header.
-export type Source = 'browser' | 'helios' | 'rpc' | 'sourcify'
+export type Source = 'browser' | 'helios' | 'rpc' | 'sourcify' | 'solc'
 
 export type LogLine = {
   source: Source
@@ -54,3 +54,10 @@ export async function runGate<In, Out>(
 export function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
+
+// What a gate needs from the network. Given as a parameter, so a test can
+// give a fake.
+export type Fetch = (
+  url: string,
+  init?: { headers?: Record<string, string>; signal?: AbortSignal },
+) => Promise<Response>

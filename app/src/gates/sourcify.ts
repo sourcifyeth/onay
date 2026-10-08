@@ -4,7 +4,7 @@
 // module takes `fetch` as a parameter, so the tests run it as it is.
 
 import type { Hex } from '../messages.ts'
-import type { Gate, Log } from './gate.ts'
+import type { Fetch, Gate, Log } from './gate.ts'
 
 export const SOURCIFY_SERVER = 'https://sourcify.dev/server'
 
@@ -41,8 +41,6 @@ export type Lookup =
       // Null if Sourcify does not know the creation transaction.
       deployment: Deployment | null
     }
-
-export type Fetch = (url: string, init: { headers: Record<string, string>; signal: AbortSignal }) => Promise<Response>
 
 const FIELDS = [
   'stdJsonInput',

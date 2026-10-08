@@ -181,6 +181,9 @@ importers:
       react-dom:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
+      web-solc:
+        specifier: 0.7.0
+        version: 0.7.0
     devDependencies:
       '@tailwindcss/vite':
         specifier: 4.3.3
@@ -1080,6 +1083,11 @@ packages:
   scheduler@0.27.0:
     resolution: {integrity: sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q==}
 
+  semver@7.8.5:
+    resolution: {integrity: sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==}
+    engines: {node: '>=10'}
+    hasBin: true
+
   source-map-js@1.2.2:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
     engines: {node: '>=0.10.0'}
@@ -1149,6 +1157,9 @@ packages:
         optional: true
       yaml:
         optional: true
+
+  web-solc@0.7.0:
+    resolution: {integrity: sha512-FUl5lEAioGGqRznl+uupes2LxBrVVjdJIYJW2E79woDA7RVZKfsZvdqMDjU2wTfStk9jTCaKXaX2zrBmzFVb9w==}
 
 snapshots:
 
@@ -1691,6 +1702,8 @@ snapshots:
 
   scheduler@0.27.0: {}
 
+  semver@7.8.5: {}
+
   source-map-js@1.2.2: {}
 
   tailwindcss@4.3.3: {}
@@ -1719,3 +1732,7 @@ snapshots:
       '@types/node': 24.13.3
       fsevents: 2.3.3
       jiti: 2.7.0
+
+  web-solc@0.7.0:
+    dependencies:
+      semver: 7.8.5

@@ -17,7 +17,8 @@
   "dependencies": {
     "@tauri-apps/api": "2.11.1",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "web-solc": "0.7.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",
