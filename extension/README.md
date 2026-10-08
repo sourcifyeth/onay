@@ -2,6 +2,16 @@
 
 A Manifest V3 Chrome extension with no runtime dependencies. It watches the wallet providers on each page and sends a copy of every signing request to the Onay app. The wallet gets the request unchanged and at the same time. The extension never holds keys and never changes a request.
 
+## Build and test
+
+```
+pnpm build      # dist/: load it unpacked in Chrome
+pnpm test       # build, type-check, and run the tests with node --test
+pnpm package    # onay-extension.zip for the Chrome Web Store
+```
+
+The tests in `test/` run the channel against the shared vectors in `../testdata/`, the link against a fake app, and the built `dist/inpage.js` inside a fake page.
+
 ## The parts
 
 ```mermaid
@@ -59,18 +69,8 @@ flowchart LR
 
 1. On start, `link.ts` connects to the native messaging host `dev.sourcify.onay`. Chrome starts the relay, and the relay connects to the app.
 2. Both sides send a hello in the clear: public key and a random salt. Both derive the session keys.
-3. If the app does not know this extension, both sides show a six-digit pairing code. The user compares them and approves in the app.
+3. If the app does not know this extension, both sides show a six-digit pairing code. The user compares them and approves in the app. The extension then keeps the app's public key next to its own key pair in its IndexedDB, as key objects that no script can export. Removing the extension deletes both.
 4. From then on every message is sealed. A lost, repeated, or reordered message ends the connection.
-
-## Build and test
-
-```
-pnpm build      # dist/: load it unpacked in Chrome
-pnpm test       # build, type-check, and run the tests with node --test
-pnpm package    # onay-extension.zip for the Chrome Web Store
-```
-
-The tests in `test/` run the channel against the shared vectors in `../testdata/`, the link against a fake app, and the built `dist/inpage.js` inside a fake page.
 
 ## Fonts
 
