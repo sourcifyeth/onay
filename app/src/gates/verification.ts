@@ -6,9 +6,6 @@ import type { Hex, SigningRequest } from '../messages.ts'
 import { chainGateFor, chainReady, type ChainCode } from './chain.ts'
 import { errorText, runGate, type GateState, type LogLine } from './gate.ts'
 
-// TODO: take the chain from the request when the extension sends it.
-const CHAIN_ID = 1
-
 export type ContractChecks = { address: Hex; chain: GateState<ChainCode> }
 
 export type TimedLine = LogLine & {
@@ -17,7 +14,8 @@ export type TimedLine = LogLine & {
 }
 
 export type Verification = {
-  chainId: number
+  // Null when the request names no chain. Messages have none.
+  chainId: number | null
   // How the chain gate reads the chain. Null if the chain is not in the
   // settings.
   mode: ChainConfig['mode'] | null
@@ -44,7 +42,7 @@ export function verificationFor(request: SigningRequest): VerificationStore {
   const key = requestKey(request)
   let store = stores.get(key)
   if (!store) {
-    store = start(request, CHAIN_ID)
+    store = start(request)
     stores.set(key, store)
   }
   return store
@@ -54,10 +52,12 @@ export function forgetVerification(request: SigningRequest) {
   stores.delete(requestKey(request))
 }
 
-function start(request: SigningRequest, chainId: number): VerificationStore {
+function start(request: SigningRequest): VerificationStore {
   const addresses = contractsOf(request)
+  const resolved = chainOf(request)
+  const chainId = resolved.chainId
   // Taken once: a change in the settings does not change a running request.
-  const chain = chainById(chainId)
+  const chain = chainId === null ? undefined : chainById(chainId)
   const started = performance.now()
   const listeners = new Set<() => void>()
   let snapshot: Verification = {
@@ -82,6 +82,12 @@ function start(request: SigningRequest, chainId: number): VerificationStore {
       addresses.forEach((_, index) => report(index, { status: 'failed', reason }))
       set({ status: 'failed' })
     }
+    if (resolved.chainId === null) {
+      if (addresses.length === 0) return set({ status: 'passed' })
+      log({ source: 'browser', text: resolved.reason, ok: false })
+      return fail(resolved.reason)
+    }
+    log({ source: 'browser', text: `chain ${resolved.chainId} ${CHAIN_SOURCE_TEXT[resolved.source]}` })
     if (!chain) {
       const reason = `chain ${chainId} is not in the settings`
       log({ source: 'browser', text: reason, ok: false })
@@ -123,6 +129,53 @@ function start(request: SigningRequest, chainId: number): VerificationStore {
     },
     getSnapshot: () => snapshot,
   }
+}
+
+// Where the chain of a request is known from.
+export type RequestChain = { chainId: number; source: 'wallet' | 'request' } | { chainId: null; reason: string }
+
+const CHAIN_SOURCE_TEXT = {
+  wallet: 'reported by the wallet',
+  request: 'named in the request',
+}
+
+// The chain of a request. The wallet's answer comes with eth_sendTransaction.
+// The request itself names a chain in a transaction object, in the calls of
+// wallet_sendCalls, or in the domain of typed data. Both are reports by the
+// page, not verified. If the two disagree, the request is not checked.
+export function chainOf(request: SigningRequest): RequestChain {
+  const wallet = request.chainId
+  const named = chainNamedIn(request)
+  if (wallet !== null && named !== null && wallet !== named) {
+    return { chainId: null, reason: `the request names chain ${named}, the wallet reported chain ${wallet}` }
+  }
+  if (wallet !== null) return { chainId: wallet, source: 'wallet' }
+  if (named !== null) return { chainId: named, source: 'request' }
+  return { chainId: null, reason: 'the request names no chain' }
+}
+
+function chainNamedIn({ method, params }: SigningRequest): number | null {
+  const list = Array.isArray(params) ? params : []
+  const first = list[0] as { chainId?: unknown } | undefined
+  switch (method) {
+    case 'eth_sendTransaction':
+    case 'eth_signTransaction':
+    case 'wallet_sendCalls':
+      return parseChainId(first?.chainId)
+    case 'eth_signTypedData_v3':
+    case 'eth_signTypedData_v4':
+      return parseChainId((parseTypedData(list[1]) as { domain?: { chainId?: unknown } } | null)?.domain?.chainId)
+    default:
+      return null
+  }
+}
+
+// A chain id as a number, a decimal string, or a hex string.
+export function parseChainId(value: unknown): number | null {
+  if (typeof value !== 'number' && typeof value !== 'string') return null
+  if (typeof value === 'string' && !/^(0x[0-9a-fA-F]+|[0-9]+)$/.test(value.trim())) return null
+  const chainId = Number(value)
+  return Number.isSafeInteger(chainId) && chainId > 0 ? chainId : null
 }
 
 // The contracts that a request names. The params come from the page, so

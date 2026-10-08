@@ -27,14 +27,16 @@ function Headline({ request }: { request: SigningRequest }) {
 }
 
 // One badge in joined parts: chain id, chain name, and the address.
-function ChainBadge({ chainId, address }: { chainId: number; address?: string }) {
+function ChainBadge({ chainId, address }: { chainId: number | null; address?: string }) {
   return (
     <p>
       <span className="inline-flex max-w-full overflow-hidden rounded-md border border-cerulean-blue-200 text-sm">
         <span title="Chain id" className="shrink-0 bg-cerulean-blue-500 px-2 py-0.5 font-mono text-white">
-          {chainId}
+          {chainId ?? '?'}
         </span>
-        <span className="shrink-0 bg-white px-2.5 py-0.5 text-gray-700">{chainName(chainId)}</span>
+        <span className="shrink-0 bg-white px-2.5 py-0.5 text-gray-700">
+          {chainId === null ? 'unknown chain' : chainName(chainId)}
+        </span>
         {address && (
           <span className="min-w-0 border-l border-cerulean-blue-200 bg-gray-50 px-2.5 py-0.5 font-mono break-all text-gray-900">
             {address}
@@ -57,9 +59,11 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
         Your wallet has the same request now. Check it here before you confirm there.
       </p>
       {checks.length === 0 ? (
-        <div className="pt-5">
-          <ChainBadge chainId={chainId} />
-        </div>
+        chainId !== null && (
+          <div className="pt-5">
+            <ChainBadge chainId={chainId} />
+          </div>
+        )
       ) : (
         <div className="grid grid-cols-[max-content_1fr] items-center gap-x-3 gap-y-1 pt-5">
           {checks.map((check, index) => (
@@ -152,7 +156,7 @@ function GateLog({ verification, shown, done }: { verification: Verification; sh
               <ThirdPartyIcon className="h-3.5 w-3.5 shrink-0" title="From a third party, not verified" />
             )
           }
-          subtitle={`${target} on ${chainName(chainId)}`}
+          subtitle={chainId === null ? target : `${target} on ${chainName(chainId)}`}
           lines={chain}
           state={done ? status : 'running'}
         />
