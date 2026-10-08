@@ -48,7 +48,7 @@ function ChainBadge({ chainId, address }: { chainId: number | null; address?: st
 }
 
 function Summary({ request, verification }: { request: SigningRequest; verification: Verification }) {
-  const { checks, chainId } = verification
+  const { contracts, chainId } = verification
   const label = request.method.startsWith('eth_signTypedData') ? 'Verifying contract' : 'To'
   return (
     <section className="animate-fade-up">
@@ -58,7 +58,7 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
       <p className="pt-1 text-sm text-gray-500">
         Your wallet has the same request now. Check it here before you confirm there.
       </p>
-      {checks.length === 0 ? (
+      {contracts.length === 0 ? (
         chainId !== null && (
           <div className="pt-5">
             <ChainBadge chainId={chainId} />
@@ -66,10 +66,10 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
         )
       ) : (
         <div className="grid grid-cols-[max-content_1fr] items-center gap-x-3 gap-y-1 pt-5">
-          {checks.map((check, index) => (
-            <Fragment key={check.address}>
+          {contracts.map((contract, index) => (
+            <Fragment key={contract.address}>
               <span className="text-xs text-gray-500">{index === 0 ? label : ''}</span>
-              <ChainBadge chainId={chainId} address={check.address} />
+              <ChainBadge chainId={chainId} address={contract.address} />
             </Fragment>
           ))}
         </div>
@@ -135,11 +135,11 @@ function Section({
 }
 
 function GateLog({ verification, shown, done }: { verification: Verification; shown: number; done: boolean }) {
-  const { checks, chainId, mode, status } = verification
+  const { contracts, chainId, mode, status } = verification
   const visible = verification.lines.slice(0, shown)
   const browser = visible.filter((line) => line.source === 'browser')
   const chain = visible.filter((line) => line.source === mode)
-  const target = checks.length === 1 ? checks[0].address : `${checks.length} contracts`
+  const target = contracts.length === 1 ? contracts[0].address : `${contracts.length} contracts`
   return (
     <div className="font-mono text-xs leading-relaxed">
       {browser.map((line, index) => (
