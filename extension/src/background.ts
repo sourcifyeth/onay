@@ -2,6 +2,7 @@
 // request that a page script reports. The wallet gets the same request at
 // the same time: nothing here delays or changes it.
 
+import { Inbox } from './inbox.ts'
 import { Link } from './link.ts'
 import type { ClientMessage, LinkStatus, Outcome, StatusAction, StatusUpdate } from './messages.ts'
 import { openStore } from './store.ts'
@@ -31,6 +32,8 @@ type Waiting = { message: Extract<ClientMessage, { type: 'request' }>; since: nu
 // Requests that the app did not get yet.
 const waiting: Waiting[] = []
 const statusPorts = new Set<chrome.runtime.Port>()
+// The request IDs seen per document: a page cannot repeat one.
+const inbox = new Inbox()
 // The window that asks the user to open the app or to pair.
 let promptWindow: number | null = null
 
@@ -107,7 +110,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
   if (typeof raw !== 'object' || raw === null) return
   const message = raw as Record<string, unknown>
   const origin = sender.origin ?? ''
-  const document = sender.documentId ?? `${sender.tab?.id}.${sender.frameId}`
+  const document = `${sender.tab?.id}:${sender.documentId ?? sender.frameId}`
   if (typeof message.id !== 'string' || message.id.length > 32) return
   const id = `${document}:${message.id}`
 
@@ -123,9 +126,18 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
       chainId,
     }
     if (JSON.stringify(request).length > MAX_REQUEST_CHARS) return
+    if (!inbox.accept(document, message.id)) return
     deliver(request)
   } else if (message.onay === 'settled' && isOutcome(message.outcome)) {
+    if (!inbox.known(document, message.id)) return
     deliver({ type: 'settled', id, outcome: message.outcome })
+  }
+})
+
+// The documents of a closed tab are gone. Their IDs can go too.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  for (const document of inbox.documents()) {
+    if (document.startsWith(`${tabId}:`)) inbox.forget(document)
   }
 })
 

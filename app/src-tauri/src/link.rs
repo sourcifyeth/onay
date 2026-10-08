@@ -466,7 +466,10 @@ impl Link {
                     .iter()
                     .any(|r| r.connection == connection && r.id == id)
                 {
-                    return Err(protocol_error("a request ID was used twice"));
+                    // The page chooses the ID behind it. A repeat must not end
+                    // the connection: the extension drops repeats, and the app
+                    // ignores one that gets through.
+                    return Ok(());
                 }
                 state.requests.push(SigningRequest {
                     connection,
@@ -755,6 +758,25 @@ mod tests {
         assert_eq!(client.receive(), None);
         let snapshot = wait_for(&link, &changes, |s| s.connections.is_empty());
         assert!(snapshot.requests.is_empty());
+    }
+
+    #[test]
+    fn repeated_request_id_is_ignored_and_the_connection_stays() {
+        let (link, changes) = link("repeat", verified);
+        let identity = Identity::generate().unwrap();
+        let mut client = Client::connect(&link, &identity);
+        let snapshot = wait_for(&link, &changes, |s| s.connections.len() == 1);
+        link.answer_pairing(snapshot.connections[0].id, true)
+            .unwrap();
+        client.receive().unwrap();
+
+        client.send(request("a"));
+        client.send(request("a"));
+        client.send(request("b"));
+        let snapshot = wait_for(&link, &changes, |s| s.requests.len() == 2);
+        let ids: Vec<_> = snapshot.requests.iter().map(|r| r.id.as_str()).collect();
+        assert_eq!(ids, ["a", "b"]);
+        assert_eq!(snapshot.connections.len(), 1);
     }
 
     #[test]
