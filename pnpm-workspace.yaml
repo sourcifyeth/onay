@@ -4,4 +4,9 @@ packages:
   - mock
 
 # supply-chain guardrails (see PLAN.md)
+# cbor-extract is the native addon of cbor-x (from lib-sourcify). Not built:
+# cbor-x falls back to JavaScript, as it does in the webview anyway.
+allowBuilds:
+  cbor-extract: false
+
 minimumReleaseAge: 10080 # minutes = 7 days

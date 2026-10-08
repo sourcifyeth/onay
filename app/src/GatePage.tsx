@@ -1,7 +1,10 @@
-import { Fragment, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, useSyncExternalStore } from 'react'
 import type { SigningRequest } from './messages.ts'
 import { chainName } from './chains.ts'
-import { LocallyVerifiedIcon, ThirdPartyIcon } from './Icons.tsx'
+import { ChainDataStep } from './ChainDataStep.tsx'
+import { Cursor, LogLineView } from './Log.tsx'
+import { VerificationStep } from './VerificationStep.tsx'
+import type { GateState } from './gates/gate.ts'
 import { verificationFor, type TimedLine, type Verification } from './gates/verification.ts'
 
 // The log shows at most one new line in this time, so that you can read it.
@@ -48,7 +51,7 @@ function ChainBadge({ chainId, address }: { chainId: number | null; address?: st
 }
 
 function Summary({ request, verification }: { request: SigningRequest; verification: Verification }) {
-  const { checks, chainId } = verification
+  const { contracts, chainId } = verification
   const label = request.method.startsWith('eth_signTypedData') ? 'Verifying contract' : 'To'
   return (
     <section className="animate-fade-up">
@@ -58,7 +61,7 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
       <p className="pt-1 text-sm text-gray-500">
         Your wallet has the same request now. Check it here before you confirm there.
       </p>
-      {checks.length === 0 ? (
+      {contracts.length === 0 ? (
         chainId !== null && (
           <div className="pt-5">
             <ChainBadge chainId={chainId} />
@@ -66,10 +69,10 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
         )
       ) : (
         <div className="grid grid-cols-[max-content_1fr] items-center gap-x-3 gap-y-1 pt-5">
-          {checks.map((check, index) => (
-            <Fragment key={check.address}>
+          {contracts.map((contract, index) => (
+            <Fragment key={contract.address}>
               <span className="text-xs text-gray-500">{index === 0 ? label : ''}</span>
-              <ChainBadge chainId={chainId} address={check.address} />
+              <ChainBadge chainId={chainId} address={contract.address} />
             </Fragment>
           ))}
         </div>
@@ -78,34 +81,16 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
   )
 }
 
-function LogLineView({ line, tag = false }: { line: TimedLine; tag?: boolean }) {
-  return (
-    <p className="break-all">
-      <span className="whitespace-pre text-gray-300">[{(line.at / 1000).toFixed(6).padStart(10)}] </span>
-      {tag && <span className="text-gray-400">{line.source} </span>}
-      <span className="text-gray-500">{line.text}</span>
-      {line.ok === true && <span className="text-green-600"> ✓</span>}
-      {line.ok === false && <span className="text-light-coral-700"> ✕</span>}
-    </p>
-  )
-}
-
-function Cursor() {
-  return <span className="animate-pulse text-cerulean-blue-500">▍</span>
-}
-
 // The lines of one gate under its header.
 function Section({
   title,
   color,
-  icon,
   subtitle,
   lines,
   state,
 }: {
   title: string
   color: string
-  icon: ReactNode
   subtitle: string
   lines: TimedLine[]
   state: 'running' | 'passed' | 'failed'
@@ -121,7 +106,6 @@ function Section({
           <span className={`relative inline-flex h-2 w-2 rounded-full ${dot}`} />
         </span>
         <span className={color}>{title}</span>
-        {icon}
         <span className="truncate text-gray-500">· {subtitle}</span>
       </div>
       <div className="pt-1 pl-4">
@@ -134,34 +118,45 @@ function Section({
   )
 }
 
+// The state of one gate over each contract.
+function gateStatus(states: GateState<unknown>[]): 'running' | 'passed' | 'failed' {
+  if (states.some(({ status }) => status === 'failed')) return 'failed'
+  if (states.every(({ status }) => status === 'passed' || status === 'skipped')) return 'passed'
+  return 'running'
+}
+
 function GateLog({ verification, shown, done }: { verification: Verification; shown: number; done: boolean }) {
-  const { checks, chainId, mode, status } = verification
+  const { contracts, chainId, chain } = verification
+  const mode = chain?.mode ?? null
   const visible = verification.lines.slice(0, shown)
   const browser = visible.filter((line) => line.source === 'browser')
-  const chain = visible.filter((line) => line.source === mode)
-  const target = checks.length === 1 ? checks[0].address : `${checks.length} contracts`
+  const sourcify = visible.filter((line) => line.source === 'sourcify' || line.source === 'solc')
+  const chainLines = visible.filter((line) => line.source === mode)
+  const target = contracts.length === 1 ? contracts[0].address : `${contracts.length} contracts`
   return (
     <div className="font-mono text-xs leading-relaxed">
       {browser.map((line, index) => (
         <LogLineView key={index} line={line} tag />
       ))}
-      {mode && chain.length > 0 ? (
+      {mode && chainLines.length > 0 ? (
         <Section
           title={mode}
           color={mode === 'helios' ? 'text-cerulean-blue-500' : 'text-amber-600'}
-          icon={
-            mode === 'helios' ? (
-              <LocallyVerifiedIcon className="h-3.5 w-3.5 shrink-0" title="Verified on this machine" />
-            ) : (
-              <ThirdPartyIcon className="h-3.5 w-3.5 shrink-0" title="From a third party, not verified" />
-            )
-          }
           subtitle={chainId === null ? target : `${target} on ${chainName(chainId)}`}
-          lines={chain}
-          state={done ? status : 'running'}
+          lines={chainLines}
+          state={done ? gateStatus(contracts.map((contract) => contract.helios)) : 'running'}
         />
       ) : (
         !done && <Cursor />
+      )}
+      {sourcify.length > 0 && (
+        <Section
+          title="sourcify"
+          color="text-cerulean-blue-500"
+          subtitle={`${target} · sources from sourcify.dev, compiled here`}
+          lines={sourcify}
+          state={done ? gateStatus(contracts.map((contract) => contract.sourcify)) : 'running'}
+        />
       )}
     </div>
   )
@@ -186,9 +181,9 @@ export function GatePage({ request, onBack }: { request: SigningRequest; onBack:
   const shown = usePacedCount(verification.lines.length, ended ? verification.lines.length : 0)
   const done = verification.status !== 'running' && shown === verification.lines.length
 
-  // TODO: collapse by itself when the review below the log exists. Until
-  // then the log stays open.
-  const [compact, setCompact] = useState(false)
+  // The log folds when the review takes its place, unless you choose.
+  const [chosen, setChosen] = useState<boolean | null>(null)
+  const compact = chosen ?? done
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 py-2">
@@ -198,7 +193,7 @@ export function GatePage({ request, onBack }: { request: SigningRequest; onBack:
       <Summary request={request} verification={verification} />
       {/* Always there, so that the page does not move when the checks end. */}
       <button
-        onClick={() => setCompact(!compact)}
+        onClick={() => setChosen(!compact)}
         className="self-start font-mono text-xs text-gray-400 transition-colors hover:text-gray-600"
       >
         {compact ? 'show logs ▾' : 'hide logs ▴'}
@@ -210,6 +205,12 @@ export function GatePage({ request, onBack }: { request: SigningRequest; onBack:
           <GateLog verification={verification} shown={shown} done={done} />
         </div>
       </div>
+      {done && verification.chain && (
+        <>
+          <ChainDataStep verification={verification} />
+          <VerificationStep verification={verification} />
+        </>
+      )}
     </div>
   )
 }

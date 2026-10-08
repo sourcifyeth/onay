@@ -141,6 +141,25 @@ pub async fn chain_request(
                 .map_err(|err| err.to_string())?;
             Ok(json!(code))
         }
+        // Helios finds the block of the transaction through EIP-2935, so the
+        // block must be in the newest 8191. It checks the transaction against
+        // the transactions root, and the receipt against the receipts root.
+        "eth_getTransactionByHash" => {
+            let (hash,): (B256,) = serde_json::from_value(params).map_err(|err| err.to_string())?;
+            let tx = client
+                .get_transaction(hash)
+                .await
+                .map_err(|err| err.to_string())?;
+            Ok(json!(tx))
+        }
+        "eth_getTransactionReceipt" => {
+            let (hash,): (B256,) = serde_json::from_value(params).map_err(|err| err.to_string())?;
+            let receipt = client
+                .get_transaction_receipt(hash)
+                .await
+                .map_err(|err| err.to_string())?;
+            Ok(json!(receipt))
+        }
         _ => Err(format!("{method} is not supported")),
     }
 }
