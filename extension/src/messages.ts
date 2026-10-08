@@ -36,6 +36,8 @@ export type ServerFrame =
 export type ClientMessage =
   | { type: 'request'; id: string; origin: string; method: string; params: unknown; chainId: number | null }
   | { type: 'settled'; id: string; outcome: Outcome }
+  // The user pressed "Open Onay": the app brings its window to the front.
+  | { type: 'focus' }
 
 // Inside a sealed frame.
 export type ServerMessage = { type: 'paired' } | { type: 'pairing-rejected' }
@@ -50,6 +52,12 @@ export type LinkStatus =
   | { state: 'unavailable'; reason: 'not-installed' | 'not-running' | 'refused'; message: string }
 
 // `waiting` is the number of signing requests that the app did not get yet.
-export type StatusUpdate = { status: LinkStatus; waiting: number }
+// `pending` are the requests the wallet did not answer yet: how many, and the
+// newest one.
+export type StatusUpdate = {
+  status: LinkStatus
+  waiting: number
+  pending: { count: number; latest: { origin: string; method: string } | null }
+}
 
-export type StatusAction = { type: 'retry' }
+export type StatusAction = { type: 'retry' } | { type: 'focus' }

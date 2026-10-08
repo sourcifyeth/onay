@@ -4,6 +4,7 @@
 
 import { Inbox } from './inbox.ts'
 import { Link } from './link.ts'
+import { Pending } from './pending.ts'
 import type { ClientMessage, LinkStatus, Outcome, StatusAction, StatusUpdate } from './messages.ts'
 import { openStore } from './store.ts'
 
@@ -34,7 +35,11 @@ const waiting: Waiting[] = []
 const statusPorts = new Set<chrome.runtime.Port>()
 // The request IDs seen per document: a page cannot repeat one.
 const inbox = new Inbox()
-// The window that asks the user to open the app or to pair.
+// The requests the wallet did not answer yet. They set the badge on the
+// icon and open the window that tells the user to check the app.
+const pending = new Pending()
+// The window that tells the user about a request, or asks to open the app
+// or to pair.
 let promptWindow: number | null = null
 
 const link = new Link({
@@ -51,36 +56,68 @@ function onStatus(status: LinkStatus) {
       if (now - since <= MAX_WAIT_MS) link.send(message)
     }
   }
-  const update: StatusUpdate = { status, waiting: waiting.length }
+  const update = statusUpdate(status)
   for (const port of statusPorts) port.postMessage(update)
+  void chrome.action.setBadgeText({ text: badgeText(update.pending.count) })
   void updatePrompt(status)
 }
 
-// The window is open while the user must do something: pair, or open the
-// app because a request waits for it.
+function statusUpdate(status: LinkStatus): StatusUpdate {
+  const latest = pending.latest()
+  return {
+    status,
+    waiting: waiting.length,
+    pending: { count: pending.count(), latest: latest ? { origin: latest.origin, method: latest.method } : null },
+  }
+}
+
+function badgeText(count: number): string {
+  if (count === 0) return ''
+  return count > 9 ? '9+' : String(count)
+}
+
+// The window opens when a new signing request arrives, and when the user
+// must do something: pair, or open the app because a request waits for
+// it. It closes when the wallet answered and nothing else is needed. A
+// window the user closed stays closed until the next request.
 async function updatePrompt(status: LinkStatus) {
-  const needed = status.state === 'pairing' || (status.state === 'unavailable' && waiting.length > 0)
-  if (needed && promptWindow === null) {
+  const mustAct = status.state === 'pairing' || (status.state === 'unavailable' && waiting.length > 0)
+  const open = mustAct || pending.unshown()
+  const keep = mustAct || pending.count() > 0
+  if (open && promptWindow === null) {
     // Reserve the slot first: two calls must not open two windows.
     promptWindow = chrome.windows.WINDOW_ID_NONE
-    const created = await chrome.windows.create({ url: 'popup.html', type: 'popup', width: 420, height: 400 })
+    const created = await chrome.windows.create({ url: 'popup.html', type: 'popup', width: 420, height: 440 })
     promptWindow = created?.id ?? null
-  } else if (!needed && promptWindow !== null && promptWindow !== chrome.windows.WINDOW_ID_NONE) {
+  }
+  if (promptWindow !== null) pending.markShown()
+  if (!keep && promptWindow !== null && promptWindow !== chrome.windows.WINDOW_ID_NONE) {
     const id = promptWindow
     promptWindow = null
     await chrome.windows.remove(id).catch(() => {})
   }
 }
 
-// The user closed the window: the waiting requests are dropped.
+// The user closed the window. If it asked to open the app, the waiting
+// requests are dropped.
 chrome.windows.onRemoved.addListener((id) => {
   if (id !== promptWindow) return
   promptWindow = null
-  waiting.length = 0
+  if (link.status.state === 'unavailable') waiting.length = 0
 })
 
-function deliver(message: ClientMessage) {
-  if (link.send(message)) return
+// Sends a request or an outcome to the app, or keeps it until the app is
+// there. The focus message takes another path: it is never kept.
+function deliver(message: Exclude<ClientMessage, { type: 'focus' }>) {
+  if (message.type === 'request') {
+    pending.add(message.id, { origin: message.origin, method: message.method, at: Date.now() })
+  } else {
+    pending.settle(message.id)
+  }
+  if (link.send(message)) {
+    onStatus(link.status)
+    return
+  }
   if (message.type === 'request') {
     waiting.push({ message, since: Date.now() })
     if (waiting.length > MAX_WAITING) waiting.shift()
@@ -148,9 +185,12 @@ chrome.runtime.onConnect.addListener((port) => {
   port.onDisconnect.addListener(() => statusPorts.delete(port))
   port.onMessage.addListener((action: StatusAction) => {
     if (action.type === 'retry') link.start()
+    if (action.type === 'focus') link.send({ type: 'focus' })
   })
-  port.postMessage({ status: link.status, waiting: waiting.length } satisfies StatusUpdate)
+  port.postMessage(statusUpdate(link.status))
 })
+
+void chrome.action.setBadgeBackgroundColor({ color: '#2b50aa' })
 
 // Connect when the service worker starts, so the pairing can happen
 // before the first signing request.

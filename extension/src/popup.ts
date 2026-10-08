@@ -9,6 +9,27 @@ const title = document.querySelector<HTMLElement>('#title')!
 const detail = document.querySelector<HTMLElement>('#detail')!
 const code = document.querySelector<HTMLElement>('#code')!
 const waiting = document.querySelector<HTMLElement>('#waiting')!
+const request = document.querySelector<HTMLElement>('#request')!
+const linkCard = document.querySelector<HTMLElement>('main')!
+const requestTitle = document.querySelector<HTMLElement>('#request-title')!
+const requestDetail = document.querySelector<HTMLElement>('#request-detail')!
+const open = document.querySelector<HTMLButtonElement>('#open')!
+
+// What the site asked for, in plain words.
+function describeMethod(method: string): string {
+  switch (method) {
+    case 'eth_sendTransaction':
+    case 'eth_signTransaction':
+      return 'a transaction'
+    case 'wallet_sendCalls':
+      return 'a batch of transactions'
+    case 'personal_sign':
+    case 'eth_sign':
+      return 'a message'
+    default:
+      return 'typed data'
+  }
+}
 
 // A heading and one sentence that says what the user can do.
 function describe(status: LinkStatus): [string, string] {
@@ -41,6 +62,7 @@ function describe(status: LinkStatus): [string, string] {
 let status: LinkStatus = { state: 'idle' }
 
 function show(update: StatusUpdate) {
+  showPending(update.pending)
   showWaiting(update.waiting)
   // A retry is not news. Keep the old text until the retry has a result.
   if (status.state === 'unavailable' && update.status.state === 'connecting') return
@@ -50,6 +72,21 @@ function show(update: StatusUpdate) {
   title.textContent = heading
   detail.textContent = text
   code.textContent = status.state === 'pairing' ? status.code : ''
+  // With a request on screen, the link card matters only when the link is
+  // not ready: then the user must do something about it.
+  linkCard.hidden = update.pending.latest !== null && status.state === 'ready'
+  // The app can be brought to the front only while it is connected.
+  open.hidden = status.state !== 'ready'
+}
+
+// The newest request that the wallet did not answer yet.
+function showPending({ count, latest }: StatusUpdate['pending']) {
+  request.hidden = latest === null
+  if (!latest) return
+  requestTitle.textContent = `${latest.origin} asks your wallet to sign ${describeMethod(latest.method)}`
+  requestDetail.textContent =
+    (count > 1 ? `${count} requests are open. ` : '') +
+    'Check the request in the Onay app before you confirm it in your wallet.'
 }
 
 function showWaiting(count: number) {
@@ -63,6 +100,7 @@ function showWaiting(count: number) {
 
 const port = chrome.runtime.connect({ name: 'status' })
 port.onMessage.addListener(show)
+open.addEventListener('click', () => port.postMessage({ type: 'focus' } satisfies StatusAction))
 
 // Try again while the app is not there. This also keeps the service
 // worker awake.

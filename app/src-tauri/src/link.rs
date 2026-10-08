@@ -106,6 +106,8 @@ enum ClientMessage {
     },
     /// The wallet answered the page.
     Settled { id: String, outcome: Outcome },
+    /// The user pressed "Open Onay" in the extension.
+    Focus,
 }
 
 /// To the extension, inside a sealed frame.
@@ -169,6 +171,8 @@ pub struct SigningRequest {
 pub enum Notice {
     Changed,
     NewRequest,
+    /// Bring the window to the front.
+    Focus,
 }
 
 /// What the app set up at start, and what went wrong.
@@ -487,6 +491,7 @@ impl Link {
                 state.requests.drain(..excess);
                 Notice::NewRequest
             }
+            ClientMessage::Focus => Notice::Focus,
             ClientMessage::Settled { id, outcome } => {
                 // The request can be gone already: dismissed, or pushed out.
                 if let Some(request) = state

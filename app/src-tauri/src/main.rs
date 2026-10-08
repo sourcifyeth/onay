@@ -89,9 +89,21 @@ fn start_link(app: &AppHandle) -> LinkState {
         if let Err(err) = handle.emit(CHANGED_EVENT, ()) {
             eprintln!("onay: cannot report to the webview: {err}");
         }
-        if let (Notice::NewRequest, Some(window)) = (notice, handle.get_webview_window("main")) {
-            let _ = window.unminimize();
-            let _ = window.request_user_attention(Some(UserAttentionType::Informational));
+        let Some(window) = handle.get_webview_window("main") else {
+            return;
+        };
+        match notice {
+            Notice::NewRequest => {
+                let _ = window.unminimize();
+                let _ = window.request_user_attention(Some(UserAttentionType::Informational));
+            }
+            // The desktop may refuse the focus and mark the window instead.
+            Notice::Focus => {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+            Notice::Changed => {}
         }
     };
     let link = Link::new(
