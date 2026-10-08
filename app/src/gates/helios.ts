@@ -54,7 +54,7 @@ async function rpcReady(chain: ChainConfig, log: Log): Promise<number> {
   return block
 }
 
-export function chainGateFor(chain: ChainConfig): Gate<Target, ChainCode> {
+export function heliosGateFor(chain: ChainConfig): Gate<Target, ChainCode> {
   const helios = chain.mode === 'helios'
   return {
     source: chain.mode,

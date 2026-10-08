@@ -6,10 +6,13 @@ export type GateState<T> =
   | { status: 'running' }
   | { status: 'passed'; value: T }
   | { status: 'failed'; reason: string }
+  // The gate has nothing to check, for example a transfer to an account
+  // with no code. The contract can still pass.
+  | { status: 'skipped'; reason: string }
 
 // Where a line comes from. The page shows the lines of each gate under
 // its own header.
-export type Source = 'browser' | 'helios' | 'rpc'
+export type Source = 'browser' | 'helios' | 'rpc' | 'sourcify'
 
 export type LogLine = {
   source: Source

@@ -4,13 +4,17 @@
 // calls, so the tests run it as it is.
 
 import type { Hex } from '../messages.ts'
-import type { ChainCode } from './chain.ts'
+import type { ChainCode } from './helios.ts'
 import type { GateState } from './gate.ts'
+import type { Lookup } from './sourcify.ts'
 
 export type Contract = {
   address: Hex
-  chain: GateState<ChainCode>
+  helios: GateState<ChainCode>
+  sourcify: GateState<Lookup>
 }
+
+type States = Omit<Contract, 'address'>
 
 // A request touches a few contracts. A list without an end would never
 // pass, so a gate that finds more than this fails.
@@ -22,7 +26,7 @@ export function add(contracts: Contract[], address: Hex): Contract[] | null {
   const key = address.toLowerCase() as Hex
   if (contracts.some((contract) => contract.address === key)) return contracts
   if (contracts.length >= MAX_CONTRACTS) return null
-  return [...contracts, { address: key, chain: { status: 'waiting' } }]
+  return [...contracts, { address: key, helios: { status: 'waiting' }, sourcify: { status: 'waiting' } }]
 }
 
 // The contracts that a request names. Null if there are too many.
@@ -35,15 +39,24 @@ export function initial(addresses: Hex[]): Contract[] | null {
   return contracts
 }
 
-export function withChain(contracts: Contract[], address: Hex, chain: GateState<ChainCode>): Contract[] {
-  return contracts.map((contract) => (contract.address === address ? { ...contract, chain } : contract))
+export function update(contracts: Contract[], address: Hex, change: Partial<States>): Contract[] {
+  return contracts.map((contract) => (contract.address === address ? { ...contract, ...change } : contract))
+}
+
+function states({ helios, sourcify }: Contract): GateState<unknown>[] {
+  return [helios, sourcify]
 }
 
 // True while a gate of a contract waits or runs.
 export function pending(contracts: Contract[]): boolean {
-  return contracts.some(({ chain }) => chain.status === 'waiting' || chain.status === 'running')
+  return contracts.some((contract) =>
+    states(contract).some(({ status }) => status === 'waiting' || status === 'running'),
+  )
 }
 
+// The contracts for which each gate passed, or had nothing to check.
 export function passedCount(contracts: Contract[]): number {
-  return contracts.filter(({ chain }) => chain.status === 'passed').length
+  return contracts.filter((contract) =>
+    states(contract).every(({ status }) => status === 'passed' || status === 'skipped'),
+  ).length
 }

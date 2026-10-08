@@ -14,7 +14,8 @@
       {
         "title": "Onay",
         "width": 960,
-        "height": 720
+        "height": 720,
+        "userAgent": "Onay/0.0.0 (+https://github.com/sourcifyeth/onay)"
       }
     ],
     "security": {

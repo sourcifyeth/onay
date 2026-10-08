@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState, useSyncExternalStore, type ReactNode } f
 import type { SigningRequest } from './messages.ts'
 import { chainName } from './chains.ts'
 import { LocallyVerifiedIcon, ThirdPartyIcon } from './Icons.tsx'
+import type { GateState } from './gates/gate.ts'
 import { verificationFor, type TimedLine, type Verification } from './gates/verification.ts'
 
 // The log shows at most one new line in this time, so that you can read it.
@@ -134,17 +135,36 @@ function Section({
   )
 }
 
+// The state of one gate over each contract.
+function gateStatus(states: GateState<unknown>[]): 'running' | 'passed' | 'failed' {
+  if (states.some(({ status }) => status === 'failed')) return 'failed'
+  if (states.every(({ status }) => status === 'passed' || status === 'skipped')) return 'passed'
+  return 'running'
+}
+
 function GateLog({ verification, shown, done }: { verification: Verification; shown: number; done: boolean }) {
   const { contracts, chainId, mode, status } = verification
   const visible = verification.lines.slice(0, shown)
   const browser = visible.filter((line) => line.source === 'browser')
+  const sourcify = visible.filter((line) => line.source === 'sourcify')
   const chain = visible.filter((line) => line.source === mode)
   const target = contracts.length === 1 ? contracts[0].address : `${contracts.length} contracts`
+  const thirdParty = <ThirdPartyIcon className="h-3.5 w-3.5 shrink-0" title="From a third party, not verified" />
   return (
     <div className="font-mono text-xs leading-relaxed">
       {browser.map((line, index) => (
         <LogLineView key={index} line={line} tag />
       ))}
+      {sourcify.length > 0 && (
+        <Section
+          title="sourcify"
+          color="text-amber-600"
+          icon={thirdParty}
+          subtitle={`${target} on sourcify.dev`}
+          lines={sourcify}
+          state={done ? gateStatus(contracts.map((contract) => contract.sourcify)) : 'running'}
+        />
+      )}
       {mode && chain.length > 0 ? (
         <Section
           title={mode}
@@ -153,7 +173,7 @@ function GateLog({ verification, shown, done }: { verification: Verification; sh
             mode === 'helios' ? (
               <LocallyVerifiedIcon className="h-3.5 w-3.5 shrink-0" title="Verified on this machine" />
             ) : (
-              <ThirdPartyIcon className="h-3.5 w-3.5 shrink-0" title="From a third party, not verified" />
+              thirdParty
             )
           }
           subtitle={chainId === null ? target : `${target} on ${chainName(chainId)}`}

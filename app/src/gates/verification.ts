@@ -3,9 +3,10 @@
 
 import { chainById, type ChainConfig } from '../chains.ts'
 import type { Hex, SigningRequest } from '../messages.ts'
-import { chainGateFor, chainReady, type ChainCode } from './chain.ts'
-import { initial, MAX_CONTRACTS, passedCount, pending, withChain, type Contract } from './contracts.ts'
-import { errorText, runGate, type GateState, type LogLine } from './gate.ts'
+import { heliosGateFor, chainReady } from './helios.ts'
+import { initial, MAX_CONTRACTS, passedCount, pending, update, type Contract } from './contracts.ts'
+import { errorText, runGate, type LogLine } from './gate.ts'
+import { sourcifyGateFor } from './sourcify.ts'
 import { chainOf, contractsOf } from './request.ts'
 
 export type TimedLine = LogLine & {
@@ -76,14 +77,15 @@ function start(request: SigningRequest): VerificationStore {
     for (const listener of listeners) listener()
   }
   const log = (line: LogLine) => set({ lines: [...snapshot.lines, { ...line, at: performance.now() - started }] })
-  const report = (address: Hex, chain: GateState<ChainCode>) =>
-    set({ contracts: withChain(snapshot.contracts, address, chain) })
+  const report = (address: Hex, change: Partial<Omit<Contract, 'address'>>) =>
+    set({ contracts: update(snapshot.contracts, address, change) })
 
   const run = async () => {
     log({ source: 'browser', text: `request received · ${request.method} · from ${request.origin}` })
     const fail = (reason: string) => {
+      const failed = { status: 'failed', reason } as const
       set({
-        contracts: snapshot.contracts.map((contract) => ({ ...contract, chain: { status: 'failed', reason } })),
+        contracts: snapshot.contracts.map((contract) => ({ ...contract, helios: failed, sourcify: failed })),
         status: 'failed',
       })
     }
@@ -128,11 +130,15 @@ function start(request: SigningRequest): VerificationStore {
       log({ source: chain.mode, text: `${passed}/${total} contracts read`, ok })
       set({ status: ok ? 'passed' : 'failed' })
     }
-    // Contracts in parallel. The Sourcify gate will take the result of the
-    // chain gate for the same contract.
-    const chainGate = chainGateFor(chain)
+    // Contracts in parallel. For each one: the code from the chain, then
+    // what Sourcify claims about it.
+    const heliosGate = heliosGateFor(chain)
+    const sourcifyGate = sourcifyGateFor(chain.id, fetch)
     const check = async (address: Hex) => {
-      await runGate(chainGate, { address, block }, log, (state) => report(address, state))
+      const read = await runGate(heliosGate, { address, block }, log, (helios) => report(address, { helios }))
+      if (read === null) report(address, { sourcify: { status: 'skipped', reason: 'no code to compare with' } })
+      else if (read.code === '0x') report(address, { sourcify: { status: 'skipped', reason: 'not a contract' } })
+      else await runGate(sourcifyGate, { address }, log, (sourcify) => report(address, { sourcify }))
       if (!pending(snapshot.contracts)) end()
     }
     for (const { address } of contracts) void check(address)
