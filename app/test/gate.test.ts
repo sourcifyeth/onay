@@ -41,6 +41,18 @@ test('a gate that fails: running, then failed with the reason, and the reason in
   assert.deepEqual(lines, [{ source: 'helios', text: 'no proof', ok: false }])
 })
 
+test('a gate that fails with a cause: the cause is in the failed state', async () => {
+  const gate: Gate<number, string> = {
+    source: 'sourcify',
+    async run() {
+      throw new Error('not reproduced', { cause: { kind: 'not reproduced' } })
+    },
+  }
+  const { states, report, log } = collect()
+  await runGate(gate, 7, log, report)
+  assert.deepEqual(states[1], { status: 'failed', reason: 'not reproduced', cause: { kind: 'not reproduced' } })
+})
+
 test('errorText takes the message of an Error and the text of anything else', () => {
   assert.equal(errorText(new Error('boom')), 'boom')
   assert.equal(errorText('a string from a Tauri command'), 'a string from a Tauri command')

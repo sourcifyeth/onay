@@ -77,16 +77,16 @@ On Linux the app accepts a connection only from an approved browser that is inst
 
 Run these before you push. Continuous integration (CI) runs the same commands.
 
-| Command                                     | Where     | What it does                                                                                                       |
-| ------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------ |
-| `pnpm -r build`                             | repo root | Type-checks and builds the mock, the app's web user interface, and the extension.                                  |
-| `pnpm format:check`                         | repo root | Checks the formatting with oxfmt. `pnpm format` fixes it.                                                          |
-| `pnpm -r lint`                              | repo root | Runs oxlint.                                                                                                       |
-| `pnpm -r test`                              | repo root | Runs the extension tests with the Node.js test runner.                                                             |
-| `cargo test`                                | `app/`    | Runs the Rust tests, including one that drives the real relay binary.                                              |
-| `cargo clippy --all-targets -- -D warnings` | `app/`    | Rust lints.                                                                                                        |
-| `cargo fmt --all --check`                   | `app/`    | Rust formatting.                                                                                                   |
-| `cargo deny check`                          | `app/`    | Advisories, licenses, and sources of the Rust dependencies. Install once with `cargo install --locked cargo-deny`. |
+| Command                                     | Where     | What it does                                                                                                                                                 |
+| ------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm -r build`                             | repo root | Type-checks and builds the mock, the app's web user interface, and the extension.                                                                            |
+| `pnpm format:check`                         | repo root | Checks the formatting with oxfmt. `pnpm format` fixes it.                                                                                                    |
+| `pnpm -r lint`                              | repo root | Runs oxlint.                                                                                                                                                 |
+| `pnpm -r test`                              | repo root | Runs the extension and app tests with the Node.js test runner. The app tests download one compiler build on the first run and keep it in `app/test/.cache/`. |
+| `cargo test`                                | `app/`    | Runs the Rust tests, including one that drives the real relay binary.                                                                                        |
+| `cargo clippy --all-targets -- -D warnings` | `app/`    | Rust lints.                                                                                                                                                  |
+| `cargo fmt --all --check`                   | `app/`    | Rust formatting.                                                                                                                                             |
+| `cargo deny check`                          | `app/`    | Advisories, licenses, and sources of the Rust dependencies. Install once with `cargo install --locked cargo-deny`.                                           |
 
 ## Production
 
