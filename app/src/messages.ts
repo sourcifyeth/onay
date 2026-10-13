@@ -35,9 +35,9 @@ export type Snapshot = {
 
 export type ConnectionInfo = {
   id: number
-  // The browser binary, if the peer check found it.
-  browser: string | null
-  verified: boolean
+  // The browser that the peer check found: its binary on Linux, its name
+  // and signature on macOS.
+  browser: string
   // Set while the user must approve this extension.
   pairingCode: string | null
 }

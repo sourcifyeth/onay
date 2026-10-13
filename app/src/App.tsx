@@ -19,7 +19,7 @@ function Pairing({ connection }: { connection: ConnectionInfo }) {
       <p className="mt-2 font-mono text-3xl font-semibold tracking-widest">{connection.pairingCode}</p>
       <p className="mt-2 text-gray-600">
         Approve only if the Onay extension shows the same code.
-        {connection.browser && ` Browser: ${connection.browser}`}
+        {` Browser: ${connection.browser}`}
       </p>
       <div className="mt-3 flex gap-2">
         <button className="rounded bg-[#2b50aa] px-3 py-1 text-white" onClick={() => answer(true)}>
@@ -117,8 +117,7 @@ function Details({ snapshot }: { snapshot: Snapshot }) {
           {snapshot.connections.length === 0 && 'none'}
           {snapshot.connections.map((c) => (
             <div key={c.id}>
-              {c.browser ?? 'unknown browser'} ({c.verified ? 'verified' : 'not verified on this system'}
-              {c.pairingCode ? ', waits for pairing' : ', paired'})
+              {c.browser} ({c.pairingCode ? 'waits for pairing' : 'paired'})
             </div>
           ))}
         </dd>

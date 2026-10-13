@@ -69,6 +69,14 @@ fn start_link(app: &AppHandle) -> LinkState {
         socket: onay_ipc::socket_path(),
         ..Setup::default()
     };
+    // A second instance stops here, before it points the browsers at its
+    // own relay.
+    let listener = link::bind(&setup.socket).map_err(|err| {
+        vec![format!(
+            "cannot listen on {}: {err}",
+            setup.socket.display()
+        )]
+    })?;
     match link::relay_path() {
         Ok(relay) => {
             setup.manifests = host_manifest::install(&relay);
@@ -78,12 +86,6 @@ fn start_link(app: &AppHandle) -> LinkState {
             .errors
             .push(format!("cannot locate the relay binary: {err}")),
     }
-    let listener = link::bind(&setup.socket).map_err(|err| {
-        vec![format!(
-            "cannot listen on {}: {err}",
-            setup.socket.display()
-        )]
-    })?;
 
     let relay = setup.relay.clone().unwrap_or_default();
     let handle = app.clone();

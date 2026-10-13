@@ -10,13 +10,39 @@ use onay_ipc::{EXTENSION_ID, HOST_NAME};
 use serde::Serialize;
 
 /// Browser configuration directories, relative to the user's home. A
-/// browser that has none is not installed and is skipped.
+/// browser that has none is not installed and is skipped. The list also
+/// has browsers that the peer check in `peer.rs` refuses, so that they get
+/// the reason and not "host not found".
 #[cfg(target_os = "linux")]
-const BROWSER_DIRS: &[&str] = &[".config/google-chrome", ".config/chromium"];
+const BROWSER_DIRS: &[&str] = &[
+    ".config/google-chrome",
+    ".config/google-chrome-beta",
+    ".config/google-chrome-unstable",
+    ".config/chromium",
+    ".config/BraveSoftware/Brave-Browser",
+    ".config/BraveSoftware/Brave-Browser-Beta",
+    ".config/BraveSoftware/Brave-Browser-Nightly",
+    ".config/microsoft-edge",
+    ".config/microsoft-edge-beta",
+    ".config/microsoft-edge-dev",
+    ".config/vivaldi",
+    ".config/vivaldi-snapshot",
+];
+/// On macOS, Brave reads the directory of Chrome, and makes it when it is
+/// missing.
 #[cfg(target_os = "macos")]
 const BROWSER_DIRS: &[&str] = &[
     "Library/Application Support/Google/Chrome",
+    "Library/Application Support/Google/Chrome Beta",
+    "Library/Application Support/Google/Chrome Dev",
+    "Library/Application Support/Google/Chrome Canary",
     "Library/Application Support/Chromium",
+    "Library/Application Support/Microsoft Edge",
+    "Library/Application Support/Microsoft Edge Beta",
+    "Library/Application Support/Microsoft Edge Dev",
+    "Library/Application Support/Microsoft Edge Canary",
+    "Library/Application Support/Vivaldi",
+    "Library/Application Support/Arc/User Data",
 ];
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
 compile_error!("Onay supports Linux and macOS only");

@@ -37,21 +37,33 @@ jobs:
       - run: pnpm -r test
 
   rust:
-    name: Rust (app, relay)
-    runs-on: ubuntu-latest
+    name: Rust on ${{ matrix.os }} (app, relay)
+    strategy:
+      fail-fast: false
+      matrix:
+        # the peer check on macOS calls the kernel and the Security framework, so its tests need a Mac
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     defaults:
       run:
         working-directory: app
+    env:
+      # smaller build caches: no incremental build data, and line tables as the only debug info
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       # the toolchain comes from app/rust-toolchain.toml; rustup on the runner installs it on first use
       - name: Install Tauri Linux prerequisites
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # pull requests restore the cache of main but save none: all caches of the repo share 10 GB
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache
         with:
           path: |
             ~/.cargo/registry/index
@@ -60,7 +72,18 @@ jobs:
             app/target
           key: cargo-${{ runner.os }}-${{ hashFiles('app/Cargo.lock', 'app/rust-toolchain.toml') }}
           restore-keys: cargo-${{ runner.os }}-
-      - run: cargo fmt --all --check
+      # formatting is the same on every system
+      - if: runner.os == 'Linux'
+        run: cargo fmt --all --check
       - run: cargo build --locked --workspace
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo test --locked --workspace
+      - if: github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            app/target
+          key: ${{ steps.cache.outputs.cache-primary-key }}
