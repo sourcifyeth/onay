@@ -24,6 +24,7 @@ ignore = [
   { id = "RUSTSEC-2026-0118", reason = "hickory-proto 0.25, via helios > reqwest 0.12; affects DNSSEC validation, which is not enabled; fixed in 0.26, which reqwest 0.12 does not accept" },
   { id = "RUSTSEC-2026-0119", reason = "hickory-proto 0.25, via helios > reqwest 0.12; the resolver encodes only its own small queries; fixed in 0.26, which reqwest 0.12 does not accept" },
   { id = "RUSTSEC-2024-0436", reason = "unmaintained paste, a compile-time macro, via helios > alloy-primitives" },
+  { id = "RUSTSEC-2024-0449", reason = "unmaintained unsafe-libyaml, via helios-ethereum > serde_yaml; parses the checkpoint service list that Helios fetches from GitHub over HTTPS" },
 ]
 
 [licenses]
