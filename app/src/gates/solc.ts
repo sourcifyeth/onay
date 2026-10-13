@@ -58,13 +58,25 @@ export function solcFor(fetch: Fetch, load: Loader = loadSolc, compileTimeout = 
         )
       })
       try {
-        return await Promise.race([solc.compile(input), timeout])
+        return failed(await Promise.race([solc.compile(input), timeout]))
       } finally {
         clearTimeout(timer)
         solc.stopWorker()
       }
     },
   }
+}
+
+// The worker of web-solc reports its own failures, for example a build
+// that did not load, as errors in an otherwise empty output. Only a
+// compile that produced contracts goes on.
+function failed(output: object): object {
+  const { contracts, errors } = output as { contracts?: unknown; errors?: { severity?: unknown; message?: unknown }[] }
+  if (contracts !== undefined || !Array.isArray(errors)) return output
+  const messages = errors
+    .filter((error) => error?.severity === 'error')
+    .map((error) => String(error.message ?? 'error'))
+  throw new Error(`the compiler did not run: ${messages.join(' · ') || 'no output'}`)
 }
 
 // The build of a version, as Sourcify names it: "0.8.24+commit.e11b9ed9",

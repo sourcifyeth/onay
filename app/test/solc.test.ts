@@ -133,3 +133,20 @@ test('compile: a worker that hangs is stopped when the timeout fires', async () 
   await assert.rejects(solc.compile('0.8.24+commit.e11b9ed9', {}, log), /did not finish in 0.02 s/)
   assert.equal(stopped, true)
 })
+
+test('compile: an error of the worker itself is the failure, not an empty output', async () => {
+  const broken = async () => ({
+    compile: async () => ({ errors: [{ severity: 'error', message: 'importScripts failed' }] }),
+    stopWorker: () => {},
+  })
+  const { log } = collect()
+  const solc = solcFor(server(), broken)
+  await assert.rejects(solc.compile('0.8.24+commit.e11b9ed9', {}, log), /did not run: importScripts failed/)
+})
+
+test('compile: an output with contracts goes through, with its warnings', async () => {
+  const output = { contracts: {}, errors: [{ severity: 'warning', message: 'unused' }] }
+  const fine = async () => ({ compile: async () => output, stopWorker: () => {} })
+  const { log } = collect()
+  assert.deepEqual(await solcFor(server(), fine).compile('0.8.24+commit.e11b9ed9', {}, log), output)
+})
