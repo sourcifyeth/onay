@@ -9,6 +9,12 @@ import type { Fetch, Log } from './gate.ts'
 export const SOLC_BIN = 'https://binaries.soliditylang.org/emscripten-wasm32'
 
 const TIMEOUT = 60_000
+// A large contract takes a while in wasm. A worker that hangs must not
+// keep a request running forever.
+const COMPILE_TIMEOUT = 180_000
+
+// What the compiler runs in. `loadSolc` of web-solc, or a fake in a test.
+export type Loader = (soljson: string) => Promise<{ compile(input: object): Promise<object>; stopWorker(): void }>
 
 export type Build = { path: string; longVersion: string; sha256: string }
 
@@ -21,7 +27,7 @@ export type Solc = {
   compile(version: string, input: object, log: Log): Promise<object>
 }
 
-export function solcFor(fetch: Fetch): Solc {
+export function solcFor(fetch: Fetch, load: Loader = loadSolc, compileTimeout = COMPILE_TIMEOUT): Solc {
   let list: Promise<Build[]> | undefined
   const soljsons = new Map<string, Promise<string>>()
   const soljson = (version: string, log: Log) => {
@@ -31,7 +37,8 @@ export function solcFor(fetch: Fetch): Solc {
       source = list
         .then((builds) => fetchSoljson(builds, version, fetch, log))
         .catch((error: unknown) => {
-          // The next request tries again.
+          // The next request tries again, the list included.
+          list = undefined
           soljsons.delete(version)
           throw error
         })
@@ -42,10 +49,18 @@ export function solcFor(fetch: Fetch): Solc {
   return {
     soljson,
     async compile(version, input, log) {
-      const solc = await loadSolc(await soljson(version, log))
+      const solc = await load(await soljson(version, log))
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`solc ${version} did not finish in ${compileTimeout / 1000} s`)),
+          compileTimeout,
+        )
+      })
       try {
-        return await solc.compile(input)
+        return await Promise.race([solc.compile(input), timeout])
       } finally {
+        clearTimeout(timer)
         solc.stopWorker()
       }
     },

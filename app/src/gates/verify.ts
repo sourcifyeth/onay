@@ -110,9 +110,18 @@ export async function verify(
   log({ source: 'solc', text: `compiling ${claim.name} · ${claim.compilerVersion}` })
   const chain = new ReadChain(chainId, address, code, read.creation)
   const verification = new Verification(compilation, chain, address, read.creation?.transactionHash)
-  await verification.verify()
+  // The library throws on a mismatch. The review keeps the claim.
+  const notReproduced = () =>
+    new Error('the recompiled runtime bytecode is not the code on chain', { cause: { kind: 'not reproduced', claim } })
+  try {
+    await verification.verify()
+  } catch (error) {
+    const code = (error as { code?: unknown } | null)?.code
+    if (code === 'no_match' || code === 'bytecode_length_mismatch') throw notReproduced()
+    throw error
+  }
   const { runtimeMatch, creationMatch } = verification.status
-  if (!isMatch(runtimeMatch)) throw new Error('the recompiled runtime bytecode is not the code on chain')
+  if (!isMatch(runtimeMatch)) throw notReproduced()
   log({ source: 'sourcify', text: `runtime bytecode compare · ${matchText(runtimeMatch)}`, ok: true, proof: true })
   let creationNote: string | null = null
   if (read.creation) {
@@ -141,6 +150,7 @@ function isMatch(status: unknown): status is Match {
   return status === 'perfect' || status === 'partial'
 }
 
-function matchText(match: Match): string {
+// The result of a compare, in words. The log and the review use the same.
+export function matchText(match: Match): string {
   return match === 'perfect' ? 'exact match' : 'match · the metadata hash differs'
 }

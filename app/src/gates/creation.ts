@@ -39,7 +39,7 @@ export function parseCreation(
   receipt: unknown,
   verified: boolean,
 ): Creation {
-  if (tx === null || receipt === null) throw new Error('the chain does not know the transaction')
+  if (tx === null || receipt === null) throw new Error(UNKNOWN_TRANSACTION)
   const transaction = asRecord(tx, 'transaction')
   const record = asRecord(receipt, 'receipt')
   const created = record.contractAddress
@@ -57,6 +57,25 @@ export function parseCreation(
     input: asHex(transaction.input, 'transaction'),
     verified,
   }
+}
+
+// Helios says "block N is outside EIP-2935 ring buffer range (latest: M,
+// buffer size: 8191)" for a block it cannot verify. Null for any other
+// error.
+export function oldBlock(message: string): string | null {
+  const old = /block (\d+) is outside EIP-2935 ring buffer range \(latest: (\d+), buffer size: (\d+)\)/.exec(message)
+  if (!old) return null
+  const [, block, latest, size] = old
+  const age = Number(latest) - Number(block)
+  return `${age.toLocaleString('en-US')} blocks old · Helios can verify the newest ${Number(size).toLocaleString('en-US')} only`
+}
+
+export const UNKNOWN_TRANSACTION = 'the chain does not know the transaction'
+
+// Helios answers a hash that the chain does not know with this error,
+// not with null.
+export function unknownTransaction(message: string): boolean {
+  return /receipt not found/.test(message)
 }
 
 function unexpected(what: string): Error {

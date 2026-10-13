@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import type { Hex } from '../src/messages.ts'
-import { parseCreation } from '../src/gates/creation.ts'
+import { oldBlock, parseCreation, unknownTransaction } from '../src/gates/creation.ts'
 
 const ADDRESS: Hex = '0x1111111111111111111111111111111111111111'
 const HASH: Hex = '0xe7e0fe390354509cd08c9a0168536938600ddc552b3f7cb96030ebef62e75895'
@@ -54,4 +54,17 @@ test('unexpected answers', () => {
     () => parseCreation(ADDRESS, HASH, TX, { ...RECEIPT, transactionIndex: '42' }, true),
     /unexpected transaction/,
   )
+})
+
+test('oldBlock reads the message of Helios for a block outside the EIP-2935 window', () => {
+  // core/src/execution/providers/historical/eip2935.rs
+  const message = 'block 4634748 is outside EIP-2935 ring buffer range (latest: 26148103, buffer size: 8191)'
+  assert.equal(oldBlock(message), '21,513,355 blocks old · Helios can verify the newest 8,191 only')
+  assert.equal(oldBlock('block not found'), null)
+})
+
+test('unknownTransaction: Helios answers a hash it does not know with an error', () => {
+  // core/src/execution/providers/rpc.rs
+  assert.equal(unknownTransaction('receipt not found'), true)
+  assert.equal(unknownTransaction('HTTP 429'), false)
 })

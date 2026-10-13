@@ -7,7 +7,7 @@
 
 import type { Hex } from '../messages.ts'
 import type { CreationRead, CreationReader } from './creation.ts'
-import type { Fetch, Gate, Log } from './gate.ts'
+import { errorText, type Fetch, type Gate, type GateState, type Log } from './gate.ts'
 import type { Solc } from './solc.ts'
 import { verify, type Verified } from './verify.ts'
 
@@ -58,6 +58,22 @@ export function lookupUrl(chainId: number, address: Hex): string {
   return `${SOURCIFY_SERVER}/v2/contract/${chainId}/${address}?fields=${FIELDS}`
 }
 
+// Why the gate failed, when the review has something to say about it.
+// The cause of the error of the gate.
+export type SourcifyFailure =
+  // Sourcify has nothing for the address.
+  | { kind: 'not verified' }
+  // Sourcify claims a match, the recompile did not reproduce it.
+  | { kind: 'not reproduced'; claim: Found }
+
+export function failureOf(state: GateState<Verified>): SourcifyFailure | null {
+  if (state.status !== 'failed') return null
+  const cause = state.cause as { kind?: unknown; claim?: unknown } | undefined
+  if (cause?.kind === 'not verified') return { kind: 'not verified' }
+  if (cause?.kind === 'not reproduced' && cause.claim) return { kind: 'not reproduced', claim: cause.claim as Found }
+  return null
+}
+
 // Verifications by chain, address and code, so that a contract that is in
 // many requests compiles once.
 const verified = new Map<string, Promise<Verified>>()
@@ -84,7 +100,10 @@ export function sourcifyGateFor(
       }
       result = (async () => {
         const found = await lookup(chainId, address, fetch, log)
-        if (!found) throw new Error('not verified on Sourcify · nothing to compile')
+        if (!found) {
+          const cause: SourcifyFailure = { kind: 'not verified' }
+          throw new Error('not verified on Sourcify · nothing to compile', { cause })
+        }
         if (found.language !== 'Solidity')
           throw new Error(`${found.language} sources · only Solidity can be compiled here`)
         const read = await readCreationOf(address, found, readCreation)
@@ -122,14 +141,25 @@ export async function lookup(chainId: number, address: Hex, fetch: Fetch, log: L
       signal: AbortSignal.timeout(TIMEOUT),
     })
   } catch (error) {
-    throw new Error(`Sourcify did not answer: ${error instanceof Error ? error.message : String(error)}`)
+    throw new Error(`Sourcify did not answer: ${errorText(error)}`)
   }
   if (response.status === 404) return null
   if (response.status === 429) throw new Error('Sourcify answered 429: too many requests, try again later')
-  if (!response.ok) throw new Error(`Sourcify answered HTTP ${response.status}`)
+  if (!response.ok) throw new Error(`Sourcify answered HTTP ${response.status}${await errorMessage(response)}`)
   const found = parseLookup(await response.json())
   logFound(found, log)
   return found
+}
+
+// Sourcify's error answers carry a message, for example "Chain 999999 not
+// found". Empty if there is none.
+async function errorMessage(response: Response): Promise<string> {
+  try {
+    const { message } = (await response.json()) as { message?: unknown }
+    return typeof message === 'string' && message !== '' ? `: ${message}` : ''
+  } catch {
+    return ''
+  }
 }
 
 function logFound(lookup: Found, log: Log) {
@@ -141,12 +171,13 @@ function logFound(lookup: Found, log: Log) {
   })
   log({
     source: 'sourcify',
-    text: `claims runtime ${matchText(lookup.runtimeMatch)} · creation ${matchText(lookup.creationMatch)} · not trusted, reproduced next`,
+    text: `claims runtime ${claimText(lookup.runtimeMatch)} · creation ${claimText(lookup.creationMatch)} · not trusted, reproduced next`,
     proof: false,
   })
 }
 
-function matchText(status: MatchStatus): string {
+// Sourcify's verdict, in words. The log and the review use the same.
+export function claimText(status: MatchStatus): string {
   return status === null ? 'no match' : status.replace('_', ' ')
 }
 

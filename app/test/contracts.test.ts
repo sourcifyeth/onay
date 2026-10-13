@@ -52,6 +52,12 @@ test('add: a full list gives null, and so does a request with too many contracts
   assert.equal(initial([...addresses, A]), null)
 })
 
+test('update takes the address in any case', () => {
+  const contracts = initial([A, B])!
+  const upper = B.toUpperCase().replace('0X', '0x') as Hex
+  assert.equal(update(contracts, upper, { helios: { status: 'running' } })[1].helios.status, 'running')
+})
+
 test('update changes the states of one contract and keeps the others', () => {
   const contracts = initial([A, B])!
   const changed = update(contracts, B, { helios: { status: 'running' } })

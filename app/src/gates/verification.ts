@@ -66,6 +66,8 @@ export function forgetVerification(request: SigningRequest) {
 function start(request: SigningRequest): VerificationStore {
   const addresses = contractsOf(request)
   const contracts = initial(addresses)
+  // Too many: the page still shows the first ones, all failed.
+  const shown = contracts ?? initial(addresses.slice(0, MAX_CONTRACTS)) ?? []
   const resolved = chainOf(request)
   const chainId = resolved.chainId
   // Taken once: a change in the settings does not change a running request.
@@ -76,7 +78,7 @@ function start(request: SigningRequest): VerificationStore {
     chainId,
     chain: chain ?? null,
     head: null,
-    contracts: contracts ?? [],
+    contracts: shown,
     lines: [],
     status: 'running',
   }
@@ -153,7 +155,7 @@ function start(request: SigningRequest): VerificationStore {
       const sourcifyGate = sourcifyGateFor(chain.id, fetch, solc, creationReaderFor(chain, log))
       const input = { address, block: head.block }
       const read = await runGate(heliosGate, input, log, (helios) => report(address, { helios }))
-      if (read === null) report(address, { sourcify: { status: 'skipped', reason: 'no code to compare with' } })
+      if (read === null) report(address, { sourcify: { status: 'failed', reason: 'the code was not read' } })
       else if (read.code === '0x') report(address, { sourcify: { status: 'skipped', reason: 'not a contract' } })
       else await runGate(sourcifyGate, { address, code: read.code }, log, (sourcify) => report(address, { sourcify }))
       if (!pending(snapshot.contracts)) end()

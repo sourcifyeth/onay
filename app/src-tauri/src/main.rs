@@ -10,7 +10,9 @@ mod store;
 
 use std::sync::Arc;
 
-use tauri::{AppHandle, Emitter, Manager, State, UserAttentionType};
+use tauri::{
+    AppHandle, Emitter, Manager, State, UserAttentionType, WebviewUrl, WebviewWindowBuilder,
+};
 
 use link::{Link, Notice, Setup, Snapshot};
 use store::Store;
@@ -107,6 +109,17 @@ fn start_link(app: &AppHandle) -> LinkState {
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
+            // The window is built here, not in the config, so that the
+            // User-Agent takes the version from the one place it is set.
+            let agent = format!(
+                "Onay/{} (+https://github.com/sourcifyeth/onay)",
+                app.package_info().version
+            );
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+                .title("Onay")
+                .inner_size(960.0, 720.0)
+                .user_agent(&agent)
+                .build()?;
             app.manage(start_link(app.handle()));
             let helios_dir = app.path().app_data_dir()?.join("helios");
             app.manage(chain::Chains::new(helios_dir));

@@ -10,14 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [
-      {
-        "title": "Onay",
-        "width": 960,
-        "height": 720,
-        "userAgent": "Onay/0.0.0 (+https://github.com/sourcifyeth/onay)"
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": "default-src 'self'; script-src 'self' blob:; worker-src blob:; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost https: http://localhost:* http://127.0.0.1:*"
     }

@@ -104,3 +104,32 @@ test('soljson: a version that is not in the list', async () => {
   const { log } = collect()
   await assert.rejects(solcFor(server()).soljson('0.8.99+commit.12345678', log), /not in the official list/)
 })
+
+test('soljson: a list that fails once is asked again on the next call', async () => {
+  let failed = false
+  const fetch: Fetch = async (url, init) => {
+    if (url === `${SOLC_BIN}/list.json` && !failed) {
+      failed = true
+      return new Response('down', { status: 503 })
+    }
+    return server()(url, init)
+  }
+  const { log } = collect()
+  const solc = solcFor(fetch)
+  await assert.rejects(solc.soljson('0.8.24+commit.e11b9ed9', log), /list answered HTTP 503/)
+  assert.equal(await solc.soljson('0.8.24+commit.e11b9ed9', log), SOLJSON)
+})
+
+test('compile: a worker that hangs is stopped when the timeout fires', async () => {
+  let stopped = false
+  const hanging = async () => ({
+    compile: () => new Promise<object>(() => {}),
+    stopWorker: () => {
+      stopped = true
+    },
+  })
+  const { log } = collect()
+  const solc = solcFor(server(), hanging, 20)
+  await assert.rejects(solc.compile('0.8.24+commit.e11b9ed9', {}, log), /did not finish in 0.02 s/)
+  assert.equal(stopped, true)
+})

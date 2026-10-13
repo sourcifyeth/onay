@@ -5,7 +5,8 @@ export type GateState<T> =
   | { status: 'waiting' }
   | { status: 'running' }
   | { status: 'passed'; value: T }
-  | { status: 'failed'; reason: string }
+  // The cause is what the gate attached to its error, for the review.
+  | { status: 'failed'; reason: string; cause?: unknown }
   // The gate has nothing to check, for example a transfer to an account
   // with no code. The contract can still pass.
   | { status: 'skipped'; reason: string }
@@ -48,7 +49,8 @@ export async function runGate<In, Out>(
   } catch (error) {
     const reason = errorText(error)
     log({ source: gate.source, text: reason, ok: false })
-    report({ status: 'failed', reason })
+    const cause = error instanceof Error ? error.cause : undefined
+    report(cause === undefined ? { status: 'failed', reason } : { status: 'failed', reason, cause })
     return null
   }
 }

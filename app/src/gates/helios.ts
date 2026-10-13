@@ -8,7 +8,14 @@
 import { invoke } from '@tauri-apps/api/core'
 import { heliosStarted, type ChainConfig } from '../chains.ts'
 import type { ChainReady, ChainReadyArgs, ChainRequestArgs, Hex } from '../messages.ts'
-import { parseCreation, type CreationRead, type CreationReader } from './creation.ts'
+import {
+  oldBlock,
+  parseCreation,
+  UNKNOWN_TRANSACTION,
+  unknownTransaction,
+  type CreationRead,
+  type CreationReader,
+} from './creation.ts'
 import { errorText, type Gate, type Log } from './gate.ts'
 import { parseQuantity } from './request.ts'
 
@@ -145,6 +152,7 @@ export function creationReaderFor(chain: ChainConfig, log: Log): CreationReader 
         check = `${old} · from ${host} without proof`
       }
     } catch (error) {
+      if (unknownTransaction(errorText(error))) return notRead(new Error(UNKNOWN_TRANSACTION), false)
       // The endpoint, or Helios, did not answer. The next request asks again.
       return notRead(error, true)
     }
@@ -162,16 +170,6 @@ export function creationReaderFor(chain: ChainConfig, log: Log): CreationReader 
     })
     return { creation }
   }
-}
-
-// Helios says "block N is outside EIP-2935 ring buffer range (latest: M,
-// buffer size: 8191)". Null for any other error.
-function oldBlock(message: string): string | null {
-  const old = /block (\d+) is outside EIP-2935 ring buffer range \(latest: (\d+), buffer size: (\d+)\)/.exec(message)
-  if (!old) return null
-  const [, block, latest, size] = old
-  const age = Number(latest) - Number(block)
-  return `${age.toLocaleString('en-US')} blocks old · Helios can verify the newest ${Number(size).toLocaleString('en-US')} only`
 }
 
 // Helios asks the execution endpoint for a proof at its own head block.

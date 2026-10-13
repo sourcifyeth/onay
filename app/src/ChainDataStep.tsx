@@ -55,8 +55,16 @@ function CodeReads({ contracts, helios }: { contracts: Contract[]; helios: boole
 function HeliosCard({ verification }: { verification: Verification }) {
   const { head, contracts } = verification
   const lines = verification.lines.filter((line) => line.source === 'helios')
+  const failed = head === null || contracts.some((contract) => contract.helios.status === 'failed')
+  const summary = failed ? (
+    <p className="text-sm font-medium text-light-coral-700">
+      ✕ {head === null ? 'Helios did not sync' : 'Helios could not read every contract'}
+    </p>
+  ) : (
+    <p className="text-sm font-medium text-green-700">✓ Chain data verified by Helios</p>
+  )
   return (
-    <CollapsibleCard summary={<p className="text-sm font-medium text-green-700">✓ Chain data verified by Helios</p>}>
+    <CollapsibleCard summary={summary}>
       <div className="divide-y divide-gray-100">
         <Row label="Finalized checkpoint">
           {head?.checkpoint ? (
@@ -66,11 +74,11 @@ function HeliosCard({ verification }: { verification: Verification }) {
           ) : (
             'unknown'
           )}
-          {ok}
+          {head && ok}
         </Row>
         <Row label="Block read">
-          {head ? head.block.toLocaleString('en-US') : '…'}
-          {ok}
+          {head ? head.block.toLocaleString('en-US') : 'none'}
+          {head && ok}
         </Row>
       </div>
       <CodeReads contracts={contracts} helios />

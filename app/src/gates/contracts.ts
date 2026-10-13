@@ -40,7 +40,8 @@ export function initial(addresses: Hex[]): Contract[] | null {
 }
 
 export function update(contracts: Contract[], address: Hex, change: Partial<States>): Contract[] {
-  return contracts.map((contract) => (contract.address === address ? { ...contract, ...change } : contract))
+  const key = address.toLowerCase()
+  return contracts.map((contract) => (contract.address === key ? { ...contract, ...change } : contract))
 }
 
 function states({ helios, sourcify }: Contract): GateState<unknown>[] {

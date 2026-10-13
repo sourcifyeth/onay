@@ -10,7 +10,7 @@ import type { Hex } from '../src/messages.ts'
 import type { Creation, CreationReader } from '../src/gates/creation.ts'
 import type { Fetch, LogLine } from '../src/gates/gate.ts'
 import { solcFor } from '../src/gates/solc.ts'
-import { lookupUrl, sourcifyGateFor } from '../src/gates/sourcify.ts'
+import { failureOf, lookupUrl, sourcifyGateFor } from '../src/gates/sourcify.ts'
 
 const CACHE = new URL('./.cache/', import.meta.url)
 const VERSION = '0.8.24+commit.e11b9ed9'
@@ -34,8 +34,10 @@ const STD_JSON_INPUT = {
   settings: { optimizer: { enabled: false, runs: 200 }, evmVersion: 'shanghai' },
 }
 
-// binaries.soliditylang.org, through a file cache.
+// binaries.soliditylang.org, through a file cache. The list is not
+// cached: a test that needs a newer build must see it.
 const cachedFetch: Fetch = async (url, init) => {
+  if (url.endsWith('/list.json')) return fetch(url, init)
   mkdirSync(CACHE, { recursive: true })
   const file = new URL(url.slice(url.lastIndexOf('/') + 1), CACHE)
   try {
@@ -148,19 +150,29 @@ test('another metadata hash on chain: a match, with the auxdata transformation',
   assert.equal(verified.transformations.runtime.list[0]?.reason, 'cborAuxdata')
 })
 
-test('other code on chain: the gate fails', async () => {
+test('other code on chain: the gate fails, and the claim stays with the failure', async () => {
   const code = changed(await deployedCode(), 80)
   const { log } = collect()
-  await assert.rejects(sourcifyGateFor(1, sourcify(true), solc, factory).run({ address: ADDRESS, code }, log), /match/)
+  const run = sourcifyGateFor(1, sourcify(true), solc, factory).run({ address: ADDRESS, code }, log)
+  const error = await run.then(
+    () => assert.fail('the gate passed'),
+    (error: unknown) => error as Error,
+  )
+  assert.match(error.message, /not the code on chain/)
+  const failure = failureOf({ status: 'failed', reason: error.message, cause: error.cause })
+  assert.equal(failure?.kind, 'not reproduced')
+  assert.equal(failure?.kind === 'not reproduced' && failure.claim.name, 'Counter')
 })
 
 test('no sources on Sourcify: the gate fails before compiling', async () => {
   const { lines, log } = collect()
   const gate = sourcifyGateFor(1, sourcify(false), solc, factory)
-  await assert.rejects(
-    gate.run({ address: ADDRESS, code: '0x6000' }, log),
-    /not verified on Sourcify · nothing to compile/,
+  const error = await gate.run({ address: ADDRESS, code: '0x6000' }, log).then(
+    () => assert.fail('the gate passed'),
+    (error: unknown) => error as Error,
   )
+  assert.match(error.message, /not verified on Sourcify · nothing to compile/)
+  assert.deepEqual(failureOf({ status: 'failed', reason: error.message, cause: error.cause }), { kind: 'not verified' })
   assert.ok(lines.every((line) => line.source === 'sourcify'))
 })
 
@@ -230,6 +242,8 @@ test('the creation transaction read failed on the way: the next request reads ag
 
 test('the same code again: from the session, without a compile', async () => {
   const code = await deployedCode()
+  // The first run fills the session cache of the module.
+  await sourcifyGateFor(1, sourcify(true), solc, factory).run({ address: ADDRESS, code }, () => {})
   const { lines, log } = collect()
   const verified = await sourcifyGateFor(1, sourcify(false), solc, factory).run({ address: ADDRESS, code }, log)
   assert.equal(verified.runtimeMatch, 'perfect')

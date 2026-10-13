@@ -16,7 +16,7 @@ cargo fmt --all --check
 cargo deny check       # advisories, licenses, sources, bans
 ```
 
-The Rust tests cover the channel against the shared vectors, the key store, the peer rules, the whole link with a fake extension over a socket pair, and the relay binary against a fake app. The page tests in `test/` cover the pure gate modules: what a request names, and how a gate reports.
+The Rust tests cover the channel against the shared vectors, the key store, the peer rules, the whole link with a fake extension over a socket pair, and the relay binary against a fake app. The page tests in `test/` cover the pure gate modules: what a request names, how a gate reports, the contract set, the Sourcify lookup, the compiler list and its hash check, and the creation transaction. One test runs the real compiler and the real lib-sourcify on a small contract; it downloads the compiler build on the first run and keeps it in `test/.cache/`.
 
 The package settings live in `src-tauri/tauri.bundle.conf.json`, apart from the main Tauri config, so that `tauri dev` works without a packaged relay. `src-tauri/packaging/postinstall.sh` is the install script of the Linux packages.
 
@@ -66,3 +66,11 @@ Chrome can start a program for an extension, but it cannot connect to a program 
 8. **State and window.** The app keeps the connections, the pairing requests, and the last 50 signing requests in memory. After each change it emits one event to the page. The page then calls a command that returns the whole state and renders it. Two more commands answer a pairing and dismiss a request.
 
 The relay ships inside the app package, next to the `onay` binary, so the user installs only app and extension. During development both binaries are in `target/debug/`. The Linux package makes the relay setgid to its own group, so the user cannot trace it or preload code into it.
+
+## The Solidity compiler
+
+The Sourcify gate compiles the sources in the page, with the official emscripten build of solc for the version Sourcify names. The build comes from `binaries.soliditylang.org`, and runs only if its SHA-256 is the one in the official list, which the page fetches fresh at each session. After the check the page keeps the build in the Cache API of the webview, so the next start does not download it again, and hashes it again each time it comes out of the cache. The cache is not trusted: a build that another process planted there fails the check and is thrown out.
+
+web-solc runs the build in a worker made from a Blob, and the worker loads the build with `importScripts` from a Blob too. The Content Security Policy in `src-tauri/tauri.conf.json` therefore allows `blob:` in `script-src` and `worker-src`. This widens the policy: any script in the page that can make a Blob can run it as code. It is acceptable because the only scripts in the page are the bundle itself and the compiler builds, and a build reaches a Blob only after its hash matched the list. `connect-src` allows any HTTPS host and local ports, because the RPC endpoint of a chain is the user's choice.
+
+In development the page runs on `localhost`, where the Cache API is available. The packaged app serves the page from Tauri's own scheme, and WebKitGTK may not offer the Cache API there. The code handles a missing cache by downloading the build at each start. Whether the Linux bundle keeps the cache is still to be checked: run the bundle twice with a request for a verified contract, and read the solc line of the second run, "from the cache" or "downloaded".

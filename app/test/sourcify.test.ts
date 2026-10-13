@@ -127,7 +127,9 @@ test('lookup: a contract that is not on Sourcify gives null', async () => {
 test('lookup: other answers and no answer are failures', async () => {
   const { log } = collect()
   await assert.rejects(lookup(1, ADDRESS, answering(429, {}), log), /too many requests/)
-  await assert.rejects(lookup(1, ADDRESS, answering(500, {}), log), /HTTP 500/)
+  await assert.rejects(lookup(1, ADDRESS, answering(500, {}), log), /HTTP 500$/)
+  const unsupported = { customCode: 'unsupported_chain', message: 'Chain 999999 not found', errorId: 'x' }
+  await assert.rejects(lookup(999999, ADDRESS, answering(400, unsupported), log), /HTTP 400: Chain 999999 not found/)
   await assert.rejects(lookup(1, ADDRESS, answering(200, { nope: true }), log), /unexpected/)
   const down: Fetch = async () => {
     throw new TypeError('fetch failed')
