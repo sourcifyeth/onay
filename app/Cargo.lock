@@ -5242,6 +5242,7 @@ dependencies = [
  "hkdf",
  "libc",
  "onay-ipc",
+ "security-framework",
  "serde",
  "serde_json",
  "sha2 0.11.0",

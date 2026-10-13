@@ -19,7 +19,7 @@ The plan of record is [PLAN.md](PLAN.md).
 
 - Node.js 22 or newer and pnpm. The exact pnpm version is pinned in `package.json`; pnpm switches to it automatically.
 - Rust through [rustup](https://rustup.rs). The compiler version is pinned in `app/rust-toolchain.toml`; rustup installs it on first use.
-- Google Chrome or Chromium, installed as a normal package. Snap and Flatpak browsers cannot start the relay.
+- A Chromium-based browser: Google Chrome, Brave, Microsoft Edge, or Vivaldi, Chromium on Linux, Arc on macOS. On Linux, install it as a normal package: Snap and Flatpak browsers cannot start the relay.
 - Linux only: the Tauri system libraries.
 
   ```
@@ -71,7 +71,7 @@ To pair again, quit the app and delete its key store: `~/.local/share/dev.sourci
 
 The Onay icon in the Chrome toolbar shows the state of the link. If the app is not running when a site asks for a signature, the extension opens a small window that asks you to start the app, and it forwards the request when the app is there.
 
-On Linux the app accepts a connection only from an approved browser that is installed by a package manager. It reads more browser names from `/etc/onay/custom_allowed_browsers`, one binary name per line, if that file belongs to root.
+The app accepts a connection only from an approved browser. On Linux that browser must be installed by a package manager, and the app reads more browser names from `/etc/onay/custom_allowed_browsers`, one binary name per line, if that file belongs to root. Such a browser also needs a copy of the host manifest in its own `NativeMessagingHosts` directory. On macOS the browser must have a valid code signature from its vendor. This check keeps out stray programs, but a program that runs as you can pass it, so approve a pairing only when the extension shows the same code.
 
 ### Checks
 
@@ -124,7 +124,7 @@ To keep the extension ID that the app accepts, the first upload to the store mus
 
 ### Development and production side by side
 
-There is one host manifest per browser, and each start of the app overwrites it. The app you started last is the one the extension reaches. To switch back to the development build, start it again with `pnpm --filter app tauri dev`.
+There is one host manifest per browser, and each start of the app overwrites it. An app that starts while another one runs stops before it writes the file, so quit the running app first. The app you started last is the one the extension reaches. To switch back to the development build, start it again with `pnpm --filter app tauri dev`.
 
 ## How the parts talk
 
