@@ -364,6 +364,38 @@ mod macos {
             identifier: "company.thebrowser.Browser",
             team: "S6N382Y83G",
         },
+        // The other channels of Chrome and Edge. On Linux they have the
+        // binary names of the stable channel.
+        Browser {
+            app: "Google Chrome Beta",
+            identifier: "com.google.Chrome.beta",
+            team: "EQHXZ8M8AV",
+        },
+        Browser {
+            app: "Google Chrome Dev",
+            identifier: "com.google.Chrome.dev",
+            team: "EQHXZ8M8AV",
+        },
+        Browser {
+            app: "Google Chrome Canary",
+            identifier: "com.google.Chrome.canary",
+            team: "EQHXZ8M8AV",
+        },
+        Browser {
+            app: "Microsoft Edge Beta",
+            identifier: "com.microsoft.edgemac.Beta",
+            team: "UBF8T346G9",
+        },
+        Browser {
+            app: "Microsoft Edge Dev",
+            identifier: "com.microsoft.edgemac.Dev",
+            team: "UBF8T346G9",
+        },
+        Browser {
+            app: "Microsoft Edge Canary",
+            identifier: "com.microsoft.edgemac.Canary",
+            team: "UBF8T346G9",
+        },
     ];
 
     impl Browser {

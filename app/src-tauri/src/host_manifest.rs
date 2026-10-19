@@ -10,9 +10,7 @@ use onay_ipc::{EXTENSION_ID, HOST_NAME};
 use serde::Serialize;
 
 /// Browser configuration directories, relative to the user's home. A
-/// browser that has none is not installed and is skipped. The list also
-/// has browsers that the peer check in `peer.rs` refuses, so that they get
-/// the reason and not "host not found".
+/// browser that has none is not installed and is skipped.
 #[cfg(target_os = "linux")]
 const BROWSER_DIRS: &[&str] = &[
     ".config/google-chrome",
@@ -29,7 +27,8 @@ const BROWSER_DIRS: &[&str] = &[
     ".config/vivaldi-snapshot",
 ];
 /// On macOS, Brave reads the directory of Chrome, and makes it when it is
-/// missing.
+/// missing. The peer check in `peer.rs` refuses Chromium, but it gets a
+/// manifest too, so that it gets the reason and not "host not found".
 #[cfg(target_os = "macos")]
 const BROWSER_DIRS: &[&str] = &[
     "Library/Application Support/Google/Chrome",

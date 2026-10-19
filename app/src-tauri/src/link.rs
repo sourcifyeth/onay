@@ -308,10 +308,12 @@ impl Link {
                 match connection {
                     Ok(stream) => {
                         let link = Arc::clone(&link);
-                        thread::spawn(move || {
-                            if let Err(err) = link.serve(stream) {
-                                eprintln!("onay: link connection ended: {err}");
-                            }
+                        thread::spawn(move || match link.serve(stream) {
+                            // The peer left, such as the probe of a second
+                            // instance.
+                            Err(err) if err.kind() == io::ErrorKind::BrokenPipe => {}
+                            Err(err) => eprintln!("onay: link connection ended: {err}"),
+                            Ok(()) => {}
                         });
                     }
                     Err(err) => eprintln!("onay: accept failed: {err}"),
@@ -850,7 +852,9 @@ mod tests {
         let (link, _changes) = link("gone", || Err("not a browser".into()));
         let (stream, server) = UnixStream::pair().unwrap();
         drop(stream);
-        assert!(link.serve(server).is_err());
+        // `listen` does not log this kind.
+        let err = link.serve(server).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
         assert!(link.snapshot().rejected.is_empty());
     }
 
