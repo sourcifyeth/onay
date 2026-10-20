@@ -1,0 +1,684 @@
+// Step 3 of the review: what the request asks to sign, in words. An
+// ERC-7730 descriptor that a trusted auditor attested renders the intent
+// and the fields. Without one, the calldata shows as the verified ABI
+// (Application Binary Interface) decodes it. Taken from the mock's
+// transaction card.
+
+import { useState, useSyncExternalStore, type ReactNode } from 'react'
+import type { DisplayField, DisplayFieldGroup, DisplayModel, Warning } from '@ethereum-sourcify/clear-signing'
+import { isFieldGroup } from '@ethereum-sourcify/clear-signing'
+import { chainById } from './chains.ts'
+import type { Decoded } from './clear-signing/decode.ts'
+import { REGISTRY_URL } from './clear-signing/registry.ts'
+import {
+  formatAmount,
+  reasonOf,
+  rendered,
+  type Call,
+  type DescriptorSource,
+  type Rendering,
+} from './clear-signing/render.ts'
+import { chainInfoOf, clearSigningFor, type ClearSigning } from './clear-signing/store.ts'
+import type { Verification } from './gates/verification.ts'
+import { CollapsibleLog, Cursor } from './Log.tsx'
+import type { Hex, SigningRequest } from './messages.ts'
+import { Step } from './Step.tsx'
+import { Tabs } from './Tabs.tsx'
+
+// The native currency of the chain, for the amounts of the request.
+type Currency = { symbol: string; decimals: number } | null
+
+function amountText(value: bigint | null, currency: Currency): string {
+  if (value === null) return 'not a quantity'
+  if (!currency) return `${value.toString()} in the smallest unit`
+  return `${formatAmount(value, currency.decimals)} ${currency.symbol}`
+}
+
+function short(address: string): string {
+  return `${address.slice(0, 6)}…${address.slice(-4)}`
+}
+
+function Pill({ children }: { children: ReactNode }) {
+  return (
+    <span className="rounded-full bg-cerulean-blue-100 px-2.5 py-0.5 text-sm font-medium text-cerulean-blue-700">
+      {children}
+    </span>
+  )
+}
+
+function Notice({ tone, children }: { tone: 'amber' | 'gray'; children: ReactNode }) {
+  const color =
+    tone === 'amber' ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-gray-300 bg-gray-50 text-gray-600'
+  return <p className={`rounded-lg border-l-2 px-3 py-2 text-xs leading-relaxed ${color}`}>{children}</p>
+}
+
+// The intent of a descriptor: a sentence, or labels with values.
+function intentText(intent: DisplayModel['intent']): string {
+  if (typeof intent === 'string') return intent
+  if (!intent) return ''
+  return Object.entries(intent)
+    .map(([label, value]) => `${label}: ${value}`)
+    .join(' · ')
+}
+
+// The values of each field, for the bold parts of the sentence.
+function valuesOf(fields: DisplayModel['fields']): string[] {
+  const values: string[] = []
+  for (const item of fields ?? []) {
+    if (isFieldGroup(item)) values.push(...valuesOf(item.fields))
+    else if (item.value !== '') values.push(item.value)
+  }
+  return values
+}
+
+function escape(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// The sentence with the field values in bold.
+function Interpolated({ text, values }: { text: string; values: string[] }) {
+  const sorted = [...new Set(values)].sort((a, b) => b.length - a.length)
+  const parts = sorted.length === 0 ? [text] : text.split(new RegExp(`(${sorted.map(escape).join('|')})`))
+  return (
+    <p className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-[15px] leading-relaxed text-gray-700">
+      {parts.map((part, index) =>
+        sorted.includes(part) ? (
+          <strong key={index} className="font-semibold text-gray-900">
+            {part}
+          </strong>
+        ) : (
+          <span key={index}>{part}</span>
+        ),
+      )}
+    </p>
+  )
+}
+
+function IntentToggle({ pill, open, onToggle }: { pill: ReactNode; open: boolean; onToggle: () => void }) {
+  return (
+    <p className="flex items-center justify-between gap-4 pb-2">
+      <span className="min-w-0">{pill}</span>
+      <button
+        onClick={onToggle}
+        className="shrink-0 font-mono text-xs text-gray-400 transition-colors hover:text-gray-600"
+      >
+        {open ? 'hide intent ▴' : 'show intent ▾'}
+      </button>
+    </p>
+  )
+}
+
+// A warning of one field. An address without a name is no warning: the
+// address shows as it is.
+function FieldWarning({ warning }: { warning: Warning | undefined }) {
+  if (!warning || warning.code === 'UNKNOWN_ADDRESS') return null
+  return <p className="pt-0.5 text-right text-xs text-amber-700">⚠ {warning.message}</p>
+}
+
+function FieldValue({ field }: { field: DisplayField }) {
+  const rawAddress = field.rawAddress && field.rawAddress !== field.value ? field.rawAddress : null
+  const tokenAddress = field.warning?.code === 'UNKNOWN_TOKEN' ? field.tokenAddress : null
+  if (field.fieldType === 'bytes') {
+    return (
+      <span className="font-mono text-xs break-all text-gray-700" title={field.value}>
+        {field.value}
+      </span>
+    )
+  }
+  return (
+    <>
+      <span
+        className={`text-sm font-medium text-gray-800 ${field.fieldType === 'address' ? 'font-mono text-[13px] break-all' : ''}`}
+      >
+        {field.value}
+      </span>
+      {rawAddress && (
+        <span className="block font-mono text-xs break-all text-gray-400" title="The address behind the name">
+          {rawAddress}
+        </span>
+      )}
+      {tokenAddress && (
+        <span className="block font-mono text-xs break-all text-gray-400" title="The token">
+          {tokenAddress}
+        </span>
+      )}
+      {field.rawEncryptedValue && field.warning?.code === 'DECRYPTION_FAILED' && (
+        <span className="block font-mono text-xs break-all text-gray-400" title="The encrypted value">
+          {field.rawEncryptedValue}
+        </span>
+      )}
+    </>
+  )
+}
+
+// A call inside a call: the field holds calldata for another contract.
+function Embedded({ field }: { field: DisplayField }) {
+  const embedded = field.embeddedCalldata!
+  const { display, callee } = embedded
+  const chain = embedded.chainId !== undefined ? ` on chain ${embedded.chainId}` : ''
+  return (
+    <div className="mt-1.5 mb-1 border-l-2 border-cerulean-blue-200 pl-3">
+      <p className="flex flex-wrap items-center gap-2 pb-1">
+        {rendered(display) ? (
+          <span className="rounded-full bg-cerulean-blue-100 px-2 py-0.5 text-xs font-medium text-cerulean-blue-700">
+            {intentText(display.intent)}
+          </span>
+        ) : (
+          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+            no descriptor for this call
+          </span>
+        )}
+        <span className="font-mono text-xs text-gray-400">
+          → {display.metadata?.contractName ?? 'contract'} {callee ? short(callee) : ''}
+          {chain}
+        </span>
+      </p>
+      {rendered(display) ? (
+        <>
+          {display.interpolatedIntent && <p className="pb-1 text-sm text-gray-700">{display.interpolatedIntent}</p>}
+          <FieldList fields={display.fields} />
+        </>
+      ) : (
+        <p className="font-mono text-xs break-all text-gray-500">{field.value}</p>
+      )}
+    </div>
+  )
+}
+
+function FieldRow({ field }: { field: DisplayField }) {
+  return (
+    <div className="py-1">
+      {field.separator && <p className="pt-1 pb-0.5 font-mono text-xs text-gray-500">{field.separator}</p>}
+      <div className="flex items-baseline justify-between gap-6">
+        <dt className="shrink-0 text-sm text-gray-500">{field.label}</dt>
+        <dd className="min-w-0 text-right">
+          {field.embeddedCalldata ? (
+            <span className="font-mono text-xs text-gray-400">{field.value.length / 2 - 1} bytes of calldata</span>
+          ) : (
+            <FieldValue field={field} />
+          )}
+          <FieldWarning warning={field.warning} />
+        </dd>
+      </div>
+      {field.embeddedCalldata && <Embedded field={field} />}
+    </div>
+  )
+}
+
+function FieldGroupView({ group }: { group: DisplayFieldGroup }) {
+  const empty = group.warning?.code === 'EMPTY_ARRAY'
+  return (
+    <div className="py-1">
+      {group.label && <p className="pt-1 text-sm font-medium text-gray-700">{group.label}</p>}
+      {empty ? (
+        <p className="text-xs text-gray-400">empty</p>
+      ) : (
+        <>
+          <FieldWarning warning={group.warning} />
+          <div className="border-l-2 border-gray-200 pl-3">
+            <FieldList fields={group.fields} />
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function FieldList({ fields }: { fields: DisplayModel['fields'] }) {
+  if (!fields || fields.length === 0) return null
+  return (
+    <dl className="divide-y divide-gray-100">
+      {fields.map((item, index) =>
+        isFieldGroup(item) ? <FieldGroupView key={index} group={item} /> : <FieldRow key={index} field={item} />,
+      )}
+    </dl>
+  )
+}
+
+function Warnings({ warnings }: { warnings: Warning[] | undefined }) {
+  const shown = warnings?.filter((warning) => warning.code !== 'UNKNOWN_ADDRESS') ?? []
+  if (shown.length === 0) return null
+  return (
+    <div className="flex flex-col gap-2 pt-3">
+      {shown.map((warning) => (
+        <Notice key={warning.code + warning.message} tone="amber">
+          {warning.message}
+        </Notice>
+      ))}
+    </div>
+  )
+}
+
+function Provenance({ source, display }: { source: DescriptorSource | null; display: DisplayModel }) {
+  const owner = display.metadata?.owner
+  if (source?.kind === 'template') {
+    return (
+      <p className="pt-3 font-mono text-[11px] leading-relaxed text-gray-400">
+        standard token template · the name and symbol of the token are its own claims, read from the chain
+      </p>
+    )
+  }
+  const path = source?.kind === 'registry' ? source.path : null
+  return (
+    <p className="pt-3 font-mono text-[11px] leading-relaxed text-gray-400">
+      <a
+        href={path ? `${REGISTRY_URL}/blob/master/${path}` : REGISTRY_URL}
+        target="_blank"
+        rel="noreferrer"
+        className="hover:text-cerulean-blue-600"
+      >
+        ERC-7730 descriptor{owner ? ` by ${owner}` : ''} from the registry · attested by an auditor you trust ↗
+      </a>
+    </p>
+  )
+}
+
+// A descriptor rendered the data: intent, sentence, fields.
+function DisplayPane({ display, source }: { display: DisplayModel; source: DescriptorSource | null }) {
+  const [showIntent, setShowIntent] = useState(false)
+  const name = display.metadata?.contractName
+  return (
+    <div>
+      {name && (
+        <p className="pb-2 text-xs text-gray-500">
+          Interacting with <span className="font-medium text-gray-700">{name}</span>
+        </p>
+      )}
+      <IntentToggle
+        pill={<Pill>{intentText(display.intent)}</Pill>}
+        open={showIntent}
+        onToggle={() => setShowIntent((v) => !v)}
+      />
+      {showIntent &&
+        (display.interpolatedIntent ? (
+          <Interpolated text={display.interpolatedIntent} values={valuesOf(display.fields)} />
+        ) : (
+          <Notice tone="gray">The descriptor has no sentence for this call. The fields below are the intent.</Notice>
+        ))}
+      <FieldList fields={display.fields} />
+      <Warnings warnings={display.warnings} />
+      <Provenance source={source} display={display} />
+    </div>
+  )
+}
+
+// Why no descriptor rendered the data.
+function NotRendered({ display, state }: { display: DisplayModel; state: ClearSigning }) {
+  const reason = reasonOf(display)
+  let text: ReactNode
+  switch (reason?.code) {
+    case 'NO_DESCRIPTOR':
+      text = state.registryError
+        ? `The index of the registry could not be fetched (${state.registryError}), so no descriptor was looked up.`
+        : 'No ERC-7730 descriptor is registered for this contract, so there is no reviewed description of what this call does.'
+      break
+    case 'NO_TRUSTED_ATTESTATION':
+      text =
+        state.attesters.length === 0
+          ? 'The registry has a descriptor for this contract, but you trust no auditor yet, so Onay does not use it. Choose auditors under settings → Clear signing.'
+          : 'The registry has a descriptor for this contract, but no auditor you trust has attested it, so Onay does not use it.'
+      break
+    case 'DESCRIPTOR_FETCH_ERROR':
+      text = `The registry could not be reached, so no descriptor was checked. ${reason.message}`
+      break
+    default:
+      text = reason?.message ?? 'The descriptor did not render this call.'
+  }
+  return <Notice tone="amber">{text}</Notice>
+}
+
+function DecodedList({ decoded }: { decoded: Decoded }) {
+  return (
+    <dl className="mt-3 divide-y divide-gray-100">
+      {decoded.params.map((param, index) => (
+        <div key={index} className="flex items-baseline justify-between gap-6 py-1">
+          <dt className="shrink-0 font-mono text-sm text-gray-500">{param.name}</dt>
+          <dd className="text-right font-mono text-sm break-all text-gray-800">{param.value}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+function RawWords({ display }: { display: DisplayModel }) {
+  const fallback = display.rawCalldataFallback
+  if (!fallback) return null
+  return (
+    <dl className="mt-3 divide-y divide-gray-100">
+      <div className="flex items-baseline justify-between gap-6 py-1">
+        <dt className="shrink-0 font-mono text-sm text-gray-500">selector</dt>
+        <dd className="text-right font-mono text-sm text-gray-800">{fallback.selector}</dd>
+      </div>
+      {fallback.args.map((word, index) => (
+        <div key={index} className="flex items-baseline justify-between gap-6 py-1">
+          <dt className="shrink-0 font-mono text-sm text-gray-500">word {index}</dt>
+          <dd className="text-right font-mono text-xs break-all text-gray-800">{word}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+// The calldata read with the verified ABI, when no descriptor did.
+function Fallback({ call, state }: { call: Call; state: ClearSigning }) {
+  const { display, decoded } = call
+  return (
+    <div className="flex flex-col gap-2">
+      {display && <NotRendered display={display} state={state} />}
+      {decoded ? (
+        <>
+          <Notice tone="gray">
+            The parameters below are decoded with the verified source code: the names come from the code, not from a
+            reviewed descriptor. The function is <span className="font-mono">{decoded.signature}</span>.
+          </Notice>
+          <DecodedList decoded={decoded} />
+        </>
+      ) : (
+        <>
+          <Notice tone="gray">
+            The source code of the contract is not verified, so the calldata cannot be decoded. It shows raw.
+          </Notice>
+          {display && <RawWords display={display} />}
+        </>
+      )}
+    </div>
+  )
+}
+
+// A transfer of the native currency: no calldata, nothing to decode.
+function Transfer({ call, currency }: { call: Call; currency: Currency }) {
+  const [showIntent, setShowIntent] = useState(false)
+  const amount = amountText(call.value, currency)
+  const to = call.to ?? 'a new contract'
+  return (
+    <div>
+      <IntentToggle pill={<Pill>Send</Pill>} open={showIntent} onToggle={() => setShowIntent((v) => !v)} />
+      {showIntent && <Interpolated text={`Send ${amount} to ${to}`} values={[amount, to]} />}
+      <dl className="divide-y divide-gray-100">
+        <div className="flex items-baseline justify-between gap-6 py-1">
+          <dt className="shrink-0 text-sm text-gray-500">Amount</dt>
+          <dd className="text-right text-sm font-medium text-gray-800">{amount}</dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-6 py-1">
+          <dt className="shrink-0 text-sm text-gray-500">To</dt>
+          <dd className="text-right font-mono text-[13px] font-medium break-all text-gray-800">{to}</dd>
+        </div>
+      </dl>
+      <p className="pt-3 font-mono text-[11px] leading-relaxed text-gray-400">
+        plain value transfer · no calldata · rendered by Onay
+      </p>
+    </div>
+  )
+}
+
+function CallPane({ call, currency, state }: { call: Call; currency: Currency; state: ClearSigning }) {
+  if (call.data === '0x') return <Transfer call={call} currency={currency} />
+  if (call.to === null) {
+    return (
+      <Notice tone="amber">
+        This transaction creates a contract: the calldata is its creation code. Nothing describes what the code does.
+      </Notice>
+    )
+  }
+  if (rendered(call.display)) return <DisplayPane display={call.display!} source={call.source} />
+  return <Fallback call={call} state={state} />
+}
+
+function BatchPane({
+  rendering,
+  currency,
+  state,
+}: {
+  rendering: Rendering & { kind: 'batch' }
+  currency: Currency
+  state: ClearSigning
+}) {
+  const [showIntent, setShowIntent] = useState(false)
+  const values = rendering.calls.flatMap((call) => valuesOf(call.display?.fields))
+  return (
+    <div>
+      <IntentToggle
+        pill={<Pill>Batch · {rendering.calls.length} calls</Pill>}
+        open={showIntent}
+        onToggle={() => setShowIntent((v) => !v)}
+      />
+      {showIntent &&
+        (rendering.intent ? (
+          <Interpolated text={rendering.intent} values={values} />
+        ) : (
+          <Notice tone="gray">Not every call has a reviewed sentence, so there is none for the batch.</Notice>
+        ))}
+      <div className="flex flex-col gap-2">
+        {rendering.calls.map((call, index) => (
+          <div key={index} className="rounded-lg border border-gray-200 p-3">
+            <p className="pb-1 font-mono text-xs text-gray-400">
+              call {index + 1} · {call.to ?? 'a new contract'}
+            </p>
+            <CallPane call={call} currency={currency} state={state} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// A value of a typed-data message, as a tree.
+function MessageTree({ value }: { value: unknown }) {
+  if (typeof value !== 'object' || value === null) {
+    return <span className="font-mono text-sm break-all text-gray-800">{String(value)}</span>
+  }
+  const entries = Array.isArray(value) ? value.map((item, index) => [String(index), item]) : Object.entries(value)
+  return (
+    <dl className="divide-y divide-gray-100">
+      {entries.map(([key, item]) => (
+        <div key={key} className="py-1">
+          {typeof item === 'object' && item !== null ? (
+            <>
+              <dt className="font-mono text-sm text-gray-500">{key}</dt>
+              <dd className="border-l-2 border-gray-200 pl-3">
+                <MessageTree value={item} />
+              </dd>
+            </>
+          ) : (
+            <div className="flex items-baseline justify-between gap-6">
+              <dt className="shrink-0 font-mono text-sm text-gray-500">{key}</dt>
+              <dd className="text-right">
+                <MessageTree value={item} />
+              </dd>
+            </div>
+          )}
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+function TypedDataPane({ rendering, state }: { rendering: Rendering & { kind: 'typedData' }; state: ClearSigning }) {
+  if (rendered(rendering.display)) return <DisplayPane display={rendering.display} source={rendering.source} />
+  return (
+    <div className="flex flex-col gap-2">
+      <NotRendered display={rendering.display} state={state} />
+      <Notice tone="gray">
+        The message below shows as the site sent it. The names come from the site, not from a reviewed descriptor. Its
+        type is <span className="font-mono">{rendering.typed.primaryType}</span>.
+      </Notice>
+      <MessageTree value={rendering.typed.message} />
+    </div>
+  )
+}
+
+function ClearSigningPane({ state, currency }: { state: ClearSigning; currency: Currency }) {
+  const { rendering } = state
+  if (state.status === 'running') {
+    return (
+      <p className="font-mono text-xs text-gray-500">
+        rendering <Cursor />
+      </p>
+    )
+  }
+  if (!rendering) return <Notice tone="amber">The rendering failed. The log below says why.</Notice>
+  switch (rendering.kind) {
+    case 'transaction':
+      return <CallPane call={rendering.call} currency={currency} state={state} />
+    case 'batch':
+      return <BatchPane rendering={rendering} currency={currency} state={state} />
+    case 'typedData':
+      return <TypedDataPane rendering={rendering} state={state} />
+    case 'none':
+      return <Notice tone="gray">Nothing to render: {rendering.reason}.</Notice>
+  }
+}
+
+function RawRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-6 py-1.5 font-mono text-xs">
+      <dt className="shrink-0 text-gray-500">{label}</dt>
+      <dd className="text-right break-all text-gray-800">{children}</dd>
+    </div>
+  )
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return <p className="pt-3 pb-1 font-mono text-xs text-gray-500">{children}</p>
+}
+
+function CalldataBlock({ data }: { data: Hex }) {
+  return (
+    <p className="rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-xs leading-relaxed break-all text-gray-700">
+      {data === '0x' ? '0x (empty)' : data}
+    </p>
+  )
+}
+
+function DecodedBlock({ decoded }: { decoded: Decoded }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <p className="font-mono text-xs leading-relaxed">
+        <a
+          href={`https://4byte.sourcify.dev/?q=${decoded.selector}`}
+          target="_blank"
+          rel="noreferrer"
+          title="Look up this selector on 4byte.sourcify.dev"
+          className="text-cerulean-blue-600 hover:underline"
+        >
+          {decoded.selector} ↗
+        </a>
+        <span className="text-gray-400"> · </span>
+        <span className="break-all text-gray-800">{decoded.signature}</span>
+      </p>
+      <dl className="mt-2 divide-y divide-gray-200/70">
+        {decoded.params.map((param, index) => (
+          <div key={index} className="py-1.5 font-mono text-xs">
+            <dt className="text-gray-500">
+              {param.name} <span className="text-gray-400">{param.type}</span>
+            </dt>
+            <dd className="pt-0.5 break-all text-gray-800">{param.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
+function CallAdvanced({ call, currency }: { call: Call; currency: Currency }) {
+  return (
+    <>
+      <dl className="divide-y divide-gray-100">
+        <RawRow label="to">{call.to ?? 'none · creates a contract'}</RawRow>
+        <RawRow label="value">{amountText(call.value, currency)}</RawRow>
+      </dl>
+      {call.decoded && (
+        <>
+          <SectionLabel>decoded calldata</SectionLabel>
+          <DecodedBlock decoded={call.decoded} />
+        </>
+      )}
+      <SectionLabel>calldata</SectionLabel>
+      <CalldataBlock data={call.data} />
+    </>
+  )
+}
+
+function AdvancedPane({ state, chainId, currency }: { state: ClearSigning; chainId: number; currency: Currency }) {
+  const { rendering } = state
+  if (!rendering || rendering.kind === 'none') return <Notice tone="gray">Nothing to show.</Notice>
+  switch (rendering.kind) {
+    case 'transaction':
+      return (
+        <div>
+          <dl className="divide-y divide-gray-100">
+            <RawRow label="chainId">{chainId}</RawRow>
+            <RawRow label="from">{rendering.from ?? 'not given'}</RawRow>
+          </dl>
+          <CallAdvanced call={rendering.call} currency={currency} />
+        </div>
+      )
+    case 'batch':
+      return (
+        <div>
+          <dl className="divide-y divide-gray-100">
+            <RawRow label="chainId">{chainId}</RawRow>
+            <RawRow label="from">{rendering.from ?? 'not given'}</RawRow>
+            <RawRow label="calls">{rendering.calls.length}</RawRow>
+          </dl>
+          {rendering.calls.map((call, index) => (
+            <div key={index}>
+              <SectionLabel>call {index + 1}</SectionLabel>
+              <div className="rounded-lg border border-gray-200 p-3">
+                <CallAdvanced call={call} currency={currency} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )
+    case 'typedData': {
+      const { account, ...typed } = rendering.typed
+      return (
+        <div>
+          <dl className="divide-y divide-gray-100">
+            <RawRow label="signer">{account}</RawRow>
+            <RawRow label="verifying contract">{String(typed.domain.verifyingContract ?? 'none')}</RawRow>
+            <RawRow label="chainId">{String(typed.domain.chainId ?? 'none')}</RawRow>
+            <RawRow label="primaryType">{typed.primaryType}</RawRow>
+          </dl>
+          <SectionLabel>typed data</SectionLabel>
+          <pre className="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-xs leading-relaxed text-gray-700">
+            {JSON.stringify(typed, null, 2)}
+          </pre>
+        </div>
+      )
+    }
+  }
+}
+
+const TITLES: Record<string, string> = {
+  wallet_sendCalls: 'Batch of transactions',
+  eth_signTypedData_v3: 'Signature request',
+  eth_signTypedData_v4: 'Signature request',
+}
+
+const EXPLAINER =
+  'An ERC-7730 descriptor explains a call in plain words: what it does, and what each value means. Onay uses a descriptor only after an auditor you trust attested it, so that a wrong description cannot hide what you sign. Without one, the call is decoded with the verified source code.'
+
+export function ClearSigningStep({ request, verification }: { request: SigningRequest; verification: Verification }) {
+  const store = clearSigningFor(request, verification)
+  const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
+  const chainId = verification.chainId ?? 0
+  const currency = chainInfoOf(chainById(chainId))?.nativeCurrency ?? null
+  return (
+    <Step number={3} title="Clear Signing" explainer={EXPLAINER}>
+      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h3 className="pb-3 font-mono text-xs tracking-widest text-gray-500 uppercase">
+          {TITLES[request.method] ?? 'Transaction'}
+        </h3>
+        <Tabs
+          tabs={[
+            { label: 'Clear signing', content: <ClearSigningPane state={state} currency={currency} /> },
+            { label: 'Advanced', content: <AdvancedPane state={state} chainId={chainId} currency={currency} /> },
+          ]}
+        />
+        <CollapsibleLog lines={state.lines} />
+      </section>
+    </Step>
+  )
+}

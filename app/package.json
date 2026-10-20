@@ -15,8 +15,10 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@ethereum-sourcify/clear-signing": "0.3.0",
     "@ethereum-sourcify/lib-sourcify": "3.7.2",
     "@tauri-apps/api": "2.11.1",
+    "ethers": "6.17.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "web-solc": "0.7.0"

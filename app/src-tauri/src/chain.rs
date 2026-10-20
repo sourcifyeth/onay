@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use alloy::eips::BlockId;
 use alloy::primitives::{Address, B256};
-use alloy::rpc::types::SyncStatus;
+use alloy::rpc::types::{SyncStatus, TransactionRequest};
 use helios_ethereum::config::networks::Network;
 use helios_ethereum::database::FileDB;
 use helios_ethereum::{EthereumClient, EthereumClientBuilder};
@@ -159,6 +159,28 @@ pub async fn chain_request(
                 .await
                 .map_err(|err| err.to_string())?;
             Ok(json!(receipt))
+        }
+        // Helios runs the call in its own EVM. Each account and slot that
+        // the call reads comes with a proof against the verified state root.
+        "eth_call" => {
+            let (tx, block): (TransactionRequest, BlockId) =
+                serde_json::from_value(params).map_err(|err| err.to_string())?;
+            let data = client
+                .call(&tx, block, None)
+                .await
+                .map_err(|err| err.to_string())?;
+            Ok(json!(data))
+        }
+        // The block comes with its header checked against the verified
+        // chain, so its timestamp can be trusted.
+        "eth_getBlockByNumber" => {
+            let (block, full): (BlockId, bool) =
+                serde_json::from_value(params).map_err(|err| err.to_string())?;
+            let block = client
+                .get_block(block, full)
+                .await
+                .map_err(|err| err.to_string())?;
+            Ok(json!(block))
         }
         _ => Err(format!("{method} is not supported")),
     }

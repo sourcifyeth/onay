@@ -5,6 +5,8 @@ import type { ConnectionInfo, SigningRequest, Snapshot } from './messages.ts'
 import { GatePage } from './GatePage.tsx'
 import { SettingsPage } from './SettingsPage.tsx'
 import { forgetVerification, requestKey, verificationFor } from './gates/verification.ts'
+import { forgetClearSigning } from './clear-signing/store.ts'
+import { AttesterNotice } from './AttesterNotice.tsx'
 
 const OUTCOME_TEXT = {
   fulfilled: 'The wallet signed.',
@@ -48,6 +50,7 @@ function CheckStatus({ request }: { request: SigningRequest }) {
 function Request({ request, onOpen }: { request: SigningRequest; onOpen: () => void }) {
   const dismiss = () => {
     forgetVerification(request)
+    forgetClearSigning(request)
     return invoke('dismiss_request', { connection: request.connection, id: request.id })
   }
   return (
@@ -195,6 +198,7 @@ export default function App() {
         <SettingsPage onBack={() => setSettings(false)} />
       ) : (
         <>
+          <AttesterNotice onSettings={() => setSettings(true)} />
           <section className="mt-6">
             <h2 className="font-semibold">Signing requests</h2>
             {requests.length === 0 && (

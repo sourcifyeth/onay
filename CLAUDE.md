@@ -18,7 +18,7 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 
 ## Rules
 
-- Package manager is pnpm (workspace root). Supply-chain guardrails are non-negotiable: `minimumReleaseAge` stays in `pnpm-workspace.yaml`, lifecycle scripts stay disabled, lockfile committed. Do not add dependencies casually; prefer zero-dep solutions, especially for anything that will ship in the extension.
+- Package manager is pnpm (workspace root). Supply-chain guardrails are non-negotiable: `minimumReleaseAge` stays in `pnpm-workspace.yaml`, lifecycle scripts stay disabled, lockfile committed. The one exception from the release age is `@ethereum-sourcify/clear-signing`, Sourcify's own library. Do not add dependencies casually; prefer zero-dep solutions, especially for anything that will ship in the extension.
 - UI style must match the Sourcify projects (sourcify.dev, verify.sourcify.dev, repo.sourcify.dev). The design tokens in `mock/src/index.css` (IBM Plex Sans/Mono, VT323, cerulean-blue #2b50aa, light-coral #ff858d) are copied from `~/Projects/repo.sourcify.dev/src/app/globals.css`; check that repo when in doubt about look and feel.
 - Messages that cross a layer boundary (popup, service worker, page script, relay, app, webview) get explicit TypeScript types in one shared file per package, such as `extension/src/messages.ts`, imported with `import type` on both sides. Where the other side is Rust, the type names the Rust struct it mirrors. Types are not validation: check at runtime whatever comes from an untrusted sender.
 - Write a comment only when it is necessary. Keep each comment short.

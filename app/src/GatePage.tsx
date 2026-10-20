@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState, useSyncExternalStore } from 'react'
 import type { SigningRequest } from './messages.ts'
 import { chainName } from './chains.ts'
 import { ChainDataStep } from './ChainDataStep.tsx'
+import { ClearSigningStep } from './ClearSigningStep.tsx'
 import { Cursor, LogLineView } from './Log.tsx'
 import { VerificationStep } from './VerificationStep.tsx'
 import type { GateState } from './gates/gate.ts'
@@ -209,6 +210,7 @@ export function GatePage({ request, onBack }: { request: SigningRequest; onBack:
         <>
           <ChainDataStep verification={verification} />
           <VerificationStep verification={verification} />
+          <ClearSigningStep request={request} verification={verification} />
         </>
       )}
     </div>

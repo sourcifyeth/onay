@@ -1,4 +1,5 @@
 import { useState, useSyncExternalStore } from 'react'
+import { AttesterSettings } from './AttesterSettings.tsx'
 import { chainStore, heliosStarted, saveChains, type ChainConfig } from './chains.ts'
 import { errorText } from './gates/gate.ts'
 
@@ -213,6 +214,8 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
           />
         ))}
       <AddChain chains={chains} onAdd={(chain) => saveChains([...chains, chain])} />
+
+      <AttesterSettings />
     </div>
   )
 }
