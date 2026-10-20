@@ -1,32 +1,29 @@
 // Step 2 of the review: the source code of each contract. What Sourcify
 // claims, and what the app reproduced.
 
-import type { Contract } from './gates/contracts.ts'
-import { claimText, describeCompiler, failureOf, type Found } from './gates/sourcify.ts'
+import { useState } from 'react'
+import { verdictOf, type Contract } from './gates/contracts.ts'
+import { claimOf, claimText, describeCompiler, failureOf } from './gates/sourcify.ts'
 import type { Verification } from './gates/verification.ts'
 import { matchText } from './gates/verify.ts'
 import { CollapsibleLog } from './Log.tsx'
 import { InfoTip, Row, Step } from './Step.tsx'
 
-function Warning({ title, children }: { title: string; children: string }) {
+// Coral for a contract that fails the request, amber for a flagged one.
+function Warning({ title, amber = false, children }: { title: string; amber?: boolean; children: string }) {
+  const colors = amber
+    ? 'border-amber-400 bg-amber-50 text-amber-800'
+    : 'border-light-coral-500 bg-light-coral-100 text-light-coral-700'
   return (
-    <div className="mb-3 rounded-lg border-2 border-light-coral-500 bg-light-coral-100 px-4 py-4">
-      <p className="text-lg font-semibold text-light-coral-700">⚠ {title}</p>
+    <div className={`mb-3 rounded-lg border-2 px-4 py-4 ${colors}`}>
+      <p className="text-lg font-semibold">⚠ {title}</p>
       <p className="pt-1 text-sm leading-relaxed text-gray-700">{children}</p>
     </div>
   )
 }
 
-// What Sourcify claims, from a passed gate or from a failure that kept it.
-function claimOf(contract: Contract): Found | null {
-  const state = contract.sourcify
-  if (state.status === 'passed') return state.value.claim
-  const failure = failureOf(state)
-  return failure?.kind === 'not reproduced' ? failure.claim : null
-}
-
 function SourcifyRow({ contract }: { contract: Contract }) {
-  const claim = claimOf(contract)
+  const claim = claimOf(contract.sourcify)
   const notFound = failureOf(contract.sourcify)?.kind === 'not verified'
   return (
     <div className="flex items-baseline justify-between gap-4 py-1.5">
@@ -53,7 +50,7 @@ const HOW =
 function LocalVerification({ contract }: { contract: Contract }) {
   const state = contract.sourcify
   const failure = failureOf(state)
-  const claim = claimOf(contract)
+  const claim = claimOf(state)
   let result
   let tip = HOW
   if (state.status === 'passed') {
@@ -120,13 +117,20 @@ function LocalVerification({ contract }: { contract: Contract }) {
 function ContractVerification({ contract, verification }: { contract: Contract; verification: Verification }) {
   const state = contract.sourcify
   const failure = failureOf(state)
-  const name = claimOf(contract)?.name ?? null
+  const flagged = verdictOf(contract) === 'flagged'
+  const name = claimOf(state)?.name ?? null
   const lines = verification.lines.filter(
     (line) => line.address === contract.address && (line.source === 'sourcify' || line.source === 'solc'),
   )
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      {failure?.kind === 'not verified' && (
+      {flagged && (
+        <Warning title="A called contract is not verified" amber>
+          The transaction calls this contract, and Sourcify has no source code for it. What it does cannot be checked
+          here. Only go on if you know the contract.
+        </Warning>
+      )}
+      {failure?.kind === 'not verified' && !flagged && (
         <Warning title="Source code is not verified">
           Nobody can read what this contract does. It is a black box. Do not interact with it.
         </Warning>
@@ -143,7 +147,7 @@ function ContractVerification({ contract, verification }: { contract: Contract; 
         </Warning>
       )}
       <p className="flex flex-wrap items-baseline gap-x-2 pb-2">
-        <span className="text-xs text-gray-500">Contract</span>
+        <span className="text-xs text-gray-500">{roleOf(contract)}</span>
         <span className="font-mono text-[13px] break-all text-gray-700">{contract.address}</span>
         {name && <span className="text-xs text-gray-500">{name}</span>}
       </p>
@@ -154,14 +158,56 @@ function ContractVerification({ contract, verification }: { contract: Contract; 
   )
 }
 
+const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`
+
+function roleOf(contract: Contract): string {
+  if (contract.implementationOf) return `Implementation of ${short(contract.implementationOf)}`
+  return contract.foundBy === 'request' ? 'Contract' : 'Called contract'
+}
+
+// The contracts that the simulation found, folded. The header counts
+// them, and says how many are not verified.
+function CalledContracts({ contracts, verification }: { contracts: Contract[]; verification: Verification }) {
+  const [open, setOpen] = useState(false)
+  const flagged = contracts.filter((contract) => verdictOf(contract) === 'flagged').length
+  const failed = contracts.filter((contract) => verdictOf(contract) === 'failed').length
+  const count = `${contracts.length} ${contracts.length === 1 ? 'contract' : 'contracts'} called on the way`
+  const note = failed > 0 ? ` · ${failed} failed` : flagged > 0 ? ` · ${flagged} not verified` : ' · all verified'
+  const color = failed > 0 ? 'text-light-coral-700' : flagged > 0 ? 'text-amber-700' : 'text-green-700'
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-4 px-5 py-3 text-left"
+      >
+        <span className={`text-sm font-medium ${color}`}>
+          {failed > 0 ? '✕ ' : flagged > 0 ? '⚠ ' : '✓ '}
+          {count}
+          {note}
+        </span>
+        <span className="shrink-0 text-gray-400">{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+        <div className="flex flex-col gap-2 px-3 pb-3">
+          {contracts.map((contract) => (
+            <ContractVerification key={contract.address} contract={contract} verification={verification} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function VerificationStep({ verification }: { verification: Verification }) {
   // A contract with code. The Sourcify gate skips the others.
   const targets = verification.contracts.filter((contract) => contract.sourcify.status !== 'skipped')
+  const named = targets.filter((contract) => contract.foundBy === 'request')
+  const called = targets.filter((contract) => contract.foundBy === 'simulation')
   return (
     <Step
-      number={2}
+      number={3}
       title="Source Code Verification"
-      explainer="A contract without verified source code is a black box: nobody can check what it does. Do not interact with one."
+      explainer="A contract without verified source code is a black box: nobody can check what it does. Do not interact with one. The contracts that the transaction calls on the way are checked too."
     >
       {targets.length === 0 ? (
         <p className="rounded-xl border border-gray-200 bg-white px-5 py-4 text-sm text-gray-600 shadow-sm">
@@ -169,9 +215,10 @@ export function VerificationStep({ verification }: { verification: Verification 
         </p>
       ) : (
         <div className="flex flex-col gap-2">
-          {targets.map((contract) => (
+          {named.map((contract) => (
             <ContractVerification key={contract.address} contract={contract} verification={verification} />
           ))}
+          {called.length > 0 && <CalledContracts contracts={called} verification={verification} />}
         </div>
       )}
     </Step>

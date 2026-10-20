@@ -3,8 +3,11 @@ import type { SigningRequest } from './messages.ts'
 import { chainName } from './chains.ts'
 import { ChainDataStep } from './ChainDataStep.tsx'
 import { Cursor, LogLineView } from './Log.tsx'
+import { SimulationStep } from './SimulationStep.tsx'
 import { VerificationStep } from './VerificationStep.tsx'
+import { verdictOf, type Contract } from './gates/contracts.ts'
 import type { GateState } from './gates/gate.ts'
+import { reverted, type Simulation } from './gates/simulation.ts'
 import { verificationFor, type TimedLine, type Verification } from './gates/verification.ts'
 
 // The log shows at most one new line in this time, so that you can read it.
@@ -51,8 +54,13 @@ function ChainBadge({ chainId, address }: { chainId: number | null; address?: st
 }
 
 function Summary({ request, verification }: { request: SigningRequest; verification: Verification }) {
-  const { contracts, chainId } = verification
+  const { chainId } = verification
   const label = request.method.startsWith('eth_signTypedData') ? 'Verifying contract' : 'To'
+  // The contracts the request names. Their implementations and the
+  // contracts the simulation found are in the review below.
+  const named = verification.contracts.filter(
+    (contract) => contract.foundBy === 'request' && !contract.implementationOf,
+  )
   return (
     <section className="animate-fade-up">
       <p className="text-base font-medium text-gray-900">
@@ -61,7 +69,7 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
       <p className="pt-1 text-sm text-gray-500">
         Your wallet has the same request now. Check it here before you confirm there.
       </p>
-      {contracts.length === 0 ? (
+      {named.length === 0 ? (
         chainId !== null && (
           <div className="pt-5">
             <ChainBadge chainId={chainId} />
@@ -69,7 +77,7 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
         )
       ) : (
         <div className="grid grid-cols-[max-content_1fr] items-center gap-x-3 gap-y-1 pt-5">
-          {contracts.map((contract, index) => (
+          {named.map((contract, index) => (
             <Fragment key={contract.address}>
               <span className="text-xs text-gray-500">{index === 0 ? label : ''}</span>
               <ChainBadge chainId={chainId} address={contract.address} />
@@ -93,9 +101,14 @@ function Section({
   color: string
   subtitle: string
   lines: TimedLine[]
-  state: 'running' | 'passed' | 'failed'
+  state: SectionState
 }) {
-  const dot = { running: 'bg-yellow-400', passed: 'bg-green-600', failed: 'bg-light-coral-600' }[state]
+  const dot = {
+    running: 'bg-yellow-400',
+    passed: 'bg-green-600',
+    flagged: 'bg-amber-500',
+    failed: 'bg-light-coral-600',
+  }[state]
   return (
     <section className="pt-3">
       <div className="flex items-center gap-2">
@@ -118,18 +131,39 @@ function Section({
   )
 }
 
+type SectionState = 'running' | 'passed' | 'flagged' | 'failed'
+
 // The state of one gate over each contract.
-function gateStatus(states: GateState<unknown>[]): 'running' | 'passed' | 'failed' {
+function gateStatus(states: GateState<unknown>[]): SectionState {
   if (states.some(({ status }) => status === 'failed')) return 'failed'
   if (states.every(({ status }) => status === 'passed' || status === 'skipped')) return 'passed'
   return 'running'
 }
 
+// The Sourcify gate over each contract. A contract on the way with
+// nothing on Sourcify flags the section, it does not fail it.
+function sourcifyStatus(contracts: Contract[]): SectionState {
+  const verdicts = contracts.map(verdictOf)
+  if (verdicts.includes('failed')) return 'failed'
+  if (verdicts.includes('flagged')) return 'flagged'
+  return gateStatus(contracts.map((contract) => contract.sourcify))
+}
+
+// The state of the simulation, for its header. A skipped one is done,
+// but it leaves the call tree of a transaction unchecked.
+function simulationStatus(state: GateState<Simulation>, runs: boolean): SectionState {
+  if (state.status === 'failed') return 'failed'
+  if (state.status === 'passed') return reverted(state.value) ? 'flagged' : 'passed'
+  if (state.status === 'skipped') return runs ? 'flagged' : 'passed'
+  return 'running'
+}
+
 function GateLog({ verification, shown, done }: { verification: Verification; shown: number; done: boolean }) {
-  const { contracts, chainId, chain } = verification
+  const { contracts, chainId, chain, simulation } = verification
   const mode = chain?.mode ?? null
   const visible = verification.lines.slice(0, shown)
   const browser = visible.filter((line) => line.source === 'browser')
+  const evm = visible.filter((line) => line.source === 'evm')
   const sourcify = visible.filter((line) => line.source === 'sourcify' || line.source === 'solc')
   const chainLines = visible.filter((line) => line.source === mode)
   const target = contracts.length === 1 ? contracts[0].address : `${contracts.length} contracts`
@@ -149,13 +183,22 @@ function GateLog({ verification, shown, done }: { verification: Verification; sh
       ) : (
         !done && <Cursor />
       )}
+      {evm.length > 0 && (
+        <Section
+          title="evm"
+          color="text-cerulean-blue-500"
+          subtitle={`local simulation · state from ${mode}`}
+          lines={evm}
+          state={done ? simulationStatus(simulation, verification.runs) : 'running'}
+        />
+      )}
       {sourcify.length > 0 && (
         <Section
           title="sourcify"
           color="text-cerulean-blue-500"
           subtitle={`${target} · sources from sourcify.dev, compiled here`}
           lines={sourcify}
-          state={done ? gateStatus(contracts.map((contract) => contract.sourcify)) : 'running'}
+          state={done ? sourcifyStatus(contracts) : 'running'}
         />
       )}
     </div>
@@ -208,6 +251,7 @@ export function GatePage({ request, onBack }: { request: SigningRequest; onBack:
       {done && verification.chain && (
         <>
           <ChainDataStep verification={verification} />
+          <SimulationStep verification={verification} />
           <VerificationStep verification={verification} />
         </>
       )}
