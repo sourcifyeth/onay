@@ -29,7 +29,6 @@ use serde_json::Value;
 
 use crate::channel::{self, Hello, KEY_LEN, Opener, Role, SALT_LEN, Sealer};
 use crate::host_manifest::Installed;
-use crate::peer::Verdict;
 use crate::store::{Store, decode_key};
 
 /// How long a new connection has to send its hello.
@@ -145,9 +144,9 @@ pub struct Snapshot {
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionInfo {
     id: u64,
-    /// The browser binary, if the peer check found it.
-    browser: Option<String>,
-    verified: bool,
+    /// The browser that the peer check found: its binary on Linux, its
+    /// name and signature on macOS.
+    browser: String,
     /// Set while the user must approve this extension.
     pairing_code: Option<String>,
 }
@@ -200,7 +199,8 @@ struct State {
     rejected: Vec<String>,
 }
 
-type Verify = dyn Fn(&UnixStream) -> Verdict + Send + Sync;
+/// The peer check: the browser, or why the app refuses the peer.
+type Verify = dyn Fn(&UnixStream) -> Result<String, String> + Send + Sync;
 type Notify = dyn Fn(Notice) + Send + Sync;
 
 pub struct Link {
@@ -308,10 +308,12 @@ impl Link {
                 match connection {
                     Ok(stream) => {
                         let link = Arc::clone(&link);
-                        thread::spawn(move || {
-                            if let Err(err) = link.serve(stream) {
-                                eprintln!("onay: link connection ended: {err}");
-                            }
+                        thread::spawn(move || match link.serve(stream) {
+                            // The peer left, such as the probe of a second
+                            // instance.
+                            Err(err) if err.kind() == io::ErrorKind::BrokenPipe => {}
+                            Err(err) => eprintln!("onay: link connection ended: {err}"),
+                            Ok(()) => {}
                         });
                     }
                     Err(err) => eprintln!("onay: accept failed: {err}"),
@@ -323,29 +325,32 @@ impl Link {
     /// Runs one connection until the other side closes it.
     fn serve(&self, stream: UnixStream) -> io::Result<()> {
         let mut writer = stream.try_clone()?;
-        let (browser, verified) = match (self.verify)(&stream) {
-            Verdict::Verified { browser } => (Some(browser.display().to_string()), true),
-            Verdict::Unsupported => (None, false),
-            Verdict::Rejected(reason) => {
+        let browser = match (self.verify)(&stream) {
+            Ok(browser) => browser,
+            Err(reason) => {
                 let message = format!("The Onay app refused the connection: {reason}.");
-                let sent = send_clear(&mut writer, &ServerFrame::Error { message });
+                // The window does not list a peer that is gone already, such
+                // as the probe of a second instance of the app.
+                send_clear(&mut writer, &ServerFrame::Error { message })?;
                 let mut state = self.state();
                 state.rejected.push(reason);
                 let excess = state.rejected.len().saturating_sub(MAX_REJECTED);
                 state.rejected.drain(..excess);
                 drop(state);
                 (self.notify)(Notice::Changed);
-                return sent;
+                return Ok(());
             }
         };
 
         stream.set_read_timeout(Some(HELLO_TIMEOUT))?;
         let mut reader = BufReader::new(stream.try_clone()?);
-        let (id, mut opener) = self.handshake(&mut reader, writer, browser, verified)?;
-        stream.set_read_timeout(None)?;
-        (self.notify)(Notice::Changed);
-
-        let result = self.read_messages(id, &mut reader, &mut opener);
+        let (id, mut opener) = self.handshake(&mut reader, writer, browser)?;
+        // The connection is in the state now. Each way out removes it. On
+        // macOS the timeout call fails if the relay closed already.
+        let result = stream.set_read_timeout(None).and_then(|()| {
+            (self.notify)(Notice::Changed);
+            self.read_messages(id, &mut reader, &mut opener)
+        });
         self.state().connections.remove(&id);
         let _ = stream.shutdown(Shutdown::Both);
         (self.notify)(Notice::Changed);
@@ -357,8 +362,7 @@ impl Link {
         &self,
         reader: &mut BufReader<UnixStream>,
         mut writer: UnixStream,
-        browser: Option<String>,
-        verified: bool,
+        browser: String,
     ) -> io::Result<(u64, Opener)> {
         let bytes = onay_ipc::read_message(reader)?.ok_or_else(|| protocol_error("no hello"))?;
         let ClientFrame::Hello {
@@ -409,7 +413,6 @@ impl Link {
                 info: ConnectionInfo {
                     id,
                     browser,
-                    verified,
                     pairing_code,
                 },
                 extension_key: extension.public_key,
@@ -557,7 +560,7 @@ mod tests {
         dir
     }
 
-    fn link(name: &str, verdict: fn() -> Verdict) -> (Arc<Link>, Receiver<()>) {
+    fn link(name: &str, verdict: fn() -> Result<String, String>) -> (Arc<Link>, Receiver<()>) {
         let store = Store::open(&temp_dir(name)).unwrap();
         let (tx, rx) = mpsc::channel();
         let notify = move |_| {
@@ -572,10 +575,8 @@ mod tests {
         (link, rx)
     }
 
-    fn verified() -> Verdict {
-        Verdict::Verified {
-            browser: "/opt/google/chrome/chrome".into(),
-        }
+    fn verified() -> Result<String, String> {
+        Ok("/opt/google/chrome/chrome".into())
     }
 
     /// A stand-in for the extension.
@@ -676,11 +677,7 @@ mod tests {
         assert!(!client.paired);
         let snapshot = wait_for(&link, &changes, |s| s.connections.len() == 1);
         let connection = snapshot.connections[0].clone();
-        assert!(connection.verified);
-        assert_eq!(
-            connection.browser.as_deref(),
-            Some("/opt/google/chrome/chrome")
-        );
+        assert_eq!(connection.browser, "/opt/google/chrome/chrome");
         assert_eq!(
             connection.pairing_code.as_deref(),
             Some(client.code.as_str())
@@ -834,11 +831,12 @@ mod tests {
 
     #[test]
     fn peer_that_fails_the_check_gets_one_error() {
-        let (link, changes) = link("peer", || Verdict::Rejected("not a browser".into()));
+        let (link, changes) = link("peer", || Err("not a browser".into()));
         let (stream, server) = UnixStream::pair().unwrap();
+        // Before the spawn: macOS refuses the call once the server closed.
+        stream.set_read_timeout(Some(WAIT)).unwrap();
         let serving = Arc::clone(&link);
         thread::spawn(move || serving.serve(server));
-        stream.set_read_timeout(Some(WAIT)).unwrap();
 
         let reply = read_json(&stream).unwrap();
         assert_eq!(reply["type"], "error");
@@ -850,12 +848,14 @@ mod tests {
     }
 
     #[test]
-    fn system_without_a_peer_check_is_shown_as_not_verified() {
-        let (link, changes) = link("unsupported", || Verdict::Unsupported);
-        let _client = Client::connect(&link, &Identity::generate().unwrap());
-        let snapshot = wait_for(&link, &changes, |s| s.connections.len() == 1);
-        assert!(!snapshot.connections[0].verified);
-        assert_eq!(snapshot.connections[0].browser, None);
+    fn peer_that_is_gone_before_the_check_is_not_listed() {
+        let (link, _changes) = link("gone", || Err("not a browser".into()));
+        let (stream, server) = UnixStream::pair().unwrap();
+        drop(stream);
+        // `listen` does not log this kind.
+        let err = link.serve(server).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
+        assert!(link.snapshot().rejected.is_empty());
     }
 
     #[test]
