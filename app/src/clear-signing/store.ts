@@ -106,7 +106,7 @@ function start(request: SigningRequest, verification: Verification): ClearSignin
 
     const { attesters } = snapshot
     if (attesters.length === 0) {
-      log({ source: 'erc7730', text: 'no trusted auditor · descriptors from the registry are not used' })
+      log({ source: 'erc7730', text: 'no trusted auditor · descriptors from the registry show as previews' })
     } else {
       log({ source: 'erc7730', text: `trusted auditors · ${attesters.join(', ')}` })
     }
@@ -169,11 +169,17 @@ function start(request: SigningRequest, verification: Verification): ClearSignin
 }
 
 function logOutcome(rendering: Rendering, log: Log) {
-  const outcome = (display: Parameters<typeof rendered>[0], source: DescriptorSource | null, what: string) => {
+  const outcome = (
+    display: Parameters<typeof rendered>[0],
+    source: DescriptorSource | null,
+    attested: boolean,
+    what: string,
+  ) => {
     if (!display) return
     if (rendered(display)) {
       const from = source?.kind === 'registry' ? source.path : 'the bundled token template'
-      log({ source: 'erc7730', text: `${what} · rendered with ${from}`, ok: true })
+      const note = attested ? '' : ' · preview · not attested by a trusted auditor'
+      log({ source: 'erc7730', text: `${what} · rendered with ${from}${note}`, ok: attested })
     } else {
       const reason = reasonOf(display)
       log({ source: 'erc7730', text: `${what} · not rendered · ${reason?.message ?? 'no descriptor'}`, ok: false })
@@ -181,13 +187,13 @@ function logOutcome(rendering: Rendering, log: Log) {
   }
   switch (rendering.kind) {
     case 'transaction':
-      outcome(rendering.call.display, rendering.call.source, 'transaction')
+      outcome(rendering.call.display, rendering.call.source, rendering.call.attested, 'transaction')
       break
     case 'batch':
-      rendering.calls.forEach((call, index) => outcome(call.display, call.source, `call ${index + 1}`))
+      rendering.calls.forEach((call, index) => outcome(call.display, call.source, call.attested, `call ${index + 1}`))
       break
     case 'typedData':
-      outcome(rendering.display, rendering.source, rendering.typed.primaryType)
+      outcome(rendering.display, rendering.source, rendering.attested, rendering.typed.primaryType)
       break
     case 'none':
       log({ source: 'erc7730', text: rendering.reason })

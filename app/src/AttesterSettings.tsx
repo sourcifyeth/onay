@@ -102,8 +102,8 @@ export function AttesterSettings() {
         <p className="pb-1 font-medium text-gray-800">Trusted auditors</p>
         {attesters.length === 0 ? (
           <p className="rounded-lg border-l-2 border-amber-400 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            No auditor is trusted. Descriptors from the registry are not used, and each request shows the decoded
-            calldata only.
+            No auditor is trusted. A descriptor from the registry shows as a preview with a warning, since no one has
+            checked it for you.
           </p>
         ) : (
           <div className="divide-y divide-gray-100">

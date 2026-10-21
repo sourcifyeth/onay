@@ -1,7 +1,7 @@
 // Plain decoding: the calldata read with the verified ABI (Application
-// Binary Interface). It is the fallback when no reviewed descriptor
-// renders the call, and the "advanced" view next to one. This module has
-// no browser or Tauri calls, so the tests run it as it is.
+// Binary Interface). It is the fallback when no descriptor renders the
+// call, and part of the raw view next to one. This module has no browser
+// or Tauri calls, so the tests run it as it is.
 
 import { Interface, type InterfaceAbi, type ParamType, type Result } from 'ethers'
 import type { Hex } from '../messages.ts'

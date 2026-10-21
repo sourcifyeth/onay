@@ -1,8 +1,8 @@
 // Step 3 of the review: what the request asks to sign, in words. An
-// ERC-7730 descriptor that a trusted auditor attested renders the intent
-// and the fields. Without one, the calldata shows as the verified ABI
-// (Application Binary Interface) decodes it. Taken from the mock's
-// transaction card.
+// ERC-7730 descriptor renders the intent and the fields; one that no
+// trusted auditor attested shows as a preview with a warning. Without a
+// descriptor, the calldata shows as the verified ABI (Application Binary
+// Interface) decodes it. Taken from the mock's transaction card.
 
 import { useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { DisplayField, DisplayFieldGroup, DisplayModel, Warning } from '@ethereum-sourcify/clear-signing'
@@ -249,7 +249,15 @@ function Warnings({ warnings }: { warnings: Warning[] | undefined }) {
   )
 }
 
-function Provenance({ source, display }: { source: DescriptorSource | null; display: DisplayModel }) {
+function Provenance({
+  source,
+  display,
+  attested,
+}: {
+  source: DescriptorSource | null
+  display: DisplayModel
+  attested: boolean
+}) {
   const owner = display.metadata?.owner
   if (source?.kind === 'template') {
     return (
@@ -267,18 +275,45 @@ function Provenance({ source, display }: { source: DescriptorSource | null; disp
         rel="noreferrer"
         className="hover:text-cerulean-blue-600"
       >
-        ERC-7730 descriptor{owner ? ` by ${owner}` : ''} from the registry · attested by an auditor you trust ↗
+        ERC-7730 descriptor{owner ? ` by ${owner}` : ''} from the registry ·{' '}
+        {attested ? 'attested by an auditor you trust' : 'not attested by an auditor you trust'} ↗
       </a>
     </p>
   )
 }
 
+// A descriptor that no trusted auditor attested rendered the data.
+function Unattested({ state }: { state: ClearSigning }) {
+  return (
+    <Notice tone="amber">
+      {state.attesters.length === 0
+        ? 'Preview: you trust no auditor yet, so no one has checked this description for you. Anyone can submit a descriptor to the registry. Choose auditors under settings → Clear signing.'
+        : 'Preview: no auditor you trust has attested this descriptor, so no one has checked this description for you. Anyone can submit a descriptor to the registry.'}
+    </Notice>
+  )
+}
+
 // A descriptor rendered the data: intent, sentence, fields.
-function DisplayPane({ display, source }: { display: DisplayModel; source: DescriptorSource | null }) {
+function DisplayPane({
+  display,
+  source,
+  attested,
+  state,
+}: {
+  display: DisplayModel
+  source: DescriptorSource | null
+  attested: boolean
+  state: ClearSigning
+}) {
   const [showIntent, setShowIntent] = useState(false)
   const name = display.metadata?.contractName
   return (
     <div>
+      {!attested && (
+        <div className="pb-3">
+          <Unattested state={state} />
+        </div>
+      )}
       {name && (
         <p className="pb-2 text-xs text-gray-500">
           Interacting with <span className="font-medium text-gray-700">{name}</span>
@@ -297,7 +332,7 @@ function DisplayPane({ display, source }: { display: DisplayModel; source: Descr
         ))}
       <FieldList fields={display.fields} />
       <Warnings warnings={display.warnings} />
-      <Provenance source={source} display={display} />
+      <Provenance source={source} display={display} attested={attested} />
     </div>
   )
 }
@@ -313,10 +348,8 @@ function NotRendered({ display, state }: { display: DisplayModel; state: ClearSi
         : 'No ERC-7730 descriptor is registered for this contract, so there is no reviewed description of what this call does.'
       break
     case 'NO_TRUSTED_ATTESTATION':
-      text =
-        state.attesters.length === 0
-          ? 'The registry has a descriptor for this contract, but you trust no auditor yet, so Onay does not use it. Choose auditors under settings → Clear signing.'
-          : 'The registry has a descriptor for this contract, but no auditor you trust has attested it, so Onay does not use it.'
+      // The preview failed too, so the descriptor cannot render this call.
+      text = 'The registry has a descriptor for this contract, but it does not render this call.'
       break
     case 'DESCRIPTOR_FETCH_ERROR':
       text = `The registry could not be reached, so no descriptor was checked. ${reason.message}`
@@ -368,10 +401,13 @@ function Fallback({ call, state }: { call: Call; state: ClearSigning }) {
       {decoded ? (
         <>
           <Notice tone="gray">
-            The parameters below are decoded with the verified source code: the names come from the code, not from a
-            reviewed descriptor. The function is <span className="font-mono">{decoded.signature}</span>.
+            No description in words. The call is decoded with the verified source code: the function is{' '}
+            <span className="font-mono">{decoded.signature}</span>
+            {decoded.params.length === 0
+              ? ', and it takes no parameters.'
+              : '. The names of the parameters come from the code.'}
           </Notice>
-          <DecodedList decoded={decoded} />
+          {decoded.params.length > 0 && <DecodedList decoded={decoded} />}
         </>
       ) : (
         <>
@@ -420,7 +456,9 @@ function CallPane({ call, currency, state }: { call: Call; currency: Currency; s
       </Notice>
     )
   }
-  if (rendered(call.display)) return <DisplayPane display={call.display!} source={call.source} />
+  if (rendered(call.display)) {
+    return <DisplayPane display={call.display!} source={call.source} attested={call.attested} state={state} />
+  }
   return <Fallback call={call} state={state} />
 }
 
@@ -494,7 +532,11 @@ function MessageTree({ value }: { value: unknown }) {
 }
 
 function TypedDataPane({ rendering, state }: { rendering: Rendering & { kind: 'typedData' }; state: ClearSigning }) {
-  if (rendered(rendering.display)) return <DisplayPane display={rendering.display} source={rendering.source} />
+  if (rendered(rendering.display)) {
+    return (
+      <DisplayPane display={rendering.display} source={rendering.source} attested={rendering.attested} state={state} />
+    )
+  }
   return (
     <div className="flex flex-col gap-2">
       <NotRendered display={rendering.display} state={state} />
@@ -566,6 +608,7 @@ function DecodedBlock({ decoded }: { decoded: Decoded }) {
         <span className="text-gray-400"> · </span>
         <span className="break-all text-gray-800">{decoded.signature}</span>
       </p>
+      {decoded.params.length === 0 && <p className="mt-2 font-mono text-xs text-gray-500">no parameters</p>}
       <dl className="mt-2 divide-y divide-gray-200/70">
         {decoded.params.map((param, index) => (
           <div key={index} className="py-1.5 font-mono text-xs">
@@ -580,7 +623,7 @@ function DecodedBlock({ decoded }: { decoded: Decoded }) {
   )
 }
 
-function CallAdvanced({ call, currency }: { call: Call; currency: Currency }) {
+function CallRaw({ call, currency }: { call: Call; currency: Currency }) {
   return (
     <>
       <dl className="divide-y divide-gray-100">
@@ -599,7 +642,7 @@ function CallAdvanced({ call, currency }: { call: Call; currency: Currency }) {
   )
 }
 
-function AdvancedPane({ state, chainId, currency }: { state: ClearSigning; chainId: number; currency: Currency }) {
+function RawPane({ state, chainId, currency }: { state: ClearSigning; chainId: number; currency: Currency }) {
   const { rendering } = state
   if (!rendering || rendering.kind === 'none') return <Notice tone="gray">Nothing to show.</Notice>
   switch (rendering.kind) {
@@ -610,7 +653,7 @@ function AdvancedPane({ state, chainId, currency }: { state: ClearSigning; chain
             <RawRow label="chainId">{chainId}</RawRow>
             <RawRow label="from">{rendering.from ?? 'not given'}</RawRow>
           </dl>
-          <CallAdvanced call={rendering.call} currency={currency} />
+          <CallRaw call={rendering.call} currency={currency} />
         </div>
       )
     case 'batch':
@@ -625,7 +668,7 @@ function AdvancedPane({ state, chainId, currency }: { state: ClearSigning; chain
             <div key={index}>
               <SectionLabel>call {index + 1}</SectionLabel>
               <div className="rounded-lg border border-gray-200 p-3">
-                <CallAdvanced call={call} currency={currency} />
+                <CallRaw call={call} currency={currency} />
               </div>
             </div>
           ))}
@@ -651,6 +694,19 @@ function AdvancedPane({ state, chainId, currency }: { state: ClearSigning; chain
   }
 }
 
+// The label of the first tab says what it shows: clear signing only
+// when a descriptor rendered every call.
+function labelOf(state: ClearSigning): string {
+  const { rendering } = state
+  if (state.status === 'running' || !rendering || rendering.kind === 'none') return 'Clear signing'
+  if (rendering.kind === 'typedData') return rendered(rendering.display) ? 'Clear signing' : 'Message'
+  const calls = rendering.kind === 'batch' ? rendering.calls : [rendering.call]
+  const withData = calls.filter((call) => call.to !== null && call.data !== '0x')
+  if (withData.every((call) => rendered(call.display))) return 'Clear signing'
+  if (withData.some((call) => call.decoded)) return 'Decoded calldata'
+  return 'Not decoded'
+}
+
 const TITLES: Record<string, string> = {
   wallet_sendCalls: 'Batch of transactions',
   eth_signTypedData_v3: 'Signature request',
@@ -658,7 +714,7 @@ const TITLES: Record<string, string> = {
 }
 
 const EXPLAINER =
-  'An ERC-7730 descriptor explains a call in plain words: what it does, and what each value means. Onay uses a descriptor only after an auditor you trust attested it, so that a wrong description cannot hide what you sign. Without one, the call is decoded with the verified source code.'
+  'An ERC-7730 descriptor explains a call in plain words: what it does, and what each value means. A descriptor counts as reviewed only after an auditor you trust attested it; one that none did shows as a preview with a warning, since a wrong description can hide what you sign. Without a descriptor, the call is decoded with the verified source code.'
 
 export function ClearSigningStep({ request, verification }: { request: SigningRequest; verification: Verification }) {
   const store = clearSigningFor(request, verification)
@@ -673,8 +729,8 @@ export function ClearSigningStep({ request, verification }: { request: SigningRe
         </h3>
         <Tabs
           tabs={[
-            { label: 'Clear signing', content: <ClearSigningPane state={state} currency={currency} /> },
-            { label: 'Advanced', content: <AdvancedPane state={state} chainId={chainId} currency={currency} /> },
+            { label: labelOf(state), content: <ClearSigningPane state={state} currency={currency} /> },
+            { label: 'Raw', content: <RawPane state={state} chainId={chainId} currency={currency} /> },
           ]}
         />
         <CollapsibleLog lines={state.lines} />

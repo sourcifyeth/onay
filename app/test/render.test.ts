@@ -202,22 +202,33 @@ test('a transaction with a trusted descriptor renders with intent, fields, and t
     ],
   )
   assert.deepEqual(call.source, { kind: 'registry', path: 'registry/circle/calldata-usdc.json' })
+  assert.equal(call.attested, true)
   assert.equal(call.decoded?.signature, 'transfer(address to, uint256 value)')
   assert.equal(reasonOf(call.display), null)
 })
 
-test('without a trusted attestation the descriptor is not used: raw fallback, and the ABI decoding', async () => {
+test('without a trusted attestation the descriptor renders as a preview, marked as not attested', async () => {
   const input = inputOf(request('eth_sendTransaction', [{ to: USDC, data: TRANSFER }]))
   for (const attesters of [[], [AUDITOR]]) {
     const result = await render(input, options({}, attesters))
     if (result.kind !== 'transaction') return assert.fail(result.kind)
     const { call } = result
-    assert.equal(rendered(call.display), false)
-    assert.equal(call.source, null)
-    assert.equal(reasonOf(call.display)?.code, 'NO_TRUSTED_ATTESTATION')
-    assert.equal(call.display?.rawCalldataFallback?.selector, '0xa9059cbb')
+    assert.equal(rendered(call.display), true)
+    assert.equal(call.attested, false)
+    assert.equal(call.display?.interpolatedIntent, 'Send 1.5 USDC to alice.eth')
+    assert.deepEqual(call.source, { kind: 'registry', path: 'registry/circle/calldata-usdc.json' })
+    assert.equal(reasonOf(call.display), null)
     assert.equal(call.decoded?.params[1].value, '1500000')
   }
+})
+
+test('a call that the preview does not render keeps the attestation reason', async () => {
+  const data = erc20.encodeFunctionData('transfer', [ALICE, 1n]).slice(0, 10) as Hex
+  const result = await render(inputOf(request('eth_sendTransaction', [{ to: USDC, data }])), options({}, []))
+  if (result.kind !== 'transaction') return assert.fail(result.kind)
+  assert.equal(rendered(result.call.display), false)
+  assert.equal(result.call.attested, true)
+  assert.equal(reasonOf(result.call.display)?.code, 'NO_TRUSTED_ATTESTATION')
 })
 
 test('a contract without a descriptor: no descriptor, and the ABI decoding where there is one', async () => {
@@ -242,7 +253,15 @@ test('a plain value transfer has nothing to render', async () => {
   const input = inputOf(request('eth_sendTransaction', [{ to: ALICE, value: '0x1' }]))
   const result = await render(input, options())
   if (result.kind !== 'transaction') return assert.fail(result.kind)
-  assert.deepEqual(result.call, { to: ALICE, data: '0x', value: 1n, display: null, decoded: null, source: null })
+  assert.deepEqual(result.call, {
+    to: ALICE,
+    data: '0x',
+    value: 1n,
+    display: null,
+    decoded: null,
+    source: null,
+    attested: true,
+  })
 })
 
 test('a batch renders each call, and joins the intents', async () => {
@@ -274,6 +293,11 @@ test('typed data renders with its descriptor', async () => {
   assert.equal(result.display.intent, 'Permit')
   assert.deepEqual(result.source, { kind: 'registry', path: 'registry/circle/eip712-usdc.json' })
   assert.equal(result.account, YOU)
+  assert.equal(result.attested, true)
+  const preview = await render(inputOf(request('eth_signTypedData_v4', [YOU, typedData])), options({}, []))
+  if (preview.kind !== 'typedData') return assert.fail(preview.kind)
+  assert.equal(preview.display.intent, 'Permit')
+  assert.equal(preview.attested, false)
   const other = { ...typedData, domain: { ...typedData.domain, verifyingContract: OTHER } }
   const none = await render(inputOf(request('eth_signTypedData_v4', [YOU, other])), options())
   if (none.kind !== 'typedData') return assert.fail(none.kind)

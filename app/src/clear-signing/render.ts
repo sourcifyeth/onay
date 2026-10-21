@@ -1,8 +1,10 @@
 // What a signing request asks to sign, rendered: with an ERC-7730
-// descriptor through the clear-signing library where one is trusted, and
-// with the verified ABI (Application Binary Interface) in any case. The
-// params come from the page, so each value is checked. This module has no
-// browser or Tauri calls, so the tests run it as it is.
+// descriptor through the clear-signing library where the registry has
+// one, and with the verified ABI (Application Binary Interface) in any
+// case. A descriptor that no trusted auditor attested renders as a
+// preview, marked as such. The params come from the page, so each value
+// is checked. This module has no browser or Tauri calls, so the tests
+// run it as it is.
 
 import {
   format,
@@ -34,12 +36,22 @@ export type Call = {
   // it has no function with the selector.
   decoded: Decoded | null
   source: DescriptorSource | null
+  // False if the descriptor rendered as a preview: no auditor the user
+  // trusts attested it.
+  attested: boolean
 }
 
 export type Rendering =
   | { kind: 'transaction'; from: Hex | null; call: Call }
   | { kind: 'batch'; from: Hex | null; calls: Call[]; intent: string | null; warnings: Warning[] }
-  | { kind: 'typedData'; account: Hex; typed: TypedData; display: DisplayModel; source: DescriptorSource | null }
+  | {
+      kind: 'typedData'
+      account: Hex
+      typed: TypedData
+      display: DisplayModel
+      source: DescriptorSource | null
+      attested: boolean
+    }
   // A method that clear signing does not cover, or params with the
   // wrong shape.
   | { kind: 'none'; reason: string }
@@ -168,6 +180,27 @@ function sourceOf(options: RenderOptions, address: Hex): DescriptorSource | null
   return null
 }
 
+// The format options without the attestation policy: the library then
+// takes a descriptor that no trusted auditor attested.
+function previewOptions(options: FormatOptions): FormatOptions {
+  const resolver = options.descriptorResolverOptions
+  return { ...options, descriptorResolverOptions: resolver && { ...resolver, attestations: undefined } }
+}
+
+type Attempt = { display: DisplayModel; attested: boolean }
+
+// Renders with the policy first. If the only obstacle is the attestation,
+// renders again without it, as a preview.
+async function attempt(
+  run: (options: FormatOptions) => Promise<DisplayModel>,
+  options: FormatOptions,
+): Promise<Attempt> {
+  const display = await run(options)
+  if (reasonOf(display)?.code !== 'NO_TRUSTED_ATTESTATION') return { display, attested: true }
+  const preview = await run(previewOptions(options))
+  return rendered(preview) ? { display: preview, attested: false } : { display, attested: true }
+}
+
 async function renderCall(
   call: { to: Hex | null; data: Hex; value: bigint | null },
   from: Hex | null,
@@ -176,10 +209,11 @@ async function renderCall(
   const { to, data, value } = call
   const abi = to ? options.abis(to) : null
   const decoded = abi && data !== '0x' ? decodeCalldata(abi, data) : null
-  if (!to || data === '0x') return { to, data, value, display: null, decoded, source: null }
+  if (!to || data === '0x') return { to, data, value, display: null, decoded, source: null, attested: true }
   const tx = { chainId: options.chainId, to, data, value: value ?? undefined, from: from ?? undefined }
-  const display = await format(tx, options.format)
-  return { to, data, value, display, decoded, source: rendered(display) ? sourceOf(options, to) : null }
+  const { display, attested } = await attempt((format_) => format(tx, format_), options.format)
+  const source = rendered(display) ? sourceOf(options, to) : null
+  return { to, data, value, display, decoded, source, attested }
 }
 
 export async function render(input: Input, options: RenderOptions): Promise<Rendering> {
@@ -211,12 +245,12 @@ export async function render(input: Input, options: RenderOptions): Promise<Rend
       }
     }
     case 'typedData': {
-      const display = await formatTypedData(input.typed, options.format)
+      const { display, attested } = await attempt((format_) => formatTypedData(input.typed, format_), options.format)
       const contract = asAddress(input.typed.domain.verifyingContract)
       const entries = contract ? options.index.typedDataIndex[`eip155:${options.chainId}:${contract}`] : undefined
       const path = entries?.[input.typed.primaryType]?.[0]?.path
       const source: DescriptorSource | null = rendered(display) && path ? { kind: 'registry', path } : null
-      return { kind: 'typedData', account: input.account, typed: input.typed, display, source }
+      return { kind: 'typedData', account: input.account, typed: input.typed, display, source, attested }
     }
     case 'none':
       return input
