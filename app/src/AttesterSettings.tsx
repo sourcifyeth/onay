@@ -12,6 +12,7 @@ import {
   type Profile,
 } from './clear-signing/attesters.ts'
 import { ExternalLink } from './ExternalLink.tsx'
+import { ThirdPartyIcon } from './Icons.tsx'
 import { errorText } from './gates/gate.ts'
 import type { Hex } from './messages.ts'
 
@@ -51,9 +52,13 @@ function AttesterRow({ address, onRemove }: { address: Hex; onRemove: () => void
   else if (error) about = <span className="text-amber-700">profile not read · {error}</span>
   else if (profile) {
     about = (
-      <span className="text-gray-700">
-        {profile.name}
-        {profile.organization && <span className="text-gray-500"> · {profile.organization}</span>}
+      <span className="inline-flex items-center gap-1.5 text-gray-700">
+        <ThirdPartyIcon className="h-3.5 w-3.5 shrink-0" title="From the registry on GitHub, not checked here" />
+        <span>
+          {profile.name}
+          {profile.organization && <span className="text-gray-500"> · {profile.organization}</span>}
+          <span className="text-gray-400"> · as the registry says</span>
+        </span>
       </span>
     )
   } else about = <span className="text-amber-700">no profile in the registry</span>

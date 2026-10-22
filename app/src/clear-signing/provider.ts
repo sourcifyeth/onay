@@ -143,7 +143,9 @@ export function providerFor(chainId: number, readers: Readers, chainInfo: ChainI
     async resolveToken(tokenChain, address) {
       const reader = readers(tokenChain)
       if (!reader) return null
-      const key = `${tokenChain}:${address.toLowerCase()}`
+      // The proof state is part of the key: a value read without a proof
+      // is not the value read with one.
+      const key = `${tokenChain}:${address.toLowerCase()}:${reader.proof ? 'proof' : 'no proof'}`
       let token = tokens.get(key)
       if (!token) {
         token = readToken(reader, address).catch(() => null)

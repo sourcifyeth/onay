@@ -113,6 +113,38 @@ export function parseTokenList(value: unknown): { list: TokenList; skipped: numb
   return { list: { name: record.name.trim().slice(0, 60), version, timestamp, tokens }, skipped }
 }
 
+const TOO_BIG = `the list is over ${MAX_BYTES / 1024 / 1024} MB`
+
+// The body as text, read in chunks and stopped at the cap, so that a
+// list cannot fill the memory before the check.
+async function readCapped(response: Response, cap: number): Promise<string> {
+  const reader = response.body?.getReader()
+  if (!reader) {
+    const text = await response.text()
+    if (new TextEncoder().encode(text).length > cap) throw new Error(TOO_BIG)
+    return text
+  }
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.length
+    if (size > cap) {
+      await reader.cancel()
+      throw new Error(TOO_BIG)
+    }
+    chunks.push(value)
+  }
+  const bytes = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.length
+  }
+  return new TextDecoder().decode(bytes)
+}
+
 // Fetches and parses a list. Rejects a body over the size cap.
 export async function fetchTokenList(
   url: string,
@@ -122,9 +154,8 @@ export async function fetchTokenList(
   const response = await fetch(url, { signal: AbortSignal.timeout(timeout) })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   const length = Number(response.headers.get('content-length'))
-  if (length > MAX_BYTES) throw new Error(`the list is over ${MAX_BYTES / 1024 / 1024} MB`)
-  const text = await response.text()
-  if (text.length > MAX_BYTES) throw new Error(`the list is over ${MAX_BYTES / 1024 / 1024} MB`)
+  if (length > MAX_BYTES) throw new Error(TOO_BIG)
+  const text = await readCapped(response, MAX_BYTES)
   let body: unknown
   try {
     body = JSON.parse(text)
@@ -150,8 +181,10 @@ export function withFetched(entry: ListEntry, next: TokenList, now: number): Lis
   return { ...entry, held: same ? null : next, fetchedAt: now, error: null }
 }
 
-export function withError(entry: ListEntry, error: string, now: number): ListEntry {
-  return { ...entry, fetchedAt: now, error }
+// A failed fetch keeps the time of the last good one, so that the list
+// counts as stale and is tried again at the next start.
+export function withError(entry: ListEntry, error: string): ListEntry {
+  return { ...entry, error }
 }
 
 export function withAccepted(entry: ListEntry): ListEntry {
@@ -262,7 +295,7 @@ export function refreshTokenList(url: string): Promise<void> {
     .then(({ list }) => update(url, (entry) => withFetched(entry, list, Date.now())))
     .catch((error: unknown) => {
       const text = error instanceof Error ? error.message : String(error)
-      update(url, (entry) => withError(entry, text, Date.now()))
+      update(url, (entry) => withError(entry, text))
     })
     .finally(() => running.delete(url))
   running.set(url, run)

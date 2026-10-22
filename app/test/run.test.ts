@@ -276,6 +276,19 @@ test('typed data: the contract is checked, the simulation is skipped', async () 
   assert.deepEqual(v.simulation, { status: 'skipped', reason: 'a signature only · nothing runs on chain' })
 })
 
+test('a request with a field that does not read fails before any gate runs', async () => {
+  const { deps, heliosCalls } = setup({ codes: { [A]: '0x6001' }, sources: { [A]: 'verified' } })
+  const decimal = request('eth_sendTransaction', [
+    { from: FROM, to: A, data: '0x12345678', value: '1000000000000000000' },
+  ])
+  const v = await ended(decimal, deps)
+  assert.equal(v.status, 'failed')
+  assert.deepEqual(heliosCalls, [])
+  assert.match(v.lines.map((line) => line.text).join('\n'), /could not be read .* value/)
+  const bare = request('eth_sendTransaction', [{ from: FROM, to: A.slice(2), data: '0x12345678' }])
+  assert.equal((await ended(bare, deps)).status, 'failed')
+})
+
 test('a message names no chain: the run passes with nothing to check', async () => {
   const v = await ended(request('personal_sign', ['0x68656c6c6f', FROM], null), setup({ codes: {}, sources: {} }).deps)
   assert.equal(v.status, 'passed')

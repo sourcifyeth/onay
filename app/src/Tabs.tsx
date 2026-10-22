@@ -2,15 +2,21 @@
 
 import { useState, type ReactNode } from 'react'
 
+// The selection is the label, so that a list that changes keeps it when
+// it can, and falls back to the first tab when it cannot.
 export function Tabs({ tabs }: { tabs: { label: string; content: ReactNode }[] }) {
-  const [current, setCurrent] = useState(0)
+  const [chosen, setChosen] = useState(tabs[0].label)
+  const current = Math.max(
+    tabs.findIndex((tab) => tab.label === chosen),
+    0,
+  )
   return (
     <div>
       <div className="flex gap-1 border-b border-gray-200">
         {tabs.map((tab, index) => (
           <button
             key={tab.label}
-            onClick={() => setCurrent(index)}
+            onClick={() => setChosen(tab.label)}
             className={`-mb-px border-b-2 px-3 py-1.5 font-mono text-xs transition-colors ${
               index === current
                 ? 'border-cerulean-blue-500 font-medium text-cerulean-blue-600'

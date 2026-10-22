@@ -6,20 +6,25 @@ use std::process::Command;
 
 const ALLOWED: &[&str] = &["https://github.com/", "https://4byte.sourcify.dev/"];
 
-/// True if the URL starts with an allowed site and has no blank or
-/// control character.
+/// True if the URL starts with an allowed site and has only the
+/// characters a URL is made of. The path of a link can come from the
+/// registry index, which is third-party data.
 pub fn allowed(url: &str) -> bool {
     ALLOWED.iter().any(|site| url.starts_with(site))
-        && url.chars().all(|c| !c.is_whitespace() && !c.is_control())
+        && url
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || b"-._~:/?#[]@!$&'()*+,;=%".contains(&c))
 }
 
 /// The command of the desktop that opens a URL in the default browser.
+/// None of them goes through a shell, so the URL is one argument and
+/// never a command.
 fn opener(url: &str) -> Command {
     let mut command = if cfg!(target_os = "macos") {
         Command::new("open")
     } else if cfg!(target_os = "windows") {
-        let mut command = Command::new("cmd");
-        command.args(["/C", "start", ""]);
+        let mut command = Command::new("rundll32");
+        command.arg("url.dll,FileProtocolHandler");
         command
     } else {
         Command::new("xdg-open")
@@ -60,16 +65,28 @@ mod tests {
     }
 
     #[test]
-    fn rejects_blank_and_control_characters() {
+    fn rejects_what_a_url_is_not_made_of() {
         assert!(!allowed("https://github.com/a b"));
         assert!(!allowed("https://github.com/a\nb"));
         assert!(!allowed("https://github.com/a\u{0}b"));
+        assert!(!allowed("https://github.com/a|b"));
+        assert!(!allowed("https://github.com/a^b"));
+        assert!(!allowed("https://github.com/a\"b"));
+        assert!(!allowed("https://github.com/a<b>"));
+        assert!(!allowed("https://github.com/ü"));
+        assert!(allowed(
+            "https://github.com/x/blob/master/registry/a/calldata-b.json"
+        ));
+        assert!(allowed("https://4byte.sourcify.dev/?q=0xa9059cbb&x=1"));
     }
 
     #[test]
-    fn opener_takes_the_url_as_the_last_argument() {
-        let command = opener("https://github.com/x");
-        let last = command.get_args().last().unwrap();
-        assert_eq!(last, "https://github.com/x");
+    fn opener_never_uses_a_shell_and_passes_the_url_as_one_argument() {
+        let url = "https://github.com/registry/x&calc.exe&.json";
+        let command = opener(url);
+        let program = command.get_program().to_string_lossy();
+        assert!(!program.contains("cmd"), "{program}");
+        assert!(!program.contains("sh"), "{program}");
+        assert_eq!(command.get_args().last().unwrap(), url);
     }
 }

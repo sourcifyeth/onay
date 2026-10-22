@@ -21,6 +21,7 @@ import {
   reasonOf,
   render,
   rendered,
+  typedDataPath,
   type RenderOptions,
 } from '../src/clear-signing/render.ts'
 
@@ -95,11 +96,12 @@ function options(
   change: Partial<RenderOptions> = {},
   attesters?: string[],
   trustedTokens?: TrustedTokens,
+  custom: DescriptorResolver = resolver,
 ): RenderOptions {
   const format: FormatOptions = {
     descriptorResolverOptions: {
       type: 'custom',
-      resolver,
+      resolver: custom,
       trustedTokens,
       attestations: attesters && { trustedAttesters: attesters },
     },
@@ -163,7 +165,10 @@ test('inputOf: a batch, typed data, and what it does not cover', () => {
   const batch = {
     from: YOU,
     chainId: '0x1',
-    calls: [{ to: USDC, data: TRANSFER }, { to: ALICE, value: '0x1' }, 'junk'],
+    calls: [
+      { to: USDC, data: TRANSFER },
+      { to: ALICE, value: '0x1' },
+    ],
   }
   assert.deepEqual(inputOf(request('wallet_sendCalls', [batch])), {
     kind: 'batch',
@@ -171,13 +176,25 @@ test('inputOf: a batch, typed data, and what it does not cover', () => {
     calls: [
       { to: USDC, data: TRANSFER, value: 0n },
       { to: ALICE, data: '0x', value: 1n },
-      { to: null, data: '0x', value: 0n },
     ],
   })
+  assert.equal(inputOf(request('wallet_sendCalls', [{ ...batch, calls: [...batch.calls, 'junk'] }])).kind, 'none')
   const typed = inputOf(request('eth_signTypedData_v4', [YOU, JSON.stringify(typedData)]))
   assert.deepEqual(typed, { kind: 'typedData', account: YOU, typed: { ...typedData, account: YOU } })
   assert.deepEqual(inputOf(request('eth_signTypedData_v4', [YOU, typedData])), typed)
   assert.equal(inputOf(request('personal_sign', ['0xab', YOU])).kind, 'none')
+})
+
+test('inputOf: a field that does not read gives none with the reason, never a guess', () => {
+  const decimal = inputOf(request('eth_sendTransaction', [{ to: USDC, data: TRANSFER, value: '1000000000000000000' }]))
+  assert.equal(decimal.kind, 'none')
+  if (decimal.kind === 'none') assert.match(decimal.reason, /could not be read .* value/)
+  for (const change of [{ data: 'a9059cbb' }, { data: '0xabc' }, { to: USDC.slice(2) }, { value: 1 }]) {
+    const input = inputOf(request('eth_sendTransaction', [{ to: USDC, ...change }]))
+    assert.equal(input.kind, 'none', JSON.stringify(change))
+  }
+  const batch = inputOf(request('wallet_sendCalls', [{ from: YOU, calls: [{ to: USDC, value: '7' }] }]))
+  assert.equal(batch.kind, 'none')
 })
 
 test('inputOf: params with the wrong shape give none, not a throw', () => {
@@ -192,15 +209,14 @@ test('inputOf: params with the wrong shape give none, not a throw', () => {
   assert.equal(inputOf(request('eth_signTypedData_v4', ['junk', typedData])).kind, 'none')
 })
 
-test('asValue reads hex and decimal quantities, and treats a missing value as zero', () => {
-  assert.equal(asValue('0x10'), 16n)
-  assert.equal(asValue('16'), 16n)
-  assert.equal(asValue(16), 16n)
+test('asValue takes a hex quantity with the prefix only, and treats a missing value as zero', () => {
+  assert.equal(asValue('0x1'), 1n)
+  assert.equal(asValue('0xde0b6b3a7640000'), 10n ** 18n)
   assert.equal(asValue(undefined), 0n)
-  assert.equal(asValue(''), 0n)
-  assert.equal(asValue('0x'), null)
-  assert.equal(asValue('1.5'), null)
-  assert.equal(asValue(-1), null)
+  assert.equal(asValue(null), 0n)
+  for (const value of ['1000000000000000000', '', 1, 1.5, '0x', '0X1', 'abc', {}, true]) {
+    assert.equal(asValue(value), null, String(value))
+  }
 })
 
 test('a transaction with a trusted descriptor renders with intent, fields, and the source', async () => {
@@ -237,6 +253,21 @@ test('without a trusted attestation the descriptor renders as a preview, marked 
     assert.equal(reasonOf(call.display), null)
     assert.equal(call.decoded?.params[1].value, '1500000')
   }
+})
+
+test('an attestation that could not be checked renders the preview and keeps the error', async () => {
+  const failing: DescriptorResolver = {
+    ...resolver,
+    fetchAttestation: async () => {
+      throw new Error('offline')
+    },
+  }
+  const input = inputOf(request('eth_sendTransaction', [{ to: USDC, data: TRANSFER }]))
+  const result = await render(input, options({}, [AUDITOR], undefined, failing))
+  if (result.kind !== 'transaction') return assert.fail(result.kind)
+  assert.equal(rendered(result.call.display), true)
+  assert.equal(result.call.attested, false)
+  assert.match(result.call.attestationError!, /offline/)
 })
 
 test('a call that the preview does not render keeps the attestation reason', async () => {
@@ -309,6 +340,7 @@ test('a plain value transfer has nothing to render', async () => {
     decodedBy: null,
     source: null,
     attested: true,
+    attestationError: null,
   })
 })
 
@@ -333,6 +365,23 @@ test('a batch renders each call, and joins the intents', async () => {
   assert.equal(partial.intent, null)
   assert.equal(partial.warnings[0]?.code, 'BATCH_INTERPOLATION_INCOMPLETE')
   assert.equal(partial.calls[1].display, null)
+})
+
+test('typedDataPath picks the entry whose type hash matches, as the library does', () => {
+  const hash = id(PERMIT_TYPE)
+  const entries = [
+    { path: 'a.json', encodeTypeHashes: ['0xother'] },
+    { path: 'b.json', encodeTypeHashes: [hash] },
+  ]
+  assert.equal(typedDataPath(entries, { ...typedData, account: YOU }), 'b.json')
+  assert.equal(typedDataPath([entries[0]], { ...typedData, account: YOU }), null)
+  assert.equal(typedDataPath(undefined, { ...typedData, account: YOU }), null)
+  const withDomain = {
+    ...typedData,
+    account: YOU,
+    types: { EIP712Domain: [{ name: 'name', type: 'string' }], ...typedData.types },
+  }
+  assert.equal(typedDataPath(entries, withDomain), 'b.json')
 })
 
 test('typed data renders with its descriptor', async () => {

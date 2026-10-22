@@ -125,8 +125,22 @@ test('fetchTokenList reads JSON, and refuses an error, a non-JSON body, or an ov
   )
   const big = async () => new Response('{}', { headers: { 'content-length': String(MAX_BYTES + 1) } })
   await assert.rejects(fetchTokenList('https://x', big), /over 8 MB/)
-  const long = async () => new Response(' '.repeat(MAX_BYTES + 1))
+  // A chunked body without a length is stopped at the cap while it streams.
+  const chunk = new TextEncoder().encode(' '.repeat(1024 * 1024))
+  let sent = 0
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (sent >= MAX_BYTES + chunk.length) return controller.close()
+      sent += chunk.length
+      controller.enqueue(chunk)
+    },
+  })
+  const long = async () => new Response(stream)
   await assert.rejects(fetchTokenList('https://x', long), /over 8 MB/)
+  assert.ok(sent <= MAX_BYTES + 2 * chunk.length, `read ${sent} bytes`)
+  // Multi-byte characters count as bytes, not as code units.
+  const wide = async () => new Response('ü'.repeat(MAX_BYTES / 2 + 1))
+  await assert.rejects(fetchTokenList('https://x', wide), /over 8 MB/)
 })
 
 test('fetchTokenList gives up after the timeout', async () => {
@@ -178,12 +192,15 @@ test('withFetched keeps the accepted copy and holds a major update until accepte
   assert.equal(same.held, null)
 })
 
-test('withError keeps the last good copy and notes the time', () => {
+test('withError keeps the last good copy and its time, so the list stays due for a retry', () => {
   const good = withFetched(newEntry('https://x'), list(), 100)
-  const failed = withError(good, 'HTTP 503', 200)
+  const failed = withError(good, 'HTTP 503')
   assert.equal(failed.list, good.list)
   assert.equal(failed.error, 'HTTP 503')
-  assert.equal(failed.fetchedAt, 200)
+  assert.equal(failed.fetchedAt, 100)
+  const never = withError(newEntry('https://y'), 'HTTP 503')
+  assert.equal(never.fetchedAt, null)
+  assert.equal(isStale(never, 1), true)
   const again = withFetched(failed, list(), 300)
   assert.equal(again.error, null)
 })

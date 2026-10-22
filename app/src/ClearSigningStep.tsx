@@ -382,14 +382,23 @@ function Provenance({
         className="hover:text-cerulean-blue-600"
       >
         ERC-7730 descriptor{owner ? ` by ${owner}` : ''} from the registry ·{' '}
-        {attested ? 'attested by an auditor you trust' : 'not attested by an auditor you trust'} ↗
+        {attested ? 'attested by an auditor you trust' : 'attestation not confirmed'} ↗
       </ExternalLink>
     </p>
   )
 }
 
-// A descriptor that no trusted auditor attested rendered the data.
-function Unattested({ state }: { state: ClearSigning }) {
+// A descriptor that no trusted auditor attested rendered the data, or
+// one whose attestation could not be checked.
+function Unattested({ state, error }: { state: ClearSigning; error: string | null }) {
+  if (error) {
+    return (
+      <Notice tone="amber">
+        Preview: the attestation of this descriptor could not be checked ({error}), so nothing says whether an auditor
+        you trust reviewed it. The description shows as the registry holds it.
+      </Notice>
+    )
+  }
   if (state.attesters.length === 0) {
     return (
       <Notice tone="amber">
@@ -411,11 +420,13 @@ function DisplayPane({
   display,
   source,
   attested,
+  attestationError,
   state,
 }: {
   display: DisplayModel
   source: DescriptorSource | null
   attested: boolean
+  attestationError: string | null
   state: ClearSigning
 }) {
   const [open, setOpen] = useState(false)
@@ -431,7 +442,7 @@ function DisplayPane({
     <div>
       {!attested && (
         <div className="pb-3">
-          <Unattested state={state} />
+          <Unattested state={state} error={attestationError} />
         </div>
       )}
       <p className="pb-2 text-sm leading-relaxed text-gray-600">
@@ -610,7 +621,15 @@ function CallPane({ call, currency, state }: { call: Call; currency: Currency; s
   if (call.data === '0x') return <Transfer call={call} currency={currency} />
   if (call.to === null) return <Creation />
   if (rendered(call.display)) {
-    return <DisplayPane display={call.display!} source={call.source} attested={call.attested} state={state} />
+    return (
+      <DisplayPane
+        display={call.display!}
+        source={call.source}
+        attested={call.attested}
+        attestationError={call.attestationError}
+        state={state}
+      />
+    )
   }
   return <Fallback call={call} state={state} />
 }
@@ -689,7 +708,13 @@ function MessageTree({ value }: { value: unknown }) {
 function TypedDataPane({ rendering, state }: { rendering: Rendering & { kind: 'typedData' }; state: ClearSigning }) {
   if (rendered(rendering.display)) {
     return (
-      <DisplayPane display={rendering.display} source={rendering.source} attested={rendering.attested} state={state} />
+      <DisplayPane
+        display={rendering.display}
+        source={rendering.source}
+        attested={rendering.attested}
+        attestationError={rendering.attestationError}
+        state={state}
+      />
     )
   }
   return (
@@ -722,7 +747,7 @@ function ClearSigningPane({ state, currency }: { state: ClearSigning; currency: 
     case 'typedData':
       return <TypedDataPane rendering={rendering} state={state} />
     case 'none':
-      return <Notice tone="gray">Nothing to render: {rendering.reason}.</Notice>
+      return <Notice tone="amber">Nothing to render: {rendering.reason}.</Notice>
   }
 }
 

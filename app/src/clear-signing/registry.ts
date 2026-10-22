@@ -4,13 +4,22 @@
 // is tried again on the next request.
 
 import { fetchPrebuiltRegistryIndex, type RegistryIndex } from '@ethereum-sourcify/clear-signing'
+import { withDeadline } from '../gates/gate.ts'
 
 export const REGISTRY_URL = 'https://github.com/ethereum/clear-signing-erc7730-registry'
 
+// The library fetches without a signal, so the deadline is here. A fetch
+// that stalls would otherwise be the index of the whole session.
+const TIMEOUT = 30_000
+
 let index: Promise<RegistryIndex> | undefined
 
-export function registryIndex(): Promise<RegistryIndex> {
-  index ??= fetchPrebuiltRegistryIndex().catch((error: unknown) => {
+export function registryIndex(fetchIndex = fetchPrebuiltRegistryIndex, timeout = TIMEOUT): Promise<RegistryIndex> {
+  index ??= withDeadline(
+    fetchIndex,
+    AbortSignal.timeout(timeout),
+    `the registry index took longer than ${timeout / 1000} s`,
+  )().catch((error: unknown) => {
     index = undefined
     throw error
   })

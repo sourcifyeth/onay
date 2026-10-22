@@ -14,9 +14,11 @@ import {
   type FormatOptions,
   type RegistryIndex,
   type TypedData,
+  type TypedDataIndexEntry,
   type Warning,
 } from '@ethereum-sourcify/clear-signing'
-import { formatUnits } from 'ethers'
+import { TypedDataEncoder, formatUnits, keccak256, toUtf8Bytes } from 'ethers'
+import { requestProblem } from '../gates/request.ts'
 import type { Hex, SigningRequest } from '../messages.ts'
 import { decodeCalldata, type Decoded } from './decode.ts'
 
@@ -46,8 +48,10 @@ export type Call = {
   decodedBy: { address: Hex; name: string | null; proxyType: string | null } | null
   source: DescriptorSource | null
   // False if the descriptor rendered as a preview: no auditor the user
-  // trusts attested it.
+  // trusts attested it, or the attestation could not be checked.
   attested: boolean
+  // Why the attestation could not be checked, when that is the case.
+  attestationError: string | null
 }
 
 export type Rendering =
@@ -60,6 +64,7 @@ export type Rendering =
       display: DisplayModel
       source: DescriptorSource | null
       attested: boolean
+      attestationError: string | null
     }
   // A method that Clear Signing does not cover, or params with the
   // wrong shape.
@@ -87,6 +92,9 @@ function isAddress(value: unknown): value is Hex {
   return typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value)
 }
 
+// The fields below take what `requestProblem` in the gates accepted. A
+// field that does not read gives the empty form here, and never shows,
+// since the request is not rendered at all then.
 function asAddress(value: unknown): Hex | null {
   return isAddress(value) ? (value.toLowerCase() as Hex) : null
 }
@@ -96,15 +104,18 @@ function asData(value: unknown): Hex {
   return value.toLowerCase() as Hex
 }
 
-// A hex quantity, as EIP-1193 gives it, or a decimal string or number.
+// A hex quantity with the 0x prefix, as a wallet takes it. Absent means
+// zero. Anything else is not a quantity: a decimal string is ambiguous,
+// and a number loses precision.
 export function asValue(value: unknown): bigint | null {
-  if (value === undefined || value === null || value === '') return 0n
-  if (typeof value === 'number') return Number.isSafeInteger(value) && value >= 0 ? BigInt(value) : null
-  if (typeof value !== 'string' || !/^(0x[0-9a-fA-F]+|[0-9]+)$/.test(value)) return null
+  if (value === undefined || value === null) return 0n
+  if (typeof value !== 'string' || !/^0x[0-9a-fA-F]+$/.test(value)) return null
   return BigInt(value)
 }
 
 export function inputOf(request: SigningRequest): Input {
+  const problem = requestProblem(request)
+  if (problem) return { kind: 'none', reason: `the request could not be read · ${problem}` }
   const list = Array.isArray(request.params) ? request.params : []
   switch (request.method) {
     case 'eth_sendTransaction':
@@ -206,18 +217,26 @@ function previewOptions(options: FormatOptions): FormatOptions {
   return { ...options, descriptorResolverOptions: resolver && { ...resolver, attestations: undefined } }
 }
 
-type Attempt = { display: DisplayModel; attested: boolean }
+type Attempt = { display: DisplayModel; attested: boolean; attestationError: string | null }
 
 // Renders with the policy first. If the only obstacle is the attestation,
-// renders again without it, as a preview.
+// renders again without it, as a preview. The library gives one code for
+// a descriptor that could not be fetched and for an attestation that
+// could not be checked, so the preview tells the two apart: it renders
+// only in the second case.
 async function attempt(
   run: (options: FormatOptions) => Promise<DisplayModel>,
   options: FormatOptions,
 ): Promise<Attempt> {
   const display = await run(options)
-  if (reasonOf(display)?.code !== 'NO_TRUSTED_ATTESTATION') return { display, attested: true }
+  const code = reasonOf(display)?.code
+  const checked = { display, attested: true, attestationError: null }
+  if (code !== 'NO_TRUSTED_ATTESTATION' && code !== 'DESCRIPTOR_FETCH_ERROR') return checked
+  if (!options.descriptorResolverOptions?.attestations) return checked
   const preview = await run(previewOptions(options))
-  return rendered(preview) ? { display: preview, attested: false } : { display, attested: true }
+  if (!rendered(preview)) return checked
+  const attestationError = code === 'DESCRIPTOR_FETCH_ERROR' ? (reasonOf(display)?.message ?? 'unknown error') : null
+  return { display: preview, attested: false, attestationError }
 }
 
 async function renderCall(
@@ -239,13 +258,12 @@ async function renderCall(
       }
     }
   }
-  if (!to || data === '0x') {
-    return { to, data, value, display: null, verified, decoded, decodedBy, source: null, attested: true }
-  }
+  const empty = { to, data, value, display: null, verified, decoded, decodedBy, source: null }
+  if (!to || data === '0x') return { ...empty, attested: true, attestationError: null }
   const tx = { chainId: options.chainId, to, data, value: value ?? undefined, from: from ?? undefined }
-  const { display, attested } = await attempt((format_) => format(tx, format_), options.format)
+  const { display, attested, attestationError } = await attempt((format_) => format(tx, format_), options.format)
   const source = rendered(display) ? await sourceOf(options, to) : null
-  return { to, data, value, display, verified, decoded, decodedBy, source, attested }
+  return { ...empty, display, source, attested, attestationError }
 }
 
 export async function render(input: Input, options: RenderOptions): Promise<Rendering> {
@@ -277,16 +295,42 @@ export async function render(input: Input, options: RenderOptions): Promise<Rend
       }
     }
     case 'typedData': {
-      const { display, attested } = await attempt((format_) => formatTypedData(input.typed, format_), options.format)
+      const { display, attested, attestationError } = await attempt(
+        (format_) => formatTypedData(input.typed, format_),
+        options.format,
+      )
       const contract = asAddress(input.typed.domain.verifyingContract)
       const entries = contract ? options.index.typedDataIndex[`eip155:${options.chainId}:${contract}`] : undefined
-      const path = entries?.[input.typed.primaryType]?.[0]?.path
+      const path = typedDataPath(entries?.[input.typed.primaryType], input.typed)
       const source: DescriptorSource | null = rendered(display) && path ? { kind: 'registry', path } : null
-      return { kind: 'typedData', account: input.account, typed: input.typed, display, source, attested }
+      return {
+        kind: 'typedData',
+        account: input.account,
+        typed: input.typed,
+        display,
+        source,
+        attested,
+        attestationError,
+      }
     }
     case 'none':
       return input
   }
+}
+
+// The descriptor file that rendered the typed data: the entry whose type
+// hashes hold the hash of the message type, as the library picks it.
+// Null when no entry matches.
+export function typedDataPath(entries: TypedDataIndexEntry[] | undefined, typed: TypedData): string | null {
+  if (!entries || entries.length === 0) return null
+  const { EIP712Domain: _domain, ...types } = typed.types
+  let hash: string
+  try {
+    hash = keccak256(toUtf8Bytes(TypedDataEncoder.from(types).encodeType(typed.primaryType)))
+  } catch {
+    return null
+  }
+  return entries.find((entry) => entry.encodeTypeHashes.includes(hash))?.path ?? null
 }
 
 // A quantity in units, without trailing zeros: 1500000 with 6 decimals
