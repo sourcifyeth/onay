@@ -78,12 +78,12 @@ function escape(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-// The sentence with the field values in bold.
+// The sentence with the field values in bold, as the first row.
 function Interpolated({ text, values }: { text: string; values: string[] }) {
   const sorted = [...new Set(values)].sort((a, b) => b.length - a.length)
   const parts = sorted.length === 0 ? [text] : text.split(new RegExp(`(${sorted.map(escape).join('|')})`))
   return (
-    <p className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-[15px] leading-relaxed text-gray-700">
+    <p className="rounded-lg bg-cerulean-blue-100/50 px-4 py-3 text-[15px] leading-relaxed text-gray-700">
       {parts.map((part, index) =>
         sorted.includes(part) ? (
           <strong key={index} className="font-semibold text-gray-900">
@@ -94,6 +94,24 @@ function Interpolated({ text, values }: { text: string; values: string[] }) {
         ),
       )}
     </p>
+  )
+}
+
+// A label on the left and a value on the right, as the wallets show it.
+function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-6 py-2.5">
+      <dt className="shrink-0 text-sm text-gray-500">{label}</dt>
+      <dd className="min-w-0 text-right">{children}</dd>
+    </div>
+  )
+}
+
+function Details({ open, onToggle, label = 'details' }: { open: boolean; onToggle: () => void; label?: string }) {
+  return (
+    <button onClick={onToggle} className="font-mono text-xs text-gray-400 transition-colors hover:text-gray-600">
+      {open ? `hide ${label} ▴` : `${label} ▾`}
+    </button>
   )
 }
 
@@ -155,55 +173,67 @@ function FieldValue({ field }: { field: DisplayField }) {
 }
 
 // A call inside a call: the field holds calldata for another contract.
+// The intent shows in the row; the fields open on request.
 function Embedded({ field }: { field: DisplayField }) {
+  const [open, setOpen] = useState(false)
   const embedded = field.embeddedCalldata!
   const { display, callee } = embedded
   const chain = embedded.chainId !== undefined ? ` on chain ${embedded.chainId}` : ''
+  const target = `${display.metadata?.contractName ?? 'contract'}${callee ? ` ${short(callee)}` : ''}${chain}`
   return (
-    <div className="mt-1.5 mb-1 border-l-2 border-cerulean-blue-200 pl-3">
-      <p className="flex flex-wrap items-center gap-2 pb-1">
-        {rendered(display) ? (
-          <span className="rounded-full bg-cerulean-blue-100 px-2 py-0.5 text-xs font-medium text-cerulean-blue-700">
-            {intentText(display.intent)}
+    <div className="py-2.5">
+      <div className="flex items-baseline justify-between gap-6">
+        <dt className="shrink-0 text-sm text-gray-500">
+          {field.label}
+          <span className="ml-2 rounded-full border border-cerulean-blue-200 px-2 py-0.5 text-xs text-cerulean-blue-700">
+            embedded call
           </span>
-        ) : (
-          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
-            no descriptor for this call
+        </dt>
+        <dd className="min-w-0 text-right">
+          {rendered(display) ? (
+            <span className="text-sm font-medium text-gray-800">
+              {display.interpolatedIntent ?? intentText(display.intent)}
+            </span>
+          ) : (
+            <span className="text-sm text-amber-700">no descriptor for this call</span>
+          )}
+          <span className="block text-xs text-gray-400">→ {target}</span>
+          <FieldWarning warning={field.warning} />
+          <span className="block pt-1">
+            <Details open={open} onToggle={() => setOpen((v) => !v)} />
           </span>
-        )}
-        <span className="font-mono text-xs text-gray-400">
-          → {display.metadata?.contractName ?? 'contract'} {callee ? short(callee) : ''}
-          {chain}
-        </span>
-      </p>
-      {rendered(display) ? (
-        <>
-          {display.interpolatedIntent && <p className="pb-1 text-sm text-gray-700">{display.interpolatedIntent}</p>}
-          <FieldList fields={display.fields} />
-        </>
-      ) : (
-        <p className="font-mono text-xs break-all text-gray-500">{field.value}</p>
+        </dd>
+      </div>
+      {open && (
+        <div className="mt-2 rounded-lg border border-gray-200 px-3 py-1">
+          {rendered(display) ? (
+            <dl className="divide-y divide-gray-100">
+              <Row label="Intent">
+                <span className="text-sm font-semibold text-gray-900">{intentText(display.intent)}</span>
+              </Row>
+              <FieldRows fields={display.fields} />
+            </dl>
+          ) : (
+            <p className="py-2 font-mono text-xs break-all text-gray-500">{field.value}</p>
+          )}
+        </div>
       )}
     </div>
   )
 }
 
 function FieldRow({ field }: { field: DisplayField }) {
+  if (field.embeddedCalldata) return <Embedded field={field} />
   return (
-    <div className="py-1">
-      {field.separator && <p className="pt-1 pb-0.5 font-mono text-xs text-gray-500">{field.separator}</p>}
+    <div className="py-2.5">
+      {field.separator && <p className="pb-1 font-mono text-xs text-gray-500">{field.separator}</p>}
       <div className="flex items-baseline justify-between gap-6">
         <dt className="shrink-0 text-sm text-gray-500">{field.label}</dt>
         <dd className="min-w-0 text-right">
-          {field.embeddedCalldata ? (
-            <span className="font-mono text-xs text-gray-400">{field.value.length / 2 - 1} bytes of calldata</span>
-          ) : (
-            <FieldValue field={field} />
-          )}
+          <FieldValue field={field} />
           <FieldWarning warning={field.warning} />
         </dd>
       </div>
-      {field.embeddedCalldata && <Embedded field={field} />}
     </div>
   )
 }
@@ -211,8 +241,8 @@ function FieldRow({ field }: { field: DisplayField }) {
 function FieldGroupView({ group }: { group: DisplayFieldGroup }) {
   const empty = group.warning?.code === 'EMPTY_ARRAY'
   return (
-    <div className="py-1">
-      {group.label && <p className="pt-1 text-sm font-medium text-gray-700">{group.label}</p>}
+    <div className="py-2.5">
+      {group.label && <p className="pb-1 text-sm font-medium text-gray-700">{group.label}</p>}
       {empty ? (
         <p className="text-xs text-gray-400">empty</p>
       ) : (
@@ -227,13 +257,17 @@ function FieldGroupView({ group }: { group: DisplayFieldGroup }) {
   )
 }
 
+function FieldRows({ fields }: { fields: DisplayModel['fields'] }) {
+  return (fields ?? []).map((item, index) =>
+    isFieldGroup(item) ? <FieldGroupView key={index} group={item} /> : <FieldRow key={index} field={item} />,
+  )
+}
+
 function FieldList({ fields }: { fields: DisplayModel['fields'] }) {
   if (!fields || fields.length === 0) return null
   return (
     <dl className="divide-y divide-gray-100">
-      {fields.map((item, index) =>
-        isFieldGroup(item) ? <FieldGroupView key={index} group={item} /> : <FieldRow key={index} field={item} />,
-      )}
+      <FieldRows fields={fields} />
     </dl>
   )
 }
@@ -310,8 +344,10 @@ function DisplayPane({
   attested: boolean
   state: ClearSigning
 }) {
-  const [showIntent, setShowIntent] = useState(false)
-  const name = display.metadata?.contractName
+  const [open, setOpen] = useState(false)
+  const { contractName, owner } = display.metadata ?? {}
+  const intent = intentText(display.intent)
+  const about = contractName && owner ? `${contractName} by ${owner}` : (contractName ?? owner)
   return (
     <div>
       {!attested && (
@@ -319,23 +355,19 @@ function DisplayPane({
           <Unattested state={state} />
         </div>
       )}
-      {name && (
-        <p className="pb-2 text-xs text-gray-500">
-          Interacting with <span className="font-medium text-gray-700">{name}</span>
-        </p>
+      <Interpolated text={display.interpolatedIntent ?? intent} values={valuesOf(display.fields)} />
+      <div className="flex items-baseline justify-between gap-4 pt-2">
+        <p className="text-xs text-gray-500">{about ?? 'contract not named by the descriptor'}</p>
+        <Details open={open} onToggle={() => setOpen((v) => !v)} />
+      </div>
+      {open && (
+        <dl className="mt-2 divide-y divide-gray-100 border-t border-gray-100">
+          <Row label="Intent">
+            <span className="text-sm font-semibold text-gray-900">{intent}</span>
+          </Row>
+          <FieldRows fields={display.fields} />
+        </dl>
       )}
-      <IntentToggle
-        pill={<Pill>{intentText(display.intent)}</Pill>}
-        open={showIntent}
-        onToggle={() => setShowIntent((v) => !v)}
-      />
-      {showIntent &&
-        (display.interpolatedIntent ? (
-          <Interpolated text={display.interpolatedIntent} values={valuesOf(display.fields)} />
-        ) : (
-          <Notice tone="gray">The descriptor has no sentence for this call. The fields below are the intent.</Notice>
-        ))}
-      <FieldList fields={display.fields} />
       <Warnings warnings={display.warnings} />
       <Provenance source={source} display={display} attested={attested} />
     </div>
@@ -429,22 +461,18 @@ function Creation() {
 
 // A transfer of the native currency: no calldata, nothing to decode.
 function Transfer({ call, currency }: { call: Call; currency: Currency }) {
-  const [showIntent, setShowIntent] = useState(false)
   const amount = amountText(call.value, currency)
   const to = call.to ?? 'a new contract'
   return (
     <div>
-      <IntentToggle pill={<Pill>Send</Pill>} open={showIntent} onToggle={() => setShowIntent((v) => !v)} />
-      {showIntent && <Interpolated text={`Send ${amount} to ${to}`} values={[amount, to]} />}
-      <dl className="divide-y divide-gray-100">
-        <div className="flex items-baseline justify-between gap-6 py-1">
-          <dt className="shrink-0 text-sm text-gray-500">Amount</dt>
-          <dd className="text-right text-sm font-medium text-gray-800">{amount}</dd>
-        </div>
-        <div className="flex items-baseline justify-between gap-6 py-1">
-          <dt className="shrink-0 text-sm text-gray-500">To</dt>
-          <dd className="text-right font-mono text-[13px] font-medium break-all text-gray-800">{to}</dd>
-        </div>
+      <Interpolated text={`Send ${amount} to ${to}`} values={[amount, to]} />
+      <dl className="mt-2 divide-y divide-gray-100">
+        <Row label="Amount">
+          <span className="text-sm font-medium text-gray-800">{amount}</span>
+        </Row>
+        <Row label="To">
+          <span className="font-mono text-[13px] font-medium break-all text-gray-800">{to}</span>
+        </Row>
       </dl>
       <p className="pt-3 font-mono text-[11px] leading-relaxed text-gray-400">
         plain value transfer · no calldata · rendered by Onay
@@ -484,7 +512,9 @@ function BatchPane({
       />
       {showIntent &&
         (rendering.intent ? (
-          <Interpolated text={rendering.intent} values={values} />
+          <div className="pb-3">
+            <Interpolated text={rendering.intent} values={values} />
+          </div>
         ) : (
           <Notice tone="gray">Not every call has a reviewed sentence, so there is none for the batch.</Notice>
         ))}
