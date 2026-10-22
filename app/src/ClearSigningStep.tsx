@@ -436,7 +436,7 @@ function RawWords({ display }: { display: DisplayModel }) {
 }
 
 const ABI_SOURCE =
-  'The ABI comes from the source code verified in step 2: fetched from sourcify.dev, compiled on this machine, and matched to the code on the chain.'
+  'The ABI (Application Binary Interface) comes from the source code verified in step 2: fetched from sourcify.dev, compiled on this machine, and matched to the code on the chain.'
 
 // The calldata as the verified ABI decodes it, with the reason why no
 // descriptor rendered it.
@@ -460,11 +460,13 @@ function CallDecoded({ call, state }: { call: Call; state: ClearSigning }) {
     <div className="flex flex-col gap-2">
       {why ? (
         <Notice tone="amber">
-          {why} The call is decoded with the verified ABI instead: the names come from the code, not from a reviewed
-          descriptor. {ABI_SOURCE}
+          {why} The call is decoded with the verified ABI instead. The function and parameter names come from the ABI,
+          not from a Clear Signing descriptor. {ABI_SOURCE}
         </Notice>
       ) : (
-        <Notice tone="gray">The names come from the code, not from the descriptor. {ABI_SOURCE}</Notice>
+        <Notice tone="gray">
+          The function and parameter names come from the ABI, not from the Clear Signing descriptor. {ABI_SOURCE}
+        </Notice>
       )}
       <DecodedBlock decoded={decoded} />
     </div>
