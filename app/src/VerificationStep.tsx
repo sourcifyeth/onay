@@ -3,10 +3,12 @@
 
 import { useState } from 'react'
 import { verdictOf, type Contract, type Verdict } from './gates/contracts.ts'
+import { delegateOf } from './gates/simulation.ts'
 import { claimOf, claimText, describeCompiler, failureOf, type Found } from './gates/sourcify.ts'
 import type { Verification } from './gates/verification.ts'
-import { matchText } from './gates/verify.ts'
+import { matchText, WITHOUT_PROOF } from './gates/verify.ts'
 import { short } from './gates/words.ts'
+import { ThirdPartyIcon } from './Icons.tsx'
 import { CollapsibleLog } from './Log.tsx'
 import { CollapsibleCard, InfoTip, Notice, Row, Step } from './Step.tsx'
 
@@ -32,8 +34,9 @@ function SourcifyRow({ contract }: { contract: Contract }) {
   )
 }
 
-// A path that wraps only at its slashes.
-const breakable = (path: string) => path.split('/').join('/​')
+// A path that wraps only at its slashes: a zero-width space after each
+// one gives the browser a place to break the line.
+const breakable = (path: string) => path.split('/').join('/\u200b')
 
 // The count and the main file. The full list, which a large contract
 // repeats under several roots, opens on demand.
@@ -109,7 +112,12 @@ function LocalVerification({ contract }: { contract: Contract }) {
               {state.value.creationMatch ? (
                 <span className="text-sm text-green-700">
                   ✓ {matchText(state.value.creationMatch)}
-                  {state.value.creationNote && <span className="text-gray-500"> · {state.value.creationNote}</span>}
+                  {/* The same icon as the log line: the transaction came from an endpoint. */}
+                  {state.value.creationNote === WITHOUT_PROOF ? (
+                    <ThirdPartyIcon className="ml-1.5 inline-block h-3.5 w-3.5 align-[-2px]" title={WITHOUT_PROOF} />
+                  ) : (
+                    state.value.creationNote && <span className="text-gray-500"> · {state.value.creationNote}</span>
+                  )}
                 </span>
               ) : (
                 <span className="text-sm text-gray-500">not compared · {state.value.creationNote}</span>
@@ -190,6 +198,20 @@ function Warnings({ contract }: { contract: Contract }) {
   )
 }
 
+// A named account with a delegate (EIP-7702). The code of the delegate
+// runs, so the delegate has the card, right below.
+function DelegatedAccount({ contract }: { contract: Contract }) {
+  return (
+    <p className="flex flex-wrap items-baseline gap-x-2 rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm shadow-sm">
+      <span className="text-xs text-gray-500">EIP-7702 account</span>
+      <span className="font-mono text-[13px] text-gray-700" title={contract.address}>
+        {short(contract.address)}
+      </span>
+      <span className="text-gray-500">· delegate checked below</span>
+    </p>
+  )
+}
+
 // The full card of a contract, behind its summary line.
 function ContractVerification({
   contract,
@@ -247,11 +269,14 @@ function CalledContracts({ contracts, verification }: { contracts: Contract[]; v
   )
 }
 
+// The code of a contract, if the chain gate read it.
+const codeOf = (contract: Contract) => (contract.helios.status === 'passed' ? contract.helios.value.code : null)
+
 export function VerificationStep({ verification }: { verification: Verification }) {
-  // A contract whose code was read and had nothing to verify is left out.
-  const targets = verification.contracts.filter(
-    (contract) => !(contract.helios.status === 'passed' && contract.sourcify.status === 'skipped'),
-  )
+  // An address without code has nothing to verify, and is left out. An
+  // account with a delegate (EIP-7702) has no sources either, but it
+  // stays: it is what the request names, and its delegate is checked.
+  const targets = verification.contracts.filter((contract) => codeOf(contract) !== '0x')
   const named = targets.filter((contract) => contract.foundBy === 'request')
   const called = targets.filter((contract) => contract.foundBy === 'simulation')
   return (
@@ -267,14 +292,18 @@ export function VerificationStep({ verification }: { verification: Verification 
       ) : (
         <div className="flex flex-col gap-2">
           {/* The contracts the request names open. Their implementations wait behind their line. */}
-          {named.map((contract) => (
-            <ContractVerification
-              key={contract.address}
-              contract={contract}
-              verification={verification}
-              open={!contract.implementationOf}
-            />
-          ))}
+          {named.map((contract) =>
+            contract.sourcify.status === 'skipped' && delegateOf(codeOf(contract) ?? '0x') ? (
+              <DelegatedAccount key={contract.address} contract={contract} />
+            ) : (
+              <ContractVerification
+                key={contract.address}
+                contract={contract}
+                verification={verification}
+                open={!contract.implementationOf}
+              />
+            ),
+          )}
           {called.length > 0 && <CalledContracts contracts={called} verification={verification} />}
         </div>
       )}

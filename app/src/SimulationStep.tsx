@@ -31,8 +31,8 @@ function Summary({ state, helios, runs }: { state: GateState<Simulation>; helios
   const failed = state.value.calls.find((call) => call.error)
   if (failed) {
     return (
-      <Notice tone="coral" title="⚠ The transaction reverts in simulation">
-        {`Run on the ${helios ? 'latest verified' : 'latest'} chain state, it reverts with "${failed.error}". Sending it would only waste gas. Do not sign it.`}
+      <Notice tone="coral" title="⚠ The transaction reverts in simulation" detail={failed.error ?? undefined}>
+        {`Run on the ${helios ? 'latest verified' : 'latest'} chain state. Sending it would only waste gas. Do not sign it.`}
       </Notice>
     )
   }

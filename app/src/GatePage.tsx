@@ -5,9 +5,6 @@ import { ChainDataStep } from './ChainDataStep.tsx'
 import { Cursor, LogLineView } from './Log.tsx'
 import { SimulationStep } from './SimulationStep.tsx'
 import { VerificationStep } from './VerificationStep.tsx'
-import { verdictOf, type Contract } from './gates/contracts.ts'
-import type { GateState } from './gates/gate.ts'
-import { reverted, type Simulation } from './gates/simulation.ts'
 import { verificationFor, type TimedLine, type Verification } from './gates/verification.ts'
 
 // The log shows at most one new line in this time, so that you can read it.
@@ -89,34 +86,25 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
   )
 }
 
-// The lines of one gate under its header.
+// The lines of one gate under its header. The log shows only while the
+// run goes on, so the header always has the running dot.
 function Section({
   title,
   color,
   subtitle,
   lines,
-  state,
 }: {
   title: string
   color: string
   subtitle: string
   lines: TimedLine[]
-  state: SectionState
 }) {
-  const dot = {
-    running: 'bg-yellow-400',
-    passed: 'bg-green-600',
-    flagged: 'bg-amber-500',
-    failed: 'bg-light-coral-600',
-  }[state]
   return (
     <section className="pt-3">
       <div className="flex items-center gap-2">
         <span className="relative flex h-2 w-2">
-          {state === 'running' && (
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-300 opacity-75" />
-          )}
-          <span className={`relative inline-flex h-2 w-2 rounded-full ${dot}`} />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-300 opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-yellow-400" />
         </span>
         <span className={color}>{title}</span>
         <span className="truncate text-gray-500">· {subtitle}</span>
@@ -125,41 +113,14 @@ function Section({
         {lines.map((line, index) => (
           <LogLineView key={index} line={line} />
         ))}
-        {state === 'running' && <Cursor />}
+        <Cursor />
       </div>
     </section>
   )
 }
 
-type SectionState = 'running' | 'passed' | 'flagged' | 'failed'
-
-// The state of one gate over each contract.
-function gateStatus(states: GateState<unknown>[]): SectionState {
-  if (states.some(({ status }) => status === 'failed')) return 'failed'
-  if (states.every(({ status }) => status === 'passed' || status === 'skipped')) return 'passed'
-  return 'running'
-}
-
-// The Sourcify gate over each contract. A contract on the way with
-// nothing on Sourcify flags the section, it does not fail it.
-function sourcifyStatus(contracts: Contract[]): SectionState {
-  const verdicts = contracts.map(verdictOf)
-  if (verdicts.includes('failed')) return 'failed'
-  if (verdicts.includes('flagged')) return 'flagged'
-  return gateStatus(contracts.map((contract) => contract.sourcify))
-}
-
-// The state of the simulation, for its header. A revert is a result
-// that fails. A skipped or failed one is done, but it leaves the call
-// tree of a transaction unchecked.
-function simulationStatus(state: GateState<Simulation>, runs: boolean): SectionState {
-  if (state.status === 'passed') return reverted(state.value) ? 'failed' : 'passed'
-  if (state.status === 'waiting' || state.status === 'running') return 'running'
-  return runs ? 'flagged' : 'passed'
-}
-
-function GateLog({ verification, shown, done }: { verification: Verification; shown: number; done: boolean }) {
-  const { contracts, chainId, chain, simulation } = verification
+function GateLog({ verification, shown }: { verification: Verification; shown: number }) {
+  const { contracts, chainId, chain } = verification
   const mode = chain?.mode ?? null
   const visible = verification.lines.slice(0, shown)
   const browser = visible.filter((line) => line.source === 'browser')
@@ -178,10 +139,9 @@ function GateLog({ verification, shown, done }: { verification: Verification; sh
           color={mode === 'helios' ? 'text-cerulean-blue-500' : 'text-amber-600'}
           subtitle={chainId === null ? target : `${target} on ${chainName(chainId)}`}
           lines={chainLines}
-          state={done ? gateStatus(contracts.map((contract) => contract.helios)) : 'running'}
         />
       ) : (
-        !done && <Cursor />
+        <Cursor />
       )}
       {mode && evm.length > 0 && (
         <Section
@@ -189,7 +149,6 @@ function GateLog({ verification, shown, done }: { verification: Verification; sh
           color="text-cerulean-blue-500"
           subtitle={`local simulation · state from ${mode}`}
           lines={evm}
-          state={done ? simulationStatus(simulation, verification.runs) : 'running'}
         />
       )}
       {sourcify.length > 0 && (
@@ -198,7 +157,6 @@ function GateLog({ verification, shown, done }: { verification: Verification; sh
           color="text-cerulean-blue-500"
           subtitle={`${target} · sources from sourcify.dev, compiled here`}
           lines={sourcify}
-          state={done ? sourcifyStatus(contracts) : 'running'}
         />
       )}
     </div>
@@ -232,7 +190,7 @@ export function GatePage({ request, onBack }: { request: SigningRequest; onBack:
         ← all requests
       </button>
       <Summary request={request} verification={verification} />
-      {!done && <GateLog verification={verification} shown={shown} done={done} />}
+      {!done && <GateLog verification={verification} shown={shown} />}
       {done && verification.chain && (
         <>
           <ChainDataStep verification={verification} />

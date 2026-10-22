@@ -52,15 +52,18 @@ export function CollapsibleCard({
 }
 
 // A box with a title: coral for a result that fails the request, amber
-// for a warning, gray for something that did not happen.
+// for a warning, gray for something that did not happen. The detail is
+// a value on its own line, such as the reason of a revert.
 export function Notice({
   tone,
   title,
+  detail,
   className = '',
   children,
 }: {
   tone: 'coral' | 'amber' | 'gray'
   title: string
+  detail?: string
   className?: string
   children?: ReactNode
 }) {
@@ -72,6 +75,7 @@ export function Notice({
   return (
     <div className={`rounded-lg border-2 px-4 py-4 ${colors} ${className}`}>
       <p className="text-lg font-semibold">{title}</p>
+      {detail && <p className="pt-1 font-mono text-sm break-all text-gray-800">{detail}</p>}
       {children && <p className="pt-1 text-sm leading-relaxed text-gray-700">{children}</p>}
     </div>
   )
