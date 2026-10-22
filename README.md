@@ -4,7 +4,7 @@ A second, independent check on every transaction before you sign.
 
 Ethereum is built to be verifiable, and verification is cheap. Yet most users still sign transactions without independently checking what they approve. Onay makes that second check seamless: it verifies the transaction locally, explains what it does, and lets you compare against your wallet before signing.
 
-Onay is a local desktop app with a thin browser extension that sits between the dapp and the wallet. It intercepts the signing request, verifies chain state through an embedded [Helios](https://github.com/a16z/helios) light client, recompiles and verifies the source code locally, simulates the transaction, renders its intent in readable form with ERC-7730 clear signing, and finally displays the ERC-8213 calldata digest for an equivalence check with the wallet. Onay is view only: it holds no keys and does not replace your wallet.
+Onay is a local desktop app with a thin browser extension that sits between the dapp and the wallet. It intercepts the signing request, verifies chain state through an embedded [Helios](https://github.com/a16z/helios) light client, recompiles and verifies the source code locally, simulates the transaction, renders its intent in readable form with ERC-7730 Clear Signing, and finally displays the ERC-8213 calldata digest for an equivalence check with the wallet. Onay is view only: it holds no keys and does not replace your wallet.
 
 The plan of record is [PLAN.md](PLAN.md).
 

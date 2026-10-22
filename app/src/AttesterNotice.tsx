@@ -12,7 +12,7 @@ export function AttesterNotice({ onSettings }: { onSettings: () => void }) {
   if (attesters.length > 0 || dismissed) return null
   return (
     <div className="mt-3 rounded-xl border border-cerulean-blue-200 bg-cerulean-blue-100/50 px-5 py-4">
-      <p className="text-sm font-medium text-gray-900">Choose the auditors you trust for clear signing</p>
+      <p className="text-sm font-medium text-gray-900">Choose the auditors you trust for Clear Signing</p>
       <p className="pt-1 text-sm leading-relaxed text-gray-600">
         An ERC-7730 descriptor explains a transaction in plain words. Onay counts one as reviewed only after an auditor
         you trust attested it. No auditor is chosen yet, so every descriptor shows as a preview with a warning.

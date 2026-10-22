@@ -1072,7 +1072,7 @@ export const scenarios: Scenario[] = [
   { id: 'batch', label: 'batch · EIP-5792', request: batchRequest },
   { id: 'safe-nested', label: 'Safe · nested calldata', request: safeNested },
   { id: 'nft-transfer', label: 'NFT transfer · token template', request: nftTransfer },
-  { id: 'no-descriptor', label: 'no clear signing descriptor', request: noDescriptor },
+  { id: 'no-descriptor', label: 'no Clear Signing descriptor', request: noDescriptor },
   { id: 'unverified', label: 'contract not verified', request: unverified },
   { id: 'rpc-mode', label: 'RPC mode chain', request: rpcMode },
   { id: 'revert', label: 'simulation reverts', request: reverting },

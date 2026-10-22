@@ -326,7 +326,7 @@ function Unattested({ state }: { state: ClearSigning }) {
   return (
     <Notice tone="amber">
       {state.attesters.length === 0
-        ? 'Preview: you trust no auditor yet, so no one has checked this description for you. Anyone can submit a descriptor to the registry. Choose auditors under settings → Clear signing.'
+        ? 'Preview: you trust no auditor yet, so no one has checked this description for you. Anyone can submit a descriptor to the registry. Choose auditors under settings → Clear Signing.'
         : 'Preview: no auditor you trust has attested this descriptor, so no one has checked this description for you. Anyone can submit a descriptor to the registry.'}
     </Notice>
   )
@@ -755,11 +755,11 @@ type Tab = { label: string; content: ReactNode }
 // transaction, the raw tab always.
 function tabsOf(state: ClearSigning, chainId: number, currency: Currency): Tab[] {
   const { rendering } = state
-  const clear = { label: 'Clear signing', content: <ClearSigningPane state={state} currency={currency} /> }
+  const clear = { label: 'Clear Signing', content: <ClearSigningPane state={state} currency={currency} /> }
   const raw = { label: 'Raw', content: <RawPane state={state} chainId={chainId} currency={currency} /> }
   if (state.status === 'running' || !rendering || rendering.kind === 'none') return [clear, raw]
   if (rendering.kind === 'typedData') {
-    return [{ ...clear, label: rendered(rendering.display) ? 'Clear signing' : 'Message' }, raw]
+    return [{ ...clear, label: rendered(rendering.display) ? 'Clear Signing' : 'Message' }, raw]
   }
   const calls = rendering.kind === 'batch' ? rendering.calls : [rendering.call]
   const withData = calls.filter((call) => call.to !== null && call.data !== '0x')

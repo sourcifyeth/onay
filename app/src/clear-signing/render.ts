@@ -52,7 +52,7 @@ export type Rendering =
       source: DescriptorSource | null
       attested: boolean
     }
-  // A method that clear signing does not cover, or params with the
+  // A method that Clear Signing does not cover, or params with the
   // wrong shape.
   | { kind: 'none'; reason: string }
 

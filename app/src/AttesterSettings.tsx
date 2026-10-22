@@ -88,7 +88,7 @@ export function AttesterSettings() {
     <>
       <h3 className="flex items-center gap-1.5 pt-4 font-mono text-xs tracking-widest text-cerulean-blue-600 uppercase">
         <span className="h-1.5 w-1.5 rounded-full bg-cerulean-blue-500" />
-        Clear signing
+        Clear Signing
       </h3>
       <p className="text-xs leading-relaxed text-gray-500">
         An ERC-7730 descriptor explains a transaction in plain words. Anyone can submit one to the registry, so Onay
