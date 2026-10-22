@@ -92,8 +92,8 @@ export function AttesterSettings() {
       </h3>
       <p className="text-xs leading-relaxed text-gray-500">
         An ERC-7730 descriptor explains a transaction in plain words. Anyone can submit one to the registry, so Onay
-        uses a descriptor only after an auditor you trust attested it (ERC-8176). Each auditor signs with an Ethereum
-        address. Add the addresses of the auditors you trust. The{' '}
+        counts a descriptor as reviewed only after an auditor you trust attested it (ERC-8176). Each auditor signs with
+        an Ethereum address. Add the addresses of the auditors you trust. The{' '}
         <ExternalLink href={AUDITORS_URL} className="text-cerulean-blue-600 hover:underline">
           auditors directory of the registry ↗
         </ExternalLink>{' '}

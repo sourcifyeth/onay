@@ -88,6 +88,7 @@ export function TokenListSettings() {
   const [draft, setDraft] = useState('')
   const trimmed = draft.trim()
   const taken = entries.some((entry) => entry.url === trimmed)
+  const hasDefault = entries.some((entry) => entry.url === DEFAULT_LIST_URL)
   const valid = isHttpsUrl(trimmed) && !taken
 
   const add = () => {
@@ -95,66 +96,71 @@ export function TokenListSettings() {
   }
 
   return (
-    <>
-      <h3 className="flex items-center gap-1.5 pt-4 font-mono text-xs tracking-widest text-cerulean-blue-600 uppercase">
-        <span className="h-1.5 w-1.5 rounded-full bg-cerulean-blue-500" />
-        Token lists
-      </h3>
-      <p className="text-xs leading-relaxed text-gray-500">
+    <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <p className="pb-1 font-medium text-gray-800">Token lists</p>
+      <p className="pb-2 text-xs leading-relaxed text-gray-500">
         A token list names the addresses that are ERC-20 tokens. A call to a listed token renders with the standard
-        template, for example "Send 1.5 USDC", when no descriptor covers it. The tokens of all your lists count. A list
-        is a claim of its publisher: Onay does not check it, so the data shows with the yellow third-party mark. Lists
-        use the{' '}
+        template, for example "Send 1.5 USDC", when no descriptor covers it. All lists here are merged for Clear
+        Signing: a token on any one of them counts. A list is a claim of its publisher: Onay does not check it, so the
+        data shows with the yellow third-party mark. Lists use the{' '}
         <ExternalLink href={SCHEMA_URL} className="text-cerulean-blue-600 hover:underline">
           Uniswap Token Lists format ↗
         </ExternalLink>
         , a JSON file served over HTTPS.
       </p>
-      <p className="text-xs leading-relaxed text-gray-500">
+      <p className="pb-3 text-xs leading-relaxed text-gray-500">
         Onay starts with the Uniswap Labs Default list, since it has the highest barrier for a token to get in: only
         Uniswap Labs edits it, and a request does not guarantee a review. It is still untrusted data. Remove it if you
         prefer your own lists.
       </p>
-      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <p className="pb-1 font-medium text-gray-800">Lists</p>
-        {entries.length === 0 ? (
-          <p className="rounded-lg border-l-2 border-amber-400 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            No token list. No call renders with the token template; each shows as the verified ABI decodes it.
-          </p>
-        ) : (
-          <div className="divide-y divide-gray-100">
-            {entries.map((entry) => (
-              <ListRow key={entry.url} entry={entry} />
-            ))}
-          </div>
-        )}
-        <div className="flex items-end gap-3 pt-3">
-          <label className="block min-w-0 flex-1">
-            <span className="font-mono text-xs text-gray-500">list URL</span>
-            <input
-              value={draft}
-              placeholder={DEFAULT_LIST_URL}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => event.key === 'Enter' && add()}
-              spellCheck={false}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-1.5 font-mono text-xs text-gray-800 placeholder:text-gray-400 focus:border-cerulean-blue-400 focus:outline-none"
-            />
-          </label>
-          <button
-            onClick={add}
-            disabled={!valid}
-            className="rounded-lg bg-cerulean-blue-500 px-4 py-1.5 text-xs font-medium text-white hover:bg-cerulean-blue-600 disabled:opacity-40"
-          >
-            Add
-          </button>
+      {entries.length === 0 ? (
+        <p className="rounded-lg border-l-2 border-amber-400 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          No token list. No call renders with the token template; each shows as the verified ABI decodes it.
+        </p>
+      ) : (
+        <div className="divide-y divide-gray-100">
+          {entries.map((entry) => (
+            <ListRow key={entry.url} entry={entry} />
+          ))}
         </div>
-        {taken && <p className="pt-2 text-xs text-light-coral-700">This list is in the list already.</p>}
-        {trimmed !== '' && !isHttpsUrl(trimmed) && (
-          <p className="pt-2 text-xs text-light-coral-700">
-            A list URL starts with https://. ENS names and IPFS are not supported.
-          </p>
-        )}
-      </section>
-    </>
+      )}
+      <div className="flex items-end gap-3 pt-3">
+        <label className="block min-w-0 flex-1">
+          <span className="font-mono text-xs text-gray-500">list URL</span>
+          <input
+            value={draft}
+            placeholder={DEFAULT_LIST_URL}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => event.key === 'Enter' && add()}
+            spellCheck={false}
+            className="mt-1 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-1.5 font-mono text-xs text-gray-800 placeholder:text-gray-400 focus:border-cerulean-blue-400 focus:outline-none"
+          />
+        </label>
+        <button
+          onClick={add}
+          disabled={!valid}
+          className="rounded-lg bg-cerulean-blue-500 px-4 py-1.5 text-xs font-medium text-white hover:bg-cerulean-blue-600 disabled:opacity-40"
+        >
+          Add
+        </button>
+      </div>
+      {taken && <p className="pt-2 text-xs text-light-coral-700">This list is in the list already.</p>}
+      {trimmed !== '' && !isHttpsUrl(trimmed) && (
+        <p className="pt-2 text-xs text-light-coral-700">
+          A list URL starts with https://. ENS names and IPFS are not supported.
+        </p>
+      )}
+      {!hasDefault && (
+        <p className="pt-2 text-xs text-gray-500">
+          The default list is removed.{' '}
+          <button
+            onClick={() => void addTokenList(DEFAULT_LIST_URL)}
+            className="font-mono text-cerulean-blue-600 hover:underline"
+          >
+            add it again
+          </button>
+        </p>
+      )}
+    </section>
   )
 }
