@@ -1,26 +1,14 @@
-// Step 2 of the review: the source code of each contract. What Sourcify
+// Step 3 of the review: the source code of each contract. What Sourcify
 // claims, and what the app reproduced.
 
 import { useState } from 'react'
-import { verdictOf, type Contract } from './gates/contracts.ts'
-import { claimOf, claimText, describeCompiler, failureOf } from './gates/sourcify.ts'
+import { verdictOf, type Contract, type Verdict } from './gates/contracts.ts'
+import { claimOf, claimText, describeCompiler, failureOf, type Found } from './gates/sourcify.ts'
 import type { Verification } from './gates/verification.ts'
 import { matchText } from './gates/verify.ts'
+import { short } from './gates/words.ts'
 import { CollapsibleLog } from './Log.tsx'
-import { InfoTip, Row, Step } from './Step.tsx'
-
-// Coral for a contract that fails the request, amber for a flagged one.
-function Warning({ title, amber = false, children }: { title: string; amber?: boolean; children: string }) {
-  const colors = amber
-    ? 'border-amber-400 bg-amber-50 text-amber-800'
-    : 'border-light-coral-500 bg-light-coral-100 text-light-coral-700'
-  return (
-    <div className={`mb-3 rounded-lg border-2 px-4 py-4 ${colors}`}>
-      <p className="text-lg font-semibold">⚠ {title}</p>
-      <p className="pt-1 text-sm leading-relaxed text-gray-700">{children}</p>
-    </div>
-  )
-}
+import { CollapsibleCard, InfoTip, Notice, Row, Step } from './Step.tsx'
 
 function SourcifyRow({ contract }: { contract: Contract }) {
   const claim = claimOf(contract.sourcify)
@@ -41,6 +29,38 @@ function SourcifyRow({ contract }: { contract: Contract }) {
         )}
       </span>
     </div>
+  )
+}
+
+// A path that wraps only at its slashes.
+const breakable = (path: string) => path.split('/').join('/​')
+
+// The count and the main file. The full list, which a large contract
+// repeats under several roots, opens on demand.
+function SourcesRow({ claim }: { claim: Found }) {
+  const [open, setOpen] = useState(false)
+  const files = Object.keys(claim.stdJsonInput.sources)
+  return (
+    <Row label="Sources">
+      <span className="font-mono text-[13px]">
+        {files.length} {files.length === 1 ? 'file' : 'files'} · {breakable(claim.path)}
+      </span>
+      {files.length > 1 && (
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="ml-2 font-mono text-xs text-gray-400 transition-colors hover:text-gray-600"
+        >
+          {open ? 'hide ▴' : 'all ▾'}
+        </button>
+      )}
+      {open && (
+        <ul className="mt-1 text-left font-mono text-xs leading-relaxed text-gray-500">
+          {files.map((file) => (
+            <li key={file}>{breakable(file)}</li>
+          ))}
+        </ul>
+      )}
+    </Row>
   )
 }
 
@@ -101,11 +121,7 @@ function LocalVerification({ contract }: { contract: Contract }) {
               <Row label="Compiler">
                 <span className="font-mono text-[13px]">{describeCompiler(claim)}</span>
               </Row>
-              <Row label="Sources">
-                <span className="font-mono text-[13px] break-all">
-                  {Object.keys(claim.stdJsonInput.sources).join(', ')}
-                </span>
-              </Row>
+              <SourcesRow claim={claim} />
             </>
           )}
         </div>
@@ -114,55 +130,88 @@ function LocalVerification({ contract }: { contract: Contract }) {
   )
 }
 
-function ContractVerification({ contract, verification }: { contract: Contract; verification: Verification }) {
+function roleOf(contract: Contract): string {
+  if (contract.implementationOf) return `Implementation of ${short(contract.implementationOf)}`
+  return contract.foundBy === 'request' ? 'Contract' : 'Called contract'
+}
+
+const MARKS: Record<Verdict, [string, string]> = {
+  pending: ['…', 'text-gray-400'],
+  passed: ['✓', 'text-green-700'],
+  flagged: ['⚠', 'text-amber-700'],
+  failed: ['✕', 'text-light-coral-700'],
+}
+
+// One line per contract: its verdict, role, address and name.
+function ContractSummary({ contract }: { contract: Contract }) {
+  const [mark, color] = MARKS[verdictOf(contract)]
+  const name = claimOf(contract.sourcify)?.name
+  return (
+    <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+      <span className={`font-medium ${color}`}>{mark}</span>
+      <span className="text-xs text-gray-500">{roleOf(contract)}</span>
+      <span className="font-mono text-[13px] text-gray-700" title={contract.address}>
+        {short(contract.address)}
+      </span>
+      {name && <span className="font-medium text-gray-800">{name}</span>}
+    </p>
+  )
+}
+
+function Warnings({ contract }: { contract: Contract }) {
   const state = contract.sourcify
   const failure = failureOf(state)
   const flagged = verdictOf(contract) === 'flagged'
-  const name = claimOf(state)?.name ?? null
+  return (
+    <>
+      {flagged && (
+        <Notice tone="amber" title="⚠ A called contract is not verified" className="mb-3">
+          The transaction calls this contract, and Sourcify has no source code for it. What it does cannot be checked
+          here. Only go on if you know the contract.
+        </Notice>
+      )}
+      {failure?.kind === 'not verified' && !flagged && (
+        <Notice tone="coral" title="⚠ Source code is not verified" className="mb-3">
+          Nobody can read what this contract does. It is a black box. Do not interact with it.
+        </Notice>
+      )}
+      {failure?.kind === 'not reproduced' && (
+        <Notice tone="coral" title="⚠ Source code does not match the chain" className="mb-3">
+          Sourcify claims these sources, but compiled on your machine they do not give the code at this address. Do not
+          trust the sources, and do not interact with it.
+        </Notice>
+      )}
+      {((state.status === 'failed' && !failure) || state.status === 'skipped') && (
+        <Notice tone="coral" title="⚠ Source code not checked" className="mb-3">
+          {`${state.reason}. Nothing is known about this contract. Do not interact with it.`}
+        </Notice>
+      )}
+    </>
+  )
+}
+
+// The full card of a contract, behind its summary line.
+function ContractVerification({
+  contract,
+  verification,
+  open,
+}: {
+  contract: Contract
+  verification: Verification
+  open: boolean
+}) {
   const lines = verification.lines.filter(
     (line) => line.address === contract.address && (line.source === 'sourcify' || line.source === 'solc'),
   )
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      {flagged && (
-        <Warning title="A called contract is not verified" amber>
-          The transaction calls this contract, and Sourcify has no source code for it. What it does cannot be checked
-          here. Only go on if you know the contract.
-        </Warning>
-      )}
-      {failure?.kind === 'not verified' && !flagged && (
-        <Warning title="Source code is not verified">
-          Nobody can read what this contract does. It is a black box. Do not interact with it.
-        </Warning>
-      )}
-      {failure?.kind === 'not reproduced' && (
-        <Warning title="Source code does not match the chain">
-          Sourcify claims these sources, but compiled on your machine they do not give the code at this address. Do not
-          trust the sources, and do not interact with it.
-        </Warning>
-      )}
-      {state.status === 'failed' && !failure && (
-        <Warning title="Source code not checked">
-          The check did not finish, so nothing is known about this contract. Do not interact with it.
-        </Warning>
-      )}
-      <p className="flex flex-wrap items-baseline gap-x-2 pb-2">
-        <span className="text-xs text-gray-500">{roleOf(contract)}</span>
-        <span className="font-mono text-[13px] break-all text-gray-700">{contract.address}</span>
-        {name && <span className="text-xs text-gray-500">{name}</span>}
-      </p>
+    <CollapsibleCard open={open} summary={<ContractSummary contract={contract} />}>
+      <Warnings contract={contract} />
+      <p className="pb-2 font-mono text-[13px] break-all text-gray-700">{contract.address}</p>
       <SourcifyRow contract={contract} />
       <LocalVerification contract={contract} />
       <CollapsibleLog lines={lines} />
-    </div>
+    </CollapsibleCard>
   )
-}
-
-const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`
-
-function roleOf(contract: Contract): string {
-  if (contract.implementationOf) return `Implementation of ${short(contract.implementationOf)}`
-  return contract.foundBy === 'request' ? 'Contract' : 'Called contract'
 }
 
 // The contracts that the simulation found, folded. The header counts
@@ -190,7 +239,7 @@ function CalledContracts({ contracts, verification }: { contracts: Contract[]; v
       {open && (
         <div className="flex flex-col gap-2 px-3 pb-3">
           {contracts.map((contract) => (
-            <ContractVerification key={contract.address} contract={contract} verification={verification} />
+            <ContractVerification key={contract.address} contract={contract} verification={verification} open={false} />
           ))}
         </div>
       )}
@@ -199,8 +248,10 @@ function CalledContracts({ contracts, verification }: { contracts: Contract[]; v
 }
 
 export function VerificationStep({ verification }: { verification: Verification }) {
-  // A contract with code. The Sourcify gate skips the others.
-  const targets = verification.contracts.filter((contract) => contract.sourcify.status !== 'skipped')
+  // A contract whose code was read and had nothing to verify is left out.
+  const targets = verification.contracts.filter(
+    (contract) => !(contract.helios.status === 'passed' && contract.sourcify.status === 'skipped'),
+  )
   const named = targets.filter((contract) => contract.foundBy === 'request')
   const called = targets.filter((contract) => contract.foundBy === 'simulation')
   return (
@@ -215,8 +266,14 @@ export function VerificationStep({ verification }: { verification: Verification 
         </p>
       ) : (
         <div className="flex flex-col gap-2">
+          {/* The contracts the request names open. Their implementations wait behind their line. */}
           {named.map((contract) => (
-            <ContractVerification key={contract.address} contract={contract} verification={verification} />
+            <ContractVerification
+              key={contract.address}
+              contract={contract}
+              verification={verification}
+              open={!contract.implementationOf}
+            />
           ))}
           {called.length > 0 && <CalledContracts contracts={called} verification={verification} />}
         </div>

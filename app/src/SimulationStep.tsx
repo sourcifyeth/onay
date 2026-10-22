@@ -5,47 +5,35 @@ import { Fragment } from 'react'
 import type { Contract } from './gates/contracts.ts'
 import type { GateState } from './gates/gate.ts'
 import { claimOf } from './gates/sourcify.ts'
-import { formatEther, type Frame, type Simulation } from './gates/simulation.ts'
+import { reverted, UNKNOWN, type Frame, type Simulation } from './gates/simulation.ts'
 import type { Verification } from './gates/verification.ts'
-import { CollapsibleCard, Row, Step } from './Step.tsx'
-
-function Box({ color, title, children }: { color: 'coral' | 'amber' | 'gray'; title: string; children?: string }) {
-  const colors = {
-    coral: 'border-light-coral-500 bg-light-coral-100 text-light-coral-700',
-    amber: 'border-amber-400 bg-amber-50 text-amber-800',
-    gray: 'border-gray-200 text-gray-600',
-  }[color]
-  return (
-    <div className={`rounded-lg border-2 px-4 py-4 ${colors}`}>
-      <p className="text-lg font-semibold">{title}</p>
-      {children && <p className="pt-1 text-sm leading-relaxed text-gray-700">{children}</p>}
-    </div>
-  )
-}
+import { formatEther, short } from './gates/words.ts'
+import { CollapsibleLog } from './Log.tsx'
+import { CollapsibleCard, Notice, Row, Step } from './Step.tsx'
 
 function Summary({ state, helios, runs }: { state: GateState<Simulation>; helios: boolean; runs: boolean }) {
   if (state.status === 'skipped') {
-    if (!runs) return <Box color="gray" title={`Not simulated · ${state.reason}`} />
+    if (!runs) return <Notice tone="gray" title={`Not simulated · ${state.reason}`} />
     return (
-      <Box color="amber" title="⚠ The transaction was not simulated">
+      <Notice tone="amber" title="⚠ The transaction was not simulated">
         {`${state.reason}. The contracts it calls on the way are unknown.`}
-      </Box>
+      </Notice>
     )
   }
   if (state.status === 'failed') {
     return (
-      <Box color="coral" title="⚠ The transaction could not be simulated">
+      <Notice tone="coral" title="⚠ The transaction could not be simulated">
         {`${state.reason}. The contracts that the transaction calls on the way are unknown.`}
-      </Box>
+      </Notice>
     )
   }
-  if (state.status !== 'passed') return <Box color="gray" title="Simulation is running" />
+  if (state.status !== 'passed') return <Notice tone="gray" title="Simulation is running" />
   const failed = state.value.calls.find((call) => call.error)
   if (failed) {
     return (
-      <Box color="coral" title="⚠ The transaction reverts in simulation">
-        {`Run on the ${helios ? 'latest verified' : 'latest'} chain state, it reverts with "${failed.error}". Sending it would only waste gas.`}
-      </Box>
+      <Notice tone="coral" title="⚠ The transaction reverts in simulation">
+        {`Run on the ${helios ? 'latest verified' : 'latest'} chain state, it reverts with "${failed.error}". Sending it would only waste gas. Do not sign it.`}
+      </Notice>
     )
   }
   const touched = state.value.touched.length
@@ -57,19 +45,19 @@ function Summary({ state, helios, runs }: { state: GateState<Simulation>; helios
   )
 }
 
-function short(address: string): string {
-  return `${address.slice(0, 6)}…${address.slice(-4)}`
-}
-
 function FrameRow({ frame, contracts }: { frame: Frame; contracts: Contract[] }) {
   const contract = contracts.find((candidate) => candidate.address === frame.address)
   const name = contract ? claimOf(contract.sourcify)?.name : undefined
+  // A create that failed never got its address.
+  const known = frame.kind !== 'create' || frame.address !== UNKNOWN
   return (
     <div className="flex flex-wrap items-baseline gap-x-2 py-1 text-[13px]" style={{ paddingLeft: frame.depth * 20 }}>
       <span className="font-mono text-xs text-gray-400">{frame.kind}</span>
-      <span className="font-mono break-all text-gray-700" title={frame.address}>
-        {short(frame.address)}
-      </span>
+      {known && (
+        <span className="font-mono break-all text-gray-700" title={frame.address}>
+          {short(frame.address)}
+        </span>
+      )}
       {name && <span className="text-xs text-gray-500">{name}</span>}
       {frame.selector && <span className="font-mono text-xs text-gray-400">{frame.selector}</span>}
       {frame.value > 0n && <span className="text-xs text-gray-500">{formatEther(frame.value)} ETH</span>}
@@ -101,18 +89,22 @@ function CallTree({ simulation, contracts }: { simulation: Simulation; contracts
 export function SimulationStep({ verification }: { verification: Verification }) {
   const { simulation, contracts, chain } = verification
   const helios = chain?.mode === 'helios'
+  const lines = verification.lines.filter((line) => line.source === 'evm')
   const proof = helios ? (
     <span className="text-green-700"> ✓ merkle proofs</span>
   ) : (
     <span className="text-amber-700"> no proof</span>
   )
+  // A revert is the case where the tree matters most: the failing frame
+  // says where.
+  const open = simulation.status === 'passed' && reverted(simulation.value)
   return (
     <Step
       number={2}
       title="Transaction Simulation"
       explainer="Onay runs the transaction in a local EVM on the chain state it read in step 1. The result shows every contract the transaction calls, not only the one it names, so that step 3 can check each of them."
     >
-      <CollapsibleCard summary={<Summary state={simulation} helios={helios} runs={verification.runs} />}>
+      <CollapsibleCard open={open} summary={<Summary state={simulation} helios={helios} runs={verification.runs} />}>
         {simulation.status === 'passed' && (
           <>
             <div className="divide-y divide-gray-100">
@@ -125,6 +117,7 @@ export function SimulationStep({ verification }: { verification: Verification })
             <CallTree simulation={simulation.value} contracts={contracts} />
           </>
         )}
+        <CollapsibleLog lines={lines} />
       </CollapsibleCard>
     </Step>
   )

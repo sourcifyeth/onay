@@ -6,9 +6,20 @@
 import type { ChainConfig } from '../chains.ts'
 import type { Hex, SigningRequest } from '../messages.ts'
 import type { ChainCode, Head, Target } from './helios.ts'
-import { add, addImplementation, initial, MAX_CONTRACTS, pending, tally, update, type Contract } from './contracts.ts'
+import {
+  addImplementation,
+  grow,
+  initial,
+  MAX_CONTRACTS,
+  pending,
+  runVerdict,
+  tally,
+  update,
+  type Contract,
+  type Status,
+} from './contracts.ts'
 import { errorText, runGate, type Gate, type GateState, type Log, type LogLine } from './gate.ts'
-import { delegateOf, reverted, type Simulation, type SimulationInput } from './simulation.ts'
+import { delegateOf, type Simulation, type SimulationInput } from './simulation.ts'
 import { callsOf, chainOf, contractsOf } from './request.ts'
 import type { Verified } from './verify.ts'
 
@@ -19,7 +30,7 @@ export type TimedLine = LogLine & {
   address?: Hex
 }
 
-export type Status = 'running' | 'passed' | 'flagged' | 'failed'
+export type { Status }
 
 export type Verification = {
   // Null when the request names no chain. Messages have none.
@@ -39,10 +50,6 @@ export type Verification = {
   // a request that runs nothing.
   simulation: GateState<Simulation>
   lines: TimedLine[]
-  // 'passed' when each gate passed for each contract: the review can open.
-  // 'flagged' when it passed with a warning: a contract that the
-  // simulation found is not verified, or the simulation did not run the
-  // calls through.
   status: Status
 }
 
@@ -106,7 +113,7 @@ export function startVerification(request: SigningRequest, deps: Deps): Verifica
   // simulation to wait for.
   const skipSimulation = () => {
     const reason = requestCalls.reason ?? 'nothing to run'
-    log({ source: 'evm', text: `not simulated · ${reason}` })
+    if (chain) log({ source: 'evm', text: `not simulated · ${reason}` })
     set({ simulation: { status: 'skipped', reason } })
   }
   // The end of a run without a contract to check. A transaction that was
@@ -120,18 +127,22 @@ export function startVerification(request: SigningRequest, deps: Deps): Verifica
 
   const run = async () => {
     log({ source: 'browser', text: `request received · ${request.method} · from ${request.origin}` })
-    // Before any gate runs: nothing is in flight that could report later.
+    // Before any gate runs: the chain gate takes the reason, the other
+    // gates did not start.
     const fail = (reason: string) => {
-      const failed = { status: 'failed', reason } as const
+      const notRead = { status: 'skipped', reason: 'the chain was not read' } as const
       set({
-        contracts: snapshot.contracts.map((contract) => ({ ...contract, helios: failed, sourcify: failed })),
-        simulation: failed,
+        contracts: snapshot.contracts.map((contract) => ({
+          ...contract,
+          helios: { status: 'failed', reason },
+          sourcify: notRead,
+        })),
+        simulation: notRead,
         status: 'failed',
       })
     }
     if (resolved.chainId === null) {
       if (addresses.length === 0) return endWithoutContracts()
-      skipSimulation()
       log({ source: 'browser', text: resolved.reason, ok: false })
       return fail(resolved.reason)
     }
@@ -171,17 +182,15 @@ export function startVerification(request: SigningRequest, deps: Deps): Verifica
       snapshot.simulation.status !== 'running'
     const end = () => {
       if (snapshot.status !== 'running' || !settled()) return
-      const counts = tally(snapshot.contracts)
-      const total = snapshot.contracts.length
-      const { simulation } = snapshot
-      const failed = counts.failed > 0 || simulation.status === 'failed'
-      const notes = []
-      if (counts.flagged > 0) notes.push(`${counts.flagged} not verified on Sourcify`)
-      if (simulation.status === 'passed' && reverted(simulation.value)) notes.push('the transaction reverts')
-      if (simulation.status === 'skipped' && runs) notes.push(`call tree not checked · ${simulation.reason}`)
+      const { status, notes } = runVerdict(snapshot.contracts, snapshot.simulation, runs)
+      const { passed } = tally(snapshot.contracts)
       const note = notes.map((text) => ` · ${text}`).join('')
-      log({ source: chain.mode, text: `${counts.passed}/${total} contracts verified${note}`, ok: !failed })
-      set({ status: failed ? 'failed' : notes.length > 0 ? 'flagged' : 'passed' })
+      log({
+        source: chain.mode,
+        text: `${passed}/${snapshot.contracts.length} contracts verified${note}`,
+        ok: status === 'passed' || status === 'flagged',
+      })
+      set({ status })
     }
     const gates = deps.gatesFor(chain)
     // One contract: the code from the chain, then the sources from
@@ -207,10 +216,20 @@ export function startVerification(request: SigningRequest, deps: Deps): Verifica
       else if (code.code === '0x') report(address, { sourcify: { status: 'skipped', reason: 'not a contract' } })
       else if (delegateOf(code.code)) {
         // The code of the delegate runs, in the context of this account.
-        // The simulation finds the delegate.
-        const reason = 'an account with a delegate (EIP-7702) · the delegate is checked'
-        log({ source: 'sourcify', text: `${address} · ${reason}` })
-        report(address, { sourcify: { status: 'skipped', reason } })
+        // The delegate of a named account counts as named, also when the
+        // simulation does not run. The simulation finds the other ones.
+        const delegate = delegateOf(code.code) as Hex
+        const named = snapshot.contracts.find((contract) => contract.address === address)?.foundBy === 'request'
+        const grown = named ? addImplementation(snapshot.contracts, address, delegate) : snapshot.contracts
+        if (grown === null) {
+          report(address, { sourcify: { status: 'failed', reason: `more than ${MAX_CONTRACTS} contracts` } })
+        } else {
+          const reason = 'an account with a delegate (EIP-7702) · the delegate is checked'
+          log({ source: 'sourcify', text: `${address} · ${reason}` })
+          set({ contracts: update(grown, address, { sourcify: { status: 'skipped', reason } }) })
+          const found = snapshot.contracts.find((contract) => contract.address === delegate)
+          if (found?.helios.status === 'waiting') void check(delegate, codeFound(delegate))
+        }
       } else {
         await runGate(gates.sourcify(log), { address, code: code.code }, log, (sourcify) =>
           report(address, { sourcify }),
@@ -224,8 +243,6 @@ export function startVerification(request: SigningRequest, deps: Deps): Verifica
       const found = snapshot.simulation.value.touched.find((touched) => touched.address === address)
       return found && { address: found.address, block: found.block, code: found.code }
     }
-    // The addresses the request names, in lower case.
-    const named = new Set(contracts.map((contract) => contract.address))
     const simulate = async () => {
       const { calls } = requestCalls
       if (calls === null) {
@@ -234,13 +251,7 @@ export function startVerification(request: SigningRequest, deps: Deps): Verifica
       }
       const simulation = await runGate(gates.simulation, { calls, block: head.block }, log, (state) => {
         if (state.status !== 'passed') return set({ simulation: state })
-        let grown: Contract[] | null = snapshot.contracts
-        for (const { address, contexts } of state.value.touched) {
-          // Code that ran in the context of a named contract counts as named.
-          const of = named.has(address) ? undefined : contexts.find((context) => named.has(context))
-          grown = of === undefined ? add(grown, address, 'simulation') : addImplementation(grown, of, address)
-          if (grown === null) break
-        }
+        const grown = grow(snapshot.contracts, state.value.touched)
         if (grown === null) {
           const reason = `more than ${MAX_CONTRACTS} contracts in the call tree`
           log({ source: 'evm', text: reason, ok: false })

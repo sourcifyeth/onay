@@ -210,33 +210,35 @@ test('a found contract whose sources do not match fails the request', async () =
   assert.equal((await ended(transaction(A), setup(world).deps)).status, 'failed')
 })
 
-test('a revert in the simulation flags the request', async () => {
+test('a revert in the simulation: the request ends with reverts', async () => {
   const world: World = { codes: { [A]: '0x60' }, sources: { [A]: 'verified' }, touched: [A], revert: 'nope' }
   const reverted = await ended(transaction(A), setup(world).deps)
-  assert.equal(reverted.status, 'flagged')
-  assert.equal(reverted.lines.at(-1)?.text, '1/1 contracts verified · the transaction reverts')
+  assert.equal(reverted.status, 'reverts')
+  assert.deepEqual(reverted.lines.at(-1)?.text, '1/1 contracts verified · the transaction reverts')
+  assert.equal(reverted.lines.at(-1)?.ok, false)
 })
 
-test('a simulation that fails: the request fails, the named contract keeps its own result', async () => {
+test('a simulation that fails: the call tree is not checked, the named contract keeps its own result', async () => {
   const world: World = {
     codes: { [A]: '0x60' },
     sources: { [A]: 'verified' },
     simulationFails: 'the chain did not answer',
   }
   const v = await ended(transaction(A), setup(world).deps)
-  assert.equal(v.status, 'failed')
+  assert.equal(v.status, 'flagged')
   assert.deepEqual(statesOf(v), [[A, 'request', 'passed', 'passed']])
   assert.deepEqual(v.simulation, { status: 'failed', reason: 'the chain did not answer' })
+  assert.equal(v.lines.at(-1)?.text, '1/1 contracts verified · call tree not checked · the chain did not answer')
 })
 
-test('too many contracts in the call tree: the simulation fails, nothing else changes', async () => {
+test('too many contracts in the call tree: the simulation fails, the request is flagged', async () => {
   const touched = Array.from(
     { length: MAX_CONTRACTS + 1 },
     (_, n) => `0x${(n + 1).toString(16).padStart(40, '0')}` as Hex,
   )
   const world: World = { codes: { [A]: '0x60' }, sources: { [A]: 'verified' }, touched }
   const v = await ended(transaction(A), setup(world).deps)
-  assert.equal(v.status, 'failed')
+  assert.equal(v.status, 'flagged')
   assert.equal(v.contracts.length, 1)
   assert.deepEqual(v.simulation, { status: 'failed', reason: `more than ${MAX_CONTRACTS} contracts in the call tree` })
 })
@@ -367,11 +369,31 @@ test('the delegate of an account on the way is one more contract on the way', as
   assert.equal(v.contracts[2].implementationOf, undefined)
 })
 
-test('the chain is not ready: everything fails', async () => {
+test('the chain is not ready: the chain gate fails, the other gates did not start', async () => {
   const v = await ended(transaction(A), setup({ codes: {}, sources: {}, chainFails: 'Helios did not sync' }).deps)
   assert.equal(v.status, 'failed')
-  assert.deepEqual(v.simulation, { status: 'failed', reason: 'Helios did not sync' })
-  assert.equal(v.contracts[0].helios.status, 'failed')
+  assert.deepEqual(v.contracts[0].helios, { status: 'failed', reason: 'Helios did not sync' })
+  assert.deepEqual(v.contracts[0].sourcify, { status: 'skipped', reason: 'the chain was not read' })
+  assert.deepEqual(v.simulation, { status: 'skipped', reason: 'the chain was not read' })
+})
+
+test('typed data on an account with a delegate: the delegate is checked without a simulation', async () => {
+  const typed = JSON.stringify({ domain: { chainId: 1, verifyingContract: A } })
+  const world: World = { codes: { [A]: delegated, [C]: '0x62' }, sources: { [C]: 'verified' } }
+  const { deps, heliosCalls } = setup(world)
+  const v = await ended(request('eth_signTypedData_v4', [FROM, typed], null), deps)
+  assert.equal(v.status, 'passed')
+  assert.deepEqual(statesOf(v), [
+    [A, 'request', 'passed', 'skipped'],
+    [C, 'request', 'passed', 'passed'],
+  ])
+  assert.equal(v.contracts[1].implementationOf, A)
+  assert.deepEqual(heliosCalls, [A, C])
+  const unverified = await ended(
+    request('eth_signTypedData_v4', [FROM, typed], null),
+    setup({ ...world, sources: {} }).deps,
+  )
+  assert.equal(unverified.status, 'failed')
 })
 
 test('the run waits for the contracts the simulation finds, even after the named checks ended', async () => {

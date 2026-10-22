@@ -1,5 +1,5 @@
-// The pieces of the review: a numbered step, a card that opens, an info
-// tip. Taken from the mock.
+// The pieces of the review: a numbered step, a card that opens, a
+// notice, an info tip. Taken from the mock.
 
 import { useState, type ReactNode } from 'react'
 
@@ -25,9 +25,18 @@ export function Step({
   )
 }
 
-// A card whose summary always shows. The details open with the chevron.
-export function CollapsibleCard({ summary, children }: { summary: ReactNode; children: ReactNode }) {
-  const [open, setOpen] = useState(false)
+// A card whose summary always shows. The details open with the chevron,
+// or from the start.
+export function CollapsibleCard({
+  summary,
+  open: initial = false,
+  children,
+}: {
+  summary: ReactNode
+  open?: boolean
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(initial)
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
       <button
@@ -38,6 +47,32 @@ export function CollapsibleCard({ summary, children }: { summary: ReactNode; chi
         <span className="shrink-0 text-gray-400">{open ? '▴' : '▾'}</span>
       </button>
       {open && <div className="px-5 pb-5">{children}</div>}
+    </div>
+  )
+}
+
+// A box with a title: coral for a result that fails the request, amber
+// for a warning, gray for something that did not happen.
+export function Notice({
+  tone,
+  title,
+  className = '',
+  children,
+}: {
+  tone: 'coral' | 'amber' | 'gray'
+  title: string
+  className?: string
+  children?: ReactNode
+}) {
+  const colors = {
+    coral: 'border-light-coral-500 bg-light-coral-100 text-light-coral-700',
+    amber: 'border-amber-400 bg-amber-50 text-amber-800',
+    gray: 'border-gray-200 text-gray-600',
+  }[tone]
+  return (
+    <div className={`rounded-lg border-2 px-4 py-4 ${colors} ${className}`}>
+      <p className="text-lg font-semibold">{title}</p>
+      {children && <p className="pt-1 text-sm leading-relaxed text-gray-700">{children}</p>}
     </div>
   )
 }

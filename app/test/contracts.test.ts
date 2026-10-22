@@ -5,7 +5,9 @@ import type { Hex } from '../src/messages.ts'
 import {
   add,
   addImplementation,
+  grow,
   initial,
+  runVerdict,
   MAX_CONTRACTS,
   pending,
   tally,
@@ -13,6 +15,8 @@ import {
   verdictOf,
   type Contract,
 } from '../src/gates/contracts.ts'
+import type { GateState } from '../src/gates/gate.ts'
+import type { Simulation, Touched } from '../src/gates/simulation.ts'
 import type { Verified } from '../src/gates/verify.ts'
 
 const A: Hex = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -163,4 +167,92 @@ test('a found contract fails when its code was not read, or its sources do not m
   contracts = update(contracts, B, { helios: { status: 'passed', value: code(contracts[0]) } })
   assert.equal(verdictOf(update(contracts, B, { sourcify: notReproduced })[0]), 'failed')
   assert.equal(verdictOf(update(contracts, B, { sourcify: { status: 'failed', reason: 'HTTP 500' } })[0]), 'failed')
+})
+
+const C: Hex = '0xcccccccccccccccccccccccccccccccccccccccc'
+const touched = (address: Hex, ...contexts: Hex[]): Touched => ({ address, block: 1, code: '0x60', contexts })
+
+test('grow: a contract on the way, an implementation of a named contract, and one already named', () => {
+  const contracts = grow(initial([A])!, [touched(A, A), touched(B, A), touched(C, C)])!
+  assert.deepEqual(
+    contracts.map(({ address, foundBy, implementationOf }) => [address, foundBy, implementationOf]),
+    [
+      [A, 'request', undefined],
+      [B, 'request', A],
+      [C, 'simulation', undefined],
+    ],
+  )
+})
+
+test('grow: code that ran in the context of an implementation, not of a named contract, stays on the way', () => {
+  const contracts = grow(initial([A])!, [touched(B, A), touched(C, B)])!
+  assert.equal(contracts[2].foundBy, 'simulation')
+})
+
+test('grow: a full list gives null', () => {
+  const full = initial(Array.from({ length: MAX_CONTRACTS }, (_, n) => address(n + 1)))!
+  assert.equal(grow(full, [touched(A, A)]), null)
+  assert.equal(grow(full, [touched(address(1), address(1))]), full)
+})
+
+const simulated = (reverts: boolean): GateState<Simulation> => ({
+  status: 'passed',
+  value: {
+    header: {
+      number: 1,
+      timestamp: 0,
+      gasLimit: 0n,
+      baseFee: null,
+      coinbase: A,
+      prevRandao: '0x',
+      excessBlobGas: null,
+    },
+    calls: [{ call: { from: A, to: B, data: '0x', value: 0n, gas: null }, frames: [], error: reverts ? 'nope' : null }],
+    touched: [],
+    reads: { accounts: 0, slots: 0 },
+  },
+})
+const verifiedContract = (address: Hex, foundBy: 'request' | 'simulation' = 'request'): Contract => ({
+  address,
+  foundBy,
+  helios: { status: 'passed', value: { address, block: 1, code: '0x60' } },
+  sourcify: passed,
+})
+
+test('runVerdict: passed when every contract passed and the simulation ran through', () => {
+  assert.deepEqual(runVerdict([verifiedContract(A)], simulated(false), true), { status: 'passed', notes: [] })
+})
+
+test('runVerdict: a contract on the way without sources flags, a named one fails', () => {
+  const onTheWay = { ...verifiedContract(B, 'simulation'), sourcify: notVerified }
+  assert.deepEqual(runVerdict([verifiedContract(A), onTheWay], simulated(false), true), {
+    status: 'flagged',
+    notes: ['1 not verified on Sourcify'],
+  })
+  const named = { ...verifiedContract(B), sourcify: notVerified }
+  assert.equal(runVerdict([verifiedContract(A), named], simulated(false), true).status, 'failed')
+})
+
+test('runVerdict: a revert is a result of its own, below a failed contract', () => {
+  assert.deepEqual(runVerdict([verifiedContract(A)], simulated(true), true), {
+    status: 'reverts',
+    notes: ['the transaction reverts'],
+  })
+  const named = { ...verifiedContract(B), sourcify: notVerified }
+  assert.equal(runVerdict([named], simulated(true), true).status, 'failed')
+})
+
+test('runVerdict: a simulation that was skipped or failed flags a transaction, not a signature', () => {
+  const skipped = { status: 'skipped', reason: 'contract creation · not simulated' } as const
+  assert.deepEqual(runVerdict([verifiedContract(A)], skipped, true), {
+    status: 'flagged',
+    notes: ['call tree not checked · contract creation · not simulated'],
+  })
+  const failed = { status: 'failed', reason: 'the chain did not answer' } as const
+  assert.deepEqual(runVerdict([verifiedContract(A)], failed, true), {
+    status: 'flagged',
+    notes: ['call tree not checked · the chain did not answer'],
+  })
+  const signature = { status: 'skipped', reason: 'a signature only · nothing runs on chain' } as const
+  assert.deepEqual(runVerdict([verifiedContract(A)], signature, false), { status: 'passed', notes: [] })
 })

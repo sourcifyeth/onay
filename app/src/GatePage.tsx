@@ -149,13 +149,13 @@ function sourcifyStatus(contracts: Contract[]): SectionState {
   return gateStatus(contracts.map((contract) => contract.sourcify))
 }
 
-// The state of the simulation, for its header. A skipped one is done,
-// but it leaves the call tree of a transaction unchecked.
+// The state of the simulation, for its header. A revert is a result
+// that fails. A skipped or failed one is done, but it leaves the call
+// tree of a transaction unchecked.
 function simulationStatus(state: GateState<Simulation>, runs: boolean): SectionState {
-  if (state.status === 'failed') return 'failed'
-  if (state.status === 'passed') return reverted(state.value) ? 'flagged' : 'passed'
-  if (state.status === 'skipped') return runs ? 'flagged' : 'passed'
-  return 'running'
+  if (state.status === 'passed') return reverted(state.value) ? 'failed' : 'passed'
+  if (state.status === 'waiting' || state.status === 'running') return 'running'
+  return runs ? 'flagged' : 'passed'
 }
 
 function GateLog({ verification, shown, done }: { verification: Verification; shown: number; done: boolean }) {
@@ -183,7 +183,7 @@ function GateLog({ verification, shown, done }: { verification: Verification; sh
       ) : (
         !done && <Cursor />
       )}
-      {evm.length > 0 && (
+      {mode && evm.length > 0 && (
         <Section
           title="evm"
           color="text-cerulean-blue-500"
@@ -224,30 +224,15 @@ export function GatePage({ request, onBack }: { request: SigningRequest; onBack:
   const shown = usePacedCount(verification.lines.length, ended ? verification.lines.length : 0)
   const done = verification.status !== 'running' && shown === verification.lines.length
 
-  // The log folds when the review takes its place, unless you choose.
-  const [chosen, setChosen] = useState<boolean | null>(null)
-  const compact = chosen ?? done
-
+  // The log is the live run. When the run ends, the cards of the review
+  // take its place, each with the lines of its own gate.
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 py-2">
       <button onClick={onBack} className="self-start font-mono text-xs text-gray-400 hover:text-gray-600">
         ← all requests
       </button>
       <Summary request={request} verification={verification} />
-      {/* Always there, so that the page does not move when the checks end. */}
-      <button
-        onClick={() => setChosen(!compact)}
-        className="self-start font-mono text-xs text-gray-400 transition-colors hover:text-gray-600"
-      >
-        {compact ? 'show logs ▾' : 'hide logs ▴'}
-      </button>
-      <div
-        className={`grid transition-all duration-500 ease-out ${compact ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`}
-      >
-        <div className="overflow-hidden">
-          <GateLog verification={verification} shown={shown} done={done} />
-        </div>
-      </div>
+      {!done && <GateLog verification={verification} shown={shown} done={done} />}
       {done && verification.chain && (
         <>
           <ChainDataStep verification={verification} />

@@ -55,6 +55,24 @@ export async function runGate<In, Out>(
   }
 }
 
+// A call that fails once the signal aborts: a call after that, or one
+// that hangs past it, rejects with the text.
+export function withDeadline<Args extends unknown[], Out>(
+  call: (...args: Args) => Promise<Out>,
+  signal: AbortSignal,
+  text: string,
+): (...args: Args) => Promise<Out> {
+  return (...args) =>
+    new Promise((resolve, reject) => {
+      const fail = () => reject(new Error(text))
+      if (signal.aborted) return fail()
+      signal.addEventListener('abort', fail, { once: true })
+      call(...args)
+        .then(resolve, reject)
+        .finally(() => signal.removeEventListener('abort', fail))
+    })
+}
+
 // Tauri commands reject with a string.
 export function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)

@@ -4,13 +4,10 @@
 import type { Contract } from './gates/contracts.ts'
 import type { Verification } from './gates/verification.ts'
 import { CollapsibleLog } from './Log.tsx'
+import { short } from './gates/words.ts'
 import { CollapsibleCard, Row, Step } from './Step.tsx'
 
 const ok = <span className="text-green-700"> ✓</span>
-
-function short(hash: string): string {
-  return `${hash.slice(0, 6)}…${hash.slice(-4)}`
-}
 
 function CodeRead({ contract, helios }: { contract: Contract; helios: boolean }) {
   const { address } = contract

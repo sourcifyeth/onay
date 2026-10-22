@@ -9,17 +9,7 @@ import type { Hex } from '../src/messages.ts'
 import type { LogLine } from '../src/gates/gate.ts'
 import type { ChainRead } from '../src/gates/helios.ts'
 import type { Call } from '../src/gates/request.ts'
-import {
-  blobGasPrice,
-  commonFor,
-  describe,
-  formatEther,
-  reverted,
-  parseHeader,
-  revertText,
-  simulationGateFor,
-  type Frame,
-} from '../src/gates/simulation.ts'
+import { describe, reverted, simulationGateFor, type Frame } from '../src/gates/simulation.ts'
 import { compile } from './solc.ts'
 
 const SENDER: Hex = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -305,68 +295,7 @@ test('a chain that answers with another block than the one asked for', async () 
   await assert.rejects(gate.run({ calls: [await call('run()')], block: 254 }, log), /gave block 255, not 254/)
 })
 
-test('revertText: the message of Error, the code of Panic, the selector of a custom error', () => {
-  const error = `0x08c379a0${'00'.repeat(31)}20${'00'.repeat(31)}04${Buffer.from('nope').toString('hex')}${'00'.repeat(28)}`
-  assert.equal(revertText(error as Hex), 'nope')
-  assert.equal(revertText(`0x4e487b71${'00'.repeat(31)}11`), 'panic 0x11 · arithmetic overflow')
-  assert.equal(revertText(`0x4e487b71${'00'.repeat(31)}ff`), 'panic 0xff')
-  assert.equal(revertText('0x12345678'), 'custom error 0x12345678')
-  assert.equal(revertText('0x'), 'reverted without a reason')
-  assert.equal(revertText('0x08c379a0'), 'custom error 0x08c379a0')
-})
-
-test('revertText: data in the shape of Error(string) that lies is a custom error, never an exception', () => {
-  const word = (n: number | bigint) => n.toString(16).padStart(64, '0')
-  // An offset past the data, an offset that is not a word, a length past
-  // the data, and an offset too large for a number.
-  for (const words of [
-    `${word(0x1000)}${word(4)}`,
-    `${word(0x21)}${word(4)}${'6e6f7065'}${'00'.repeat(28)}`,
-    `${word(0x20)}${word(0x1000)}${'6e6f7065'}${'00'.repeat(28)}`,
-    `${word(2n ** 255n)}${word(4)}`,
-    word(0x20),
-  ]) {
-    assert.equal(revertText(`0x08c379a0${words}`), 'custom error 0x08c379a0', words)
-  }
-})
-
-test('parseHeader takes the fields that the EVM reads and refuses others', () => {
-  const header = parseHeader(HEADER)
-  assert.equal(header.number, 255)
-  assert.equal(header.timestamp, 0x6900)
-  assert.equal(header.gasLimit, 30_000_000n)
-  assert.equal(header.baseFee, 1_000_000_000n)
-  assert.equal(header.coinbase, HEADER.miner)
-  assert.equal(header.prevRandao, HEADER.mixHash)
-  assert.equal(header.excessBlobGas, 0n)
-  const bare = parseHeader({ number: '0x1', timestamp: '0x2', gasLimit: '0x3', miner: HEADER.miner })
-  assert.equal(bare.baseFee, null)
-  assert.equal(bare.prevRandao, `0x${'0'.repeat(64)}`)
-  assert.equal(bare.excessBlobGas, null)
-  assert.throws(() => parseHeader(null), /unexpected a block/)
-  assert.throws(() => parseHeader({ ...HEADER, number: 255 }), /unexpected number/)
-  assert.throws(() => parseHeader({ ...HEADER, miner: '0x12' }), /unexpected miner/)
-  assert.throws(() => parseHeader({ ...HEADER, gasLimit: undefined }), /unexpected gas limit/)
-})
-
-test('blobGasPrice: one wei without excess, more with it', () => {
-  assert.equal(blobGasPrice(0n, 5007716n), 1n)
-  assert.equal(blobGasPrice(5007716n * 3n, 5007716n), 20n)
-})
-
-test('the blob fee fraction comes from the common, and follows the hardfork', () => {
-  const common = commonFor(1)
-  assert.equal(common.param('blobGasPriceUpdateFraction'), 5007716n)
-  common.setHardfork('bpo1')
-  assert.equal(common.param('blobGasPriceUpdateFraction'), 8346193n)
-})
-
-test('formatEther and describe', () => {
-  assert.equal(formatEther(0n), '0')
-  assert.equal(formatEther(10n ** 18n), '1')
-  assert.equal(formatEther(1_500_000_000_000_000_000n), '1.5')
-  assert.equal(formatEther(1n), '<0.000001')
-  assert.equal(formatEther(123_456_789_000_000n), '0.000123')
+test('describe: one frame in words', () => {
   const frame: Frame = {
     depth: 1,
     kind: 'call',

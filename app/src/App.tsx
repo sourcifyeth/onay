@@ -37,6 +37,7 @@ const STATUS_TEXT = {
   running: 'Checks are running.',
   passed: 'All checks passed.',
   flagged: 'Checks passed, with a warning.',
+  reverts: 'The transaction reverts in simulation. Do not sign it.',
   failed: 'A check failed.',
 }
 
@@ -44,6 +45,7 @@ const STATUS_COLOR = {
   running: 'text-gray-600',
   passed: 'text-gray-600',
   flagged: 'text-amber-700',
+  reverts: 'text-red-700',
   failed: 'text-red-700',
 }
 
