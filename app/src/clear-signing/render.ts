@@ -13,7 +13,6 @@ import {
   type DisplayModel,
   type FormatOptions,
   type RegistryIndex,
-  type TrustedTokens,
   type TypedData,
   type Warning,
 } from '@ethereum-sourcify/clear-signing'
@@ -22,8 +21,9 @@ import type { Hex, SigningRequest } from '../messages.ts'
 import { decodeCalldata, type Decoded } from './decode.ts'
 
 // Where the descriptor of a rendered call came from: a file in the
-// registry, or the bundled template of a token standard.
-export type DescriptorSource = { kind: 'registry'; path: string } | { kind: 'template' }
+// registry, or the bundled template of a token standard, with the names
+// of the token lists that hold the address.
+export type DescriptorSource = { kind: 'registry'; path: string } | { kind: 'template'; lists: string[] }
 
 export type Call = {
   to: Hex | null
@@ -168,15 +168,17 @@ export type RenderOptions = {
   chainId: number
   format: FormatOptions
   index: RegistryIndex
-  trustedTokens: TrustedTokens
+  // The names of the token lists that hold each address on the chain.
+  listed: Map<Hex, string[]>
   abis: Abis
 }
 
 function sourceOf(options: RenderOptions, address: Hex): DescriptorSource | null {
-  const { chainId, index, trustedTokens } = options
+  const { chainId, index, listed } = options
   const path = index.calldataIndex[`eip155:${chainId}:${address}`]
   if (path) return { kind: 'registry', path }
-  if (trustedTokens[chainId]?.[address]) return { kind: 'template' }
+  const lists = listed.get(address)
+  if (lists) return { kind: 'template', lists }
   return null
 }
 

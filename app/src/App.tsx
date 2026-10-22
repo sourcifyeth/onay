@@ -6,6 +6,7 @@ import { GatePage } from './GatePage.tsx'
 import { SettingsPage } from './SettingsPage.tsx'
 import { forgetVerification, requestKey, verificationFor } from './gates/verification.ts'
 import { forgetClearSigning } from './clear-signing/store.ts'
+import { refreshStaleTokenLists } from './clear-signing/tokenLists.ts'
 import { AttesterNotice } from './AttesterNotice.tsx'
 
 const OUTCOME_TEXT = {
@@ -148,6 +149,11 @@ export default function App() {
   const [openKey, setOpenKey] = useState<string | null>(null)
   const [settings, setSettings] = useState(false)
   const seen = useRef(new Set<string>())
+
+  // The token lists refresh once a day.
+  useEffect(() => {
+    void refreshStaleTokenLists()
+  }, [])
 
   useEffect(() => {
     const load = () => invoke<Snapshot>('link_state').then(setSnapshot, setFailure)

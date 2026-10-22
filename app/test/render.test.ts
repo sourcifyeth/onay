@@ -5,7 +5,13 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import type { Descriptor, DescriptorResolver, FormatOptions, RegistryIndex } from '@ethereum-sourcify/clear-signing'
+import type {
+  Descriptor,
+  DescriptorResolver,
+  FormatOptions,
+  RegistryIndex,
+  TrustedTokens,
+} from '@ethereum-sourcify/clear-signing'
 import { Interface, id } from 'ethers'
 import type { Hex, SigningRequest } from '../src/messages.ts'
 import {
@@ -85,17 +91,28 @@ const externalDataProvider = {
   chainClient: { call: async () => '0x' },
 }
 
-function options(change: Partial<RenderOptions> = {}, attesters?: string[]): RenderOptions {
+function options(
+  change: Partial<RenderOptions> = {},
+  attesters?: string[],
+  trustedTokens?: TrustedTokens,
+): RenderOptions {
   const format: FormatOptions = {
     descriptorResolverOptions: {
       type: 'custom',
       resolver,
-      trustedTokens: change.trustedTokens,
+      trustedTokens,
       attestations: attesters && { trustedAttesters: attesters },
     },
     externalDataProvider,
   }
-  return { chainId: 1, format, index, trustedTokens: {}, abis: (address) => (address === USDC ? ABI : null), ...change }
+  return {
+    chainId: 1,
+    format,
+    index,
+    listed: new Map(),
+    abis: (address) => (address === USDC ? ABI : null),
+    ...change,
+  }
 }
 
 function request(method: string, params: unknown): SigningRequest {
@@ -239,13 +256,14 @@ test('a contract without a descriptor: no descriptor, and the ABI decoding where
   assert.equal(result.call.decoded, null)
 })
 
-test('a token with the verified ABI of the standard renders with the bundled template', async () => {
+test('a token from a list renders with the bundled template, and the source names the list', async () => {
   const input = inputOf(request('eth_sendTransaction', [{ to: OTHER, data: TRANSFER }]))
   const trustedTokens = { 1: { [OTHER]: 'erc20' as const } }
-  const result = await render(input, options({ trustedTokens, abis: () => ABI }))
+  const listed = new Map<Hex, string[]>([[OTHER, ['CoW Swap']]])
+  const result = await render(input, options({ listed, abis: () => ABI }, undefined, trustedTokens))
   if (result.kind !== 'transaction') return assert.fail(result.kind)
   assert.equal(result.call.display?.intent, 'Send')
-  assert.deepEqual(result.call.source, { kind: 'template' })
+  assert.deepEqual(result.call.source, { kind: 'template', lists: ['CoW Swap'] })
   assert.equal(result.call.decoded?.name, 'transfer')
 })
 

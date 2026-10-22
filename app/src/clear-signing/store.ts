@@ -10,10 +10,10 @@ import { rpcRequest } from '../gates/helios.ts'
 import { requestKey, type TimedLine, type Verification } from '../gates/verification.ts'
 import type { ChainRequestArgs, Hex, SigningRequest } from '../messages.ts'
 import { attesterStore } from './attesters.ts'
-import { tokenStandard } from './decode.ts'
 import { providerFor, type Reader } from './provider.ts'
 import { EMPTY_INDEX, registryIndex } from './registry.ts'
 import { inputOf, reasonOf, render, rendered, type DescriptorSource, type Rendering } from './render.ts'
+import { listedOn, summary, tokenListStore, versionText } from './tokenLists.ts'
 
 export type ClearSigning = {
   status: 'running' | 'done'
@@ -111,21 +111,33 @@ function start(request: SigningRequest, verification: Verification): ClearSignin
       log({ source: 'erc7730', text: `trusted auditors · ${attesters.join(', ')}` })
     }
 
-    // A contract whose verified ABI has the functions of a token
-    // standard renders with the bundled template of the standard. Its
-    // symbol and decimals are its own claims, read from the chain.
+    // A contract that a token list of the user holds renders with the
+    // bundled template of ERC-20. The list is the claim of its publisher,
+    // not checked here. The symbol and decimals are the token's own
+    // claims, read from the chain.
+    const entries = tokenListStore.getSnapshot()
+    const accepted = entries.filter((entry) => entry.list !== null)
+    if (accepted.length === 0) {
+      log({ source: 'erc7730', text: 'no token list · no call renders with the token template' })
+    } else {
+      const names = accepted.map((entry) => {
+        const list = entry.list!
+        return `${list.name} ${versionText(list.version)} (${summary(list).tokens} tokens)`
+      })
+      log({ source: 'erc7730', text: `token lists · ${names.join(' · ')}`, proof: false })
+    }
+    const listed = listedOn(entries, chainId)
     const trustedTokens: TrustedTokens = { [chainId]: {} }
     const abis = new Map<Hex, unknown[]>()
     for (const contract of verification.contracts) {
-      if (contract.sourcify.status !== 'passed') continue
-      abis.set(contract.address, contract.sourcify.value.abi)
-      const standard = tokenStandard(contract.sourcify.value.abi)
-      if (standard) {
-        trustedTokens[chainId][contract.address] = standard
+      if (contract.sourcify.status === 'passed') abis.set(contract.address, contract.sourcify.value.abi)
+      const lists = listed.get(contract.address)
+      if (lists) {
+        trustedTokens[chainId][contract.address] = 'erc20'
         log({
           source: 'erc7730',
-          text: `${contract.address} · verified ABI has the ${standard} functions`,
-          proof: true,
+          text: `${contract.address} · listed as an ERC-20 token by ${lists.join(', ')}`,
+          proof: false,
         })
       }
     }
@@ -148,7 +160,7 @@ function start(request: SigningRequest, verification: Verification): ClearSignin
       chainId,
       format,
       index,
-      trustedTokens,
+      listed,
       abis: (address) => abis.get(address) ?? null,
     })
     logOutcome(rendering, log)

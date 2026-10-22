@@ -21,6 +21,7 @@ import {
 } from './clear-signing/render.ts'
 import { chainInfoOf, clearSigningFor, type ClearSigning } from './clear-signing/store.ts'
 import { ExternalLink } from './ExternalLink.tsx'
+import { ThirdPartyIcon } from './Icons.tsx'
 import type { Verification } from './gates/verification.ts'
 import { CollapsibleLog, Cursor } from './Log.tsx'
 import type { Hex, SigningRequest } from './messages.ts'
@@ -263,8 +264,12 @@ function Provenance({
   const owner = display.metadata?.owner
   if (source?.kind === 'template') {
     return (
-      <p className="pt-3 font-mono text-[11px] leading-relaxed text-gray-400">
-        standard token template · the name and symbol of the token are its own claims, read from the chain
+      <p className="flex items-start gap-1.5 pt-3 font-mono text-[11px] leading-relaxed text-gray-400">
+        <ThirdPartyIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" title="From a third party, not checked here" />
+        <span>
+          standard ERC-20 template · listed as a token by {source.lists.join(', ')}, a claim of the list, not checked
+          here · the name and symbol of the token are its own claims, read from the chain
+        </span>
       </p>
     )
   }
