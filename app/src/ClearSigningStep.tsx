@@ -401,7 +401,7 @@ function Unattested({ state }: { state: ClearSigning }) {
   return (
     <Notice tone="red">
       <strong className="font-semibold">Warning:</strong> no auditor you trust attested this descriptor in the registry.
-      Anyone can submit a descriptor, so this description is unreviewed. Read the ABI-Decoded tab before you sign.
+      Anyone can submit a descriptor, so this description is unreviewed.
     </Notice>
   )
 }
