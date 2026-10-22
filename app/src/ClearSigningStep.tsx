@@ -468,7 +468,8 @@ function NotRendered({ display, state }: { display: DisplayModel; state: ClearSi
   return <Notice tone="amber">{notRenderedText(display, state)}</Notice>
 }
 
-// The calldata in ABI words, when nothing decodes it.
+// The calldata in ABI words: the last fallback, when neither a
+// descriptor nor the ABI explains the call.
 function RawWords({ data }: { data: Hex }) {
   const raw = rawWords(data)
   if (!raw) {
@@ -506,10 +507,11 @@ function CallDecoded({ call, state }: { call: Call; state: ClearSigning }) {
         <Notice tone="amber">
           {why && `${why} `}
           {call.verified
-            ? 'The verified ABI of the contract has no function with the selector of this call, so the calldata cannot be decoded. A proxy, for example, forwards every call to its implementation through its fallback function. It shows raw.'
-            : 'The source code of the contract is not verified, so the calldata cannot be decoded. It shows raw.'}
+            ? 'The verified ABI of the contract has no function with the selector of this call, so the calldata cannot be decoded. A proxy, for example, forwards every call to its implementation through its fallback function.'
+            : 'The source code of the contract is not verified, so the calldata cannot be decoded.'}
+          {why !== null && ' The calldata shows in ABI words below.'}
         </Notice>
-        <RawWords data={call.data} />
+        {why !== null && <RawWords data={call.data} />}
       </div>
     )
   }
