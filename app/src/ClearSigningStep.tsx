@@ -347,7 +347,9 @@ function DisplayPane({
   const [open, setOpen] = useState(false)
   const { contractName, owner } = display.metadata ?? {}
   const intent = intentText(display.intent)
-  const about = contractName && owner ? `${contractName} by ${owner}` : (contractName ?? owner)
+  const sentence = display.interpolatedIntent
+  // Without a sentence the fields are the intent, so they show at once.
+  const fields = sentence ? open : true
   return (
     <div>
       {!attested && (
@@ -355,16 +357,34 @@ function DisplayPane({
           <Unattested state={state} />
         </div>
       )}
-      <Interpolated text={display.interpolatedIntent ?? intent} values={valuesOf(display.fields)} />
-      <div className="flex items-baseline justify-between gap-4 pt-2">
-        <p className="text-xs text-gray-500">{about ?? 'contract not named by the descriptor'}</p>
-        <Details open={open} onToggle={() => setOpen((v) => !v)} />
-      </div>
-      {open && (
+      <Interpolated text={sentence ?? intent} values={sentence ? valuesOf(display.fields) : []} />
+      <p className="px-4 pt-3 pb-1 text-sm leading-relaxed text-gray-600">
+        {contractName ? (
+          <>
+            Interacting with <span className="font-medium text-gray-800">{contractName}</span>
+            {owner && (
+              <>
+                {' '}
+                by <span className="font-medium text-gray-800">{owner}</span>
+              </>
+            )}
+          </>
+        ) : (
+          'The descriptor does not name the contract.'
+        )}
+      </p>
+      {sentence && (
+        <p className="px-4 pb-1">
+          <Details open={open} onToggle={() => setOpen((v) => !v)} />
+        </p>
+      )}
+      {fields && (
         <dl className="mt-2 divide-y divide-gray-100 border-t border-gray-100">
-          <Row label="Intent">
-            <span className="text-sm font-semibold text-gray-900">{intent}</span>
-          </Row>
+          {sentence && (
+            <Row label="Intent">
+              <span className="text-sm font-semibold text-gray-900">{intent}</span>
+            </Row>
+          )}
           <FieldRows fields={display.fields} />
         </dl>
       )}
