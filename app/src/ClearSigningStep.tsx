@@ -136,40 +136,89 @@ function FieldWarning({ warning }: { warning: Warning | undefined }) {
   return <p className="pt-0.5 text-right text-xs text-amber-700">⚠ {warning.message}</p>
 }
 
-function FieldValue({ field }: { field: DisplayField }) {
-  const rawAddress = field.rawAddress && field.rawAddress !== field.value ? field.rawAddress : null
-  const tokenAddress = field.warning?.code === 'UNKNOWN_TOKEN' ? field.tokenAddress : null
-  if (field.fieldType === 'bytes') {
-    return (
-      <span className="font-mono text-xs break-all text-gray-700" title={field.value}>
-        {field.value}
-      </span>
-    )
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// A value with a tooltip that shows what is behind it. A click copies
+// the tooltip's text.
+function Hint({
+  what,
+  text,
+  className,
+  children,
+}: {
+  what: string
+  text: string
+  className: string
+  children: ReactNode
+}) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    if (!(await copyText(text))) return
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
   }
   return (
-    <>
-      <span
-        className={`text-sm font-medium text-gray-800 ${field.fieldType === 'address' ? 'font-mono text-[13px] break-all' : ''}`}
+    <span className="group/hint relative inline-block">
+      <button
+        onClick={copy}
+        className={`cursor-copy text-left underline decoration-gray-300 decoration-dotted underline-offset-4 ${className}`}
       >
-        {field.value}
+        {children}
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none invisible absolute right-0 bottom-full z-20 mb-1.5 w-max max-w-[22rem] rounded-md bg-gray-800 px-2.5 py-1.5 text-left font-mono text-[11px] leading-relaxed break-all whitespace-normal text-white opacity-0 shadow-lg transition-opacity group-hover/hint:visible group-hover/hint:opacity-100"
+      >
+        <span className="block text-gray-400">{copied ? 'copied' : `${what} · click to copy`}</span>
+        {text}
       </span>
-      {rawAddress && (
-        <span className="block font-mono text-xs break-all text-gray-400" title="The address behind the name">
-          {rawAddress}
-        </span>
-      )}
-      {tokenAddress && (
-        <span className="block font-mono text-xs break-all text-gray-400" title="The token">
-          {tokenAddress}
-        </span>
-      )}
-      {field.rawEncryptedValue && field.warning?.code === 'DECRYPTION_FAILED' && (
-        <span className="block font-mono text-xs break-all text-gray-400" title="The encrypted value">
-          {field.rawEncryptedValue}
-        </span>
-      )}
-    </>
+    </span>
   )
+}
+
+function FieldValue({ field }: { field: DisplayField }) {
+  const value = field.value
+  if (field.fieldType === 'bytes') {
+    return (
+      <Hint what="bytes" text={value} className="font-mono text-xs break-all text-gray-700">
+        {value.length > 66 ? `${value.slice(0, 34)}…${value.slice(-30)}` : value}
+      </Hint>
+    )
+  }
+  if (field.fieldType === 'address') {
+    const named = field.rawAddress !== undefined && field.rawAddress !== value
+    return (
+      <Hint
+        what={named ? 'address behind the name' : 'address'}
+        text={field.rawAddress ?? value}
+        className={`text-sm font-medium text-gray-800 ${named ? '' : 'font-mono text-[13px] break-all'}`}
+      >
+        {value}
+      </Hint>
+    )
+  }
+  if (field.rawEncryptedValue && field.warning?.code === 'DECRYPTION_FAILED') {
+    return (
+      <Hint what="encrypted value" text={field.rawEncryptedValue} className="text-sm font-medium text-gray-800">
+        {value}
+      </Hint>
+    )
+  }
+  if (field.tokenAddress) {
+    return (
+      <Hint what="token contract" text={field.tokenAddress} className="text-sm font-medium text-gray-800">
+        {value}
+      </Hint>
+    )
+  }
+  return <span className="text-sm font-medium text-gray-800">{value}</span>
 }
 
 // A call inside a call: the field holds calldata for another contract.
@@ -332,6 +381,30 @@ function Unattested({ state }: { state: ClearSigning }) {
   )
 }
 
+// What else the descriptor says about the contract.
+function MetadataRows({ display }: { display: DisplayModel }) {
+  const { owner, info } = display.metadata ?? {}
+  return (
+    <>
+      {owner && (
+        <Row label="Owner">
+          <span className="text-sm text-gray-800">{owner}</span>
+        </Row>
+      )}
+      {info?.url && (
+        <Row label="Website">
+          <span className="font-mono text-[13px] break-all text-gray-800">{info.url}</span>
+        </Row>
+      )}
+      {info?.deploymentDate && (
+        <Row label="Deployed">
+          <span className="text-sm text-gray-800">{info.deploymentDate}</span>
+        </Row>
+      )}
+    </>
+  )
+}
+
 // A descriptor rendered the data: intent, sentence, fields.
 function DisplayPane({
   display,
@@ -389,6 +462,7 @@ function DisplayPane({
             </Row>
           )}
           <FieldRows fields={display.fields} />
+          <MetadataRows display={display} />
         </dl>
       )}
       <Warnings warnings={display.warnings} />
@@ -496,7 +570,13 @@ function Transfer({ call, currency }: { call: Call; currency: Currency }) {
           <span className="text-sm font-medium text-gray-800">{amount}</span>
         </Row>
         <Row label="To">
-          <span className="font-mono text-[13px] font-medium break-all text-gray-800">{to}</span>
+          {call.to ? (
+            <Hint what="address" text={call.to} className="font-mono text-[13px] font-medium break-all text-gray-800">
+              {call.to}
+            </Hint>
+          ) : (
+            <span className="text-sm font-medium text-gray-800">{to}</span>
+          )}
         </Row>
       </dl>
       <p className="pt-3 font-mono text-[11px] leading-relaxed text-gray-400">
