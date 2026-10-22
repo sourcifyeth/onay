@@ -805,7 +805,9 @@ export function ClearSigningStep({ request, verification }: { request: SigningRe
     <Step number={3} title="Clear Signing" explainer={EXPLAINER}>
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <Tabs tabs={tabsOf(state, chainId, currency)} />
-        <CollapsibleLog lines={state.lines} />
+        <div className="pt-3">
+          <CollapsibleLog lines={state.lines} />
+        </div>
       </section>
     </Step>
   )
