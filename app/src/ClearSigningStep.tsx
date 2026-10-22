@@ -83,10 +83,10 @@ function Interpolated({ text, values }: { text: string; values: string[] }) {
   const sorted = [...new Set(values)].sort((a, b) => b.length - a.length)
   const parts = sorted.length === 0 ? [text] : text.split(new RegExp(`(${sorted.map(escape).join('|')})`))
   return (
-    <p className="rounded-lg bg-cerulean-blue-100/50 px-4 py-3 text-[15px] leading-relaxed text-gray-700">
+    <p className="rounded-lg bg-cerulean-blue-100/50 px-4 py-3 text-[15px] leading-relaxed font-semibold text-gray-900">
       {parts.map((part, index) =>
         sorted.includes(part) ? (
-          <strong key={index} className="font-semibold text-gray-900">
+          <strong key={index} className="font-bold">
             {part}
           </strong>
         ) : (
@@ -107,10 +107,10 @@ function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
   )
 }
 
-function Details({ open, onToggle, label = 'details' }: { open: boolean; onToggle: () => void; label?: string }) {
+function Details({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
     <button onClick={onToggle} className="font-mono text-xs text-gray-400 transition-colors hover:text-gray-600">
-      {open ? `hide ${label} ▴` : `${label} ▾`}
+      {open ? 'hide details ▴' : 'details ▾'}
     </button>
   )
 }
@@ -226,9 +226,10 @@ function FieldValue({ field }: { field: DisplayField }) {
 function Embedded({ field }: { field: DisplayField }) {
   const [open, setOpen] = useState(false)
   const embedded = field.embeddedCalldata!
+  // The callee is the address the descriptor says this calldata goes to.
   const { display, callee } = embedded
   const chain = embedded.chainId !== undefined ? ` on chain ${embedded.chainId}` : ''
-  const target = `${display.metadata?.contractName ?? 'contract'}${callee ? ` ${short(callee)}` : ''}${chain}`
+  const sentence = display.interpolatedIntent ?? intentText(display.intent)
   return (
     <div className="py-2.5">
       <div className="flex items-baseline justify-between gap-6">
@@ -246,22 +247,35 @@ function Embedded({ field }: { field: DisplayField }) {
           ) : (
             <span className="text-sm text-amber-700">no descriptor for this call</span>
           )}
-          <span className="block text-xs text-gray-400">→ {target}</span>
+          <span className="block text-xs text-gray-400">
+            → {display.metadata?.contractName ?? 'contract'}{' '}
+            {callee && (
+              <Hint what="callee" text={callee} className="font-mono text-xs text-gray-400">
+                {short(callee)}
+              </Hint>
+            )}
+            {chain}
+          </span>
           <FieldWarning warning={field.warning} />
-          <span className="block pt-1">
-            <Details open={open} onToggle={() => setOpen((v) => !v)} />
+          <span className="block pt-1.5">
+            <button
+              onClick={() => setOpen((v) => !v)}
+              className="rounded-md border border-cerulean-blue-200 px-2.5 py-1 font-mono text-xs text-cerulean-blue-700 transition-colors hover:bg-cerulean-blue-100/50"
+            >
+              {open ? 'hide embedded call ▴' : 'show embedded call ▾'}
+            </button>
           </span>
         </dd>
       </div>
       {open && (
-        <div className="mt-2 rounded-lg border border-gray-200 px-3 py-1">
+        <div className="mt-2 rounded-lg border border-gray-200 p-3">
           {rendered(display) ? (
-            <dl className="divide-y divide-gray-100">
-              <Row label="Intent">
-                <span className="text-sm font-semibold text-gray-900">{intentText(display.intent)}</span>
-              </Row>
-              <FieldRows fields={display.fields} />
-            </dl>
+            <>
+              <Interpolated text={sentence} values={display.interpolatedIntent ? valuesOf(display.fields) : []} />
+              <dl className="mt-2 divide-y divide-gray-100 px-4">
+                <FieldRows fields={display.fields} />
+              </dl>
+            </>
           ) : (
             <p className="py-2 font-mono text-xs break-all text-gray-500">{field.value}</p>
           )}
