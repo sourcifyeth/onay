@@ -496,38 +496,42 @@ const ABI_SOURCE =
 
 // The calldata as the verified ABI decodes it, with the reason why no
 // descriptor rendered it.
-function CallDecoded({ call, state }: { call: Call; state: ClearSigning }) {
-  const { display, decoded } = call
+function CallDecoded({ call }: { call: Call }) {
+  const { decoded } = call
   if (call.data === '0x') return <Notice tone="gray">A plain value transfer: no calldata, nothing to decode.</Notice>
   if (call.to === null) return <Creation />
-  const why = display && !rendered(display) ? notRenderedText(display, state) : null
   if (!decoded) {
     return (
-      <div className="flex flex-col gap-2">
-        <Notice tone="amber">
-          {why && `${why} `}
-          {call.verified
-            ? 'The verified ABI of the contract has no function with the selector of this call, so the calldata cannot be decoded. A proxy, for example, forwards every call to its implementation through its fallback function.'
-            : 'The source code of the contract is not verified, so the calldata cannot be decoded.'}
-          {why !== null && ' The calldata shows in ABI words below.'}
-        </Notice>
-        {why !== null && <RawWords data={call.data} />}
-      </div>
+      <Notice tone="amber">
+        {call.verified
+          ? 'The verified ABI of the contract has no function with the selector of this call, so the calldata cannot be decoded. A proxy, for example, forwards every call to its implementation through its fallback function.'
+          : 'The source code of the contract is not verified, so the calldata cannot be decoded.'}
+      </Notice>
     )
   }
   return (
     <div className="flex flex-col gap-2">
-      {why ? (
-        <Notice tone="amber">
-          {why} The call is decoded with the verified ABI instead. The function and parameter names come from the ABI,
-          not from a Clear Signing descriptor. {ABI_SOURCE}
-        </Notice>
-      ) : (
-        <Notice tone="gray">
-          The function and parameter names come from the ABI, not from the Clear Signing descriptor. {ABI_SOURCE}
-        </Notice>
-      )}
+      <Notice tone="gray">
+        The function and parameter names come from the ABI, not from a Clear Signing descriptor. {ABI_SOURCE}
+      </Notice>
       <DecodedBlock decoded={decoded} />
+    </div>
+  )
+}
+
+// No descriptor rendered the call: why, and where the call shows
+// instead. The raw words are the last fallback, when the ABI did not
+// decode it either.
+function Fallback({ call, state }: { call: Call; state: ClearSigning }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Notice tone="amber">
+        {call.display && notRenderedText(call.display, state)}
+        {call.decoded
+          ? ' The ABI-Decoded tab shows the call as the verified ABI decodes it.'
+          : ' The ABI does not decode it either, so the calldata shows in ABI words below.'}
+      </Notice>
+      {!call.decoded && <RawWords data={call.data} />}
     </div>
   )
 }
@@ -574,9 +578,7 @@ function CallPane({ call, currency, state }: { call: Call; currency: Currency; s
   if (rendered(call.display)) {
     return <DisplayPane display={call.display!} source={call.source} attested={call.attested} state={state} />
   }
-  // A call of a batch that no descriptor rendered. The decoding is in
-  // the ABI tab.
-  return <CallDecoded call={call} state={state} />
+  return <Fallback call={call} state={state} />
 }
 
 function BatchPane({
@@ -755,7 +757,7 @@ function DecodedPane({ state }: { state: ClearSigning }) {
   if (!rendering || rendering.kind === 'none' || rendering.kind === 'typedData') {
     return <Notice tone="gray">Nothing to decode.</Notice>
   }
-  if (rendering.kind === 'transaction') return <CallDecoded call={rendering.call} state={state} />
+  if (rendering.kind === 'transaction') return <CallDecoded call={rendering.call} />
   return (
     <div className="flex flex-col gap-2">
       {rendering.calls.map((call, index) => (
@@ -763,7 +765,7 @@ function DecodedPane({ state }: { state: ClearSigning }) {
           <p className="pb-1 font-mono text-xs text-gray-400">
             call {index + 1} · {call.to ?? 'a new contract'}
           </p>
-          <CallDecoded call={call} state={state} />
+          <CallDecoded call={call} />
         </div>
       ))}
     </div>
@@ -837,8 +839,7 @@ function RawPane({ state, chainId, currency }: { state: ClearSigning; chainId: n
 
 type Tab = { label: string; content: ReactNode }
 
-// The clear-signing tab shows only when a descriptor rendered at least
-// one call, or until the rendering is done. The ABI tab shows for every
+// The labels say what each tab holds. The ABI tab shows for every
 // transaction, the raw tab always.
 function tabsOf(state: ClearSigning, chainId: number, currency: Currency): Tab[] {
   const { rendering } = state
@@ -855,7 +856,7 @@ function tabsOf(state: ClearSigning, chainId: number, currency: Currency): Tab[]
     content: <DecodedPane state={state} />,
   }
   const anyRendered = withData.length === 0 || withData.some((call) => rendered(call.display))
-  return anyRendered ? [clear, decoded, raw] : [decoded, raw]
+  return [{ ...clear, label: anyRendered ? 'Clear Signing' : 'No Clear Signing' }, decoded, raw]
 }
 
 const EXPLAINER =
