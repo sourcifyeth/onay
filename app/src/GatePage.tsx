@@ -3,8 +3,8 @@ import type { SigningRequest } from './messages.ts'
 import { chainName } from './chains.ts'
 import { ChainDataStep } from './ChainDataStep.tsx'
 import { Cursor, LogLineView } from './Log.tsx'
+import { SimulationStep } from './SimulationStep.tsx'
 import { VerificationStep } from './VerificationStep.tsx'
-import type { GateState } from './gates/gate.ts'
 import { verificationFor, type TimedLine, type Verification } from './gates/verification.ts'
 
 // The log shows at most one new line in this time, so that you can read it.
@@ -51,8 +51,13 @@ function ChainBadge({ chainId, address }: { chainId: number | null; address?: st
 }
 
 function Summary({ request, verification }: { request: SigningRequest; verification: Verification }) {
-  const { contracts, chainId } = verification
+  const { chainId } = verification
   const label = request.method.startsWith('eth_signTypedData') ? 'Verifying contract' : 'To'
+  // The contracts the request names. Their implementations and the
+  // contracts the simulation found are in the review below.
+  const named = verification.contracts.filter(
+    (contract) => contract.foundBy === 'request' && !contract.implementationOf,
+  )
   return (
     <section className="animate-fade-up">
       <p className="text-base font-medium text-gray-900">
@@ -61,7 +66,7 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
       <p className="pt-1 text-sm text-gray-500">
         Your wallet has the same request now. Check it here before you confirm there.
       </p>
-      {contracts.length === 0 ? (
+      {named.length === 0 ? (
         chainId !== null && (
           <div className="pt-5">
             <ChainBadge chainId={chainId} />
@@ -69,7 +74,7 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
         )
       ) : (
         <div className="grid grid-cols-[max-content_1fr] items-center gap-x-3 gap-y-1 pt-5">
-          {contracts.map((contract, index) => (
+          {named.map((contract, index) => (
             <Fragment key={contract.address}>
               <span className="text-xs text-gray-500">{index === 0 ? label : ''}</span>
               <ChainBadge chainId={chainId} address={contract.address} />
@@ -81,29 +86,25 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
   )
 }
 
-// The lines of one gate under its header.
+// The lines of one gate under its header. The log shows only while the
+// run goes on, so the header always has the running dot.
 function Section({
   title,
   color,
   subtitle,
   lines,
-  state,
 }: {
   title: string
   color: string
   subtitle: string
   lines: TimedLine[]
-  state: 'running' | 'passed' | 'failed'
 }) {
-  const dot = { running: 'bg-yellow-400', passed: 'bg-green-600', failed: 'bg-light-coral-600' }[state]
   return (
     <section className="pt-3">
       <div className="flex items-center gap-2">
         <span className="relative flex h-2 w-2">
-          {state === 'running' && (
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-300 opacity-75" />
-          )}
-          <span className={`relative inline-flex h-2 w-2 rounded-full ${dot}`} />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-300 opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-yellow-400" />
         </span>
         <span className={color}>{title}</span>
         <span className="truncate text-gray-500">· {subtitle}</span>
@@ -112,24 +113,18 @@ function Section({
         {lines.map((line, index) => (
           <LogLineView key={index} line={line} />
         ))}
-        {state === 'running' && <Cursor />}
+        <Cursor />
       </div>
     </section>
   )
 }
 
-// The state of one gate over each contract.
-function gateStatus(states: GateState<unknown>[]): 'running' | 'passed' | 'failed' {
-  if (states.some(({ status }) => status === 'failed')) return 'failed'
-  if (states.every(({ status }) => status === 'passed' || status === 'skipped')) return 'passed'
-  return 'running'
-}
-
-function GateLog({ verification, shown, done }: { verification: Verification; shown: number; done: boolean }) {
+function GateLog({ verification, shown }: { verification: Verification; shown: number }) {
   const { contracts, chainId, chain } = verification
   const mode = chain?.mode ?? null
   const visible = verification.lines.slice(0, shown)
   const browser = visible.filter((line) => line.source === 'browser')
+  const evm = visible.filter((line) => line.source === 'evm')
   const sourcify = visible.filter((line) => line.source === 'sourcify' || line.source === 'solc')
   const chainLines = visible.filter((line) => line.source === mode)
   const target = contracts.length === 1 ? contracts[0].address : `${contracts.length} contracts`
@@ -144,10 +139,17 @@ function GateLog({ verification, shown, done }: { verification: Verification; sh
           color={mode === 'helios' ? 'text-cerulean-blue-500' : 'text-amber-600'}
           subtitle={chainId === null ? target : `${target} on ${chainName(chainId)}`}
           lines={chainLines}
-          state={done ? gateStatus(contracts.map((contract) => contract.helios)) : 'running'}
         />
       ) : (
-        !done && <Cursor />
+        <Cursor />
+      )}
+      {mode && evm.length > 0 && (
+        <Section
+          title="evm"
+          color="text-cerulean-blue-500"
+          subtitle={`local simulation · state from ${mode}`}
+          lines={evm}
+        />
       )}
       {sourcify.length > 0 && (
         <Section
@@ -155,7 +157,6 @@ function GateLog({ verification, shown, done }: { verification: Verification; sh
           color="text-cerulean-blue-500"
           subtitle={`${target} · sources from sourcify.dev, compiled here`}
           lines={sourcify}
-          state={done ? gateStatus(contracts.map((contract) => contract.sourcify)) : 'running'}
         />
       )}
     </div>
@@ -181,33 +182,19 @@ export function GatePage({ request, onBack }: { request: SigningRequest; onBack:
   const shown = usePacedCount(verification.lines.length, ended ? verification.lines.length : 0)
   const done = verification.status !== 'running' && shown === verification.lines.length
 
-  // The log folds when the review takes its place, unless you choose.
-  const [chosen, setChosen] = useState<boolean | null>(null)
-  const compact = chosen ?? done
-
+  // The log is the live run. When the run ends, the cards of the review
+  // take its place, each with the lines of its own gate.
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 py-2">
       <button onClick={onBack} className="self-start font-mono text-xs text-gray-400 hover:text-gray-600">
         ← all requests
       </button>
       <Summary request={request} verification={verification} />
-      {/* Always there, so that the page does not move when the checks end. */}
-      <button
-        onClick={() => setChosen(!compact)}
-        className="self-start font-mono text-xs text-gray-400 transition-colors hover:text-gray-600"
-      >
-        {compact ? 'show logs ▾' : 'hide logs ▴'}
-      </button>
-      <div
-        className={`grid transition-all duration-500 ease-out ${compact ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`}
-      >
-        <div className="overflow-hidden">
-          <GateLog verification={verification} shown={shown} done={done} />
-        </div>
-      </div>
+      {!done && <GateLog verification={verification} shown={shown} />}
       {done && verification.chain && (
         <>
           <ChainDataStep verification={verification} />
+          <SimulationStep verification={verification} />
           <VerificationStep verification={verification} />
         </>
       )}

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import type { SigningRequest } from '../src/messages.ts'
-import { chainOf, contractsOf, parseChainId, parseQuantity } from '../src/gates/request.ts'
+import { callsOf, chainOf, contractsOf, parseChainId, parseQuantity } from '../src/gates/request.ts'
 
 const A = '0xff75a951eeb963dd34a1712edc3c358f08e6b0aa'
 const B = '0x1111111111111111111111111111111111111111'
@@ -89,4 +89,63 @@ test('parseQuantity takes hex strings only', () => {
   for (const value of ['', '0x', '26', 26, '0xzz', ' 0x1', null, '0x20000000000000']) {
     assert.equal(parseQuantity(value), null, String(value))
   }
+})
+
+const FROM = '0x9f21b45c7e83a10fd4e2c11098d2ce6f4b76c04e'
+
+test('callsOf: a transaction, with its data, value and gas', () => {
+  const tx = { from: FROM.toUpperCase().replace('0X', '0x'), to: A, data: '0x12345678', value: '0x5', gas: '0x5208' }
+  assert.deepEqual(callsOf(request('eth_sendTransaction', [tx])), {
+    calls: [{ from: FROM, to: A, data: '0x12345678', value: 5n, gas: 21000n }],
+  })
+  assert.deepEqual(callsOf(request('eth_signTransaction', [{ from: FROM, to: A, input: '0xab' }])), {
+    calls: [{ from: FROM, to: A, data: '0xab', value: 0n, gas: null }],
+  })
+  assert.deepEqual(callsOf(request('eth_sendTransaction', [{ from: FROM, to: A, value: null, gas: null }])).calls, [
+    { from: FROM, to: A, data: '0x', value: 0n, gas: null },
+  ])
+})
+
+test('callsOf: each call of a batch, from the sender of the batch', () => {
+  const batch = {
+    from: FROM,
+    calls: [
+      { to: A, data: '0x01' },
+      { to: B, value: '0x1' },
+    ],
+  }
+  assert.deepEqual(callsOf(request('wallet_sendCalls', [batch])), {
+    calls: [
+      { from: FROM, to: A, data: '0x01', value: 0n, gas: null },
+      { from: FROM, to: B, data: '0x', value: 1n, gas: null },
+    ],
+  })
+})
+
+test('callsOf: nothing to run, with the reason, and whether the request still runs on chain', () => {
+  const reason = (method: string, params: unknown) => callsOf(request(method, params)).reason
+  const runs = (method: string, params: unknown) => callsOf(request(method, params)).runs
+  assert.match(reason('personal_sign', ['0x68656c6c6f', A]) ?? '', /nothing runs/)
+  assert.match(reason('eth_signTypedData_v4', [A, '{}']) ?? '', /nothing runs/)
+  assert.equal(runs('personal_sign', ['0x68656c6c6f', A]), false)
+  assert.equal(runs('eth_signTypedData_v4', [A, '{}']), false)
+  assert.equal(runs('eth_sendTransaction', [{ to: A }]), true)
+  assert.equal(runs('eth_sendTransaction', [{ from: FROM }]), true)
+  assert.equal(runs('wallet_sendCalls', [{ calls: [{ to: A }] }]), true)
+  assert.equal(reason('eth_sendTransaction', [{ to: A }]), 'the request names no sender')
+  assert.equal(reason('eth_sendTransaction', [{ from: FROM }]), 'contract creation · not simulated')
+  assert.equal(reason('eth_sendTransaction', [{ from: FROM, to: A, data: '0x123' }]), 'the request has unexpected data')
+  assert.equal(
+    reason('eth_sendTransaction', [{ from: FROM, to: A, value: '5' }]),
+    'the request has an unexpected value',
+  )
+  assert.equal(
+    reason('eth_sendTransaction', [{ from: FROM, to: A, gas: 21000 }]),
+    'the request has an unexpected gas limit',
+  )
+  assert.equal(
+    reason('wallet_sendCalls', [{ from: FROM, calls: [{ to: A }, {}] }]),
+    'contract creation · not simulated',
+  )
+  assert.equal(reason('eth_sendTransaction', 'nonsense'), 'the request names no sender')
 })

@@ -74,6 +74,13 @@ export function failureOf(state: GateState<Verified>): SourcifyFailure | null {
   return null
 }
 
+// What Sourcify claims, from a passed gate or from a failure that kept it.
+export function claimOf(state: GateState<Verified>): Found | null {
+  if (state.status === 'passed') return state.value.claim
+  const failure = failureOf(state)
+  return failure?.kind === 'not reproduced' ? failure.claim : null
+}
+
 // Verifications by chain, address and code, so that a contract that is in
 // many requests compiles once.
 const verified = new Map<string, Promise<Verified>>()

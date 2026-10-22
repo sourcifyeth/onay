@@ -49,7 +49,7 @@ The verifier is view only: it never signs and never holds a request back. The wa
 - **Interception.** A thin extension wraps the page's EIP-1193 provider (the standard wallet-injection interface) and copies `eth_sendTransaction` and signing requests to the app. The call to the wallet is not delayed and not changed. If the app is not running, the extension asks you to open it, then forwards.
 - **Beyond the extension.** The app also accepts requests that never touched a browser: transaction data pasted by hand (a raw transaction, calldata, or an EIP-712 payload), and animated QR codes from air-gapped hardware wallets via [ERC-4527](https://eips.ethereum.org/EIPS/eip-4527), the `eth-sign-request` Uniform Resources format used by Keystone, OneKey, and AirGap.
 - **Call-tree simulation.** The transaction is executed locally (ethereumjs EVM) against verified chain state, for one purpose in this version: reconstructing the call tree, so the review shows every contract the transaction actually touches, not just the entry point. Effects preview (balance changes, storage writes, events) is deliberately out of scope until a later version.
-- **Local verification gate.** The app fetches the sources of every contract in the call tree from Sourcify, recompiles them locally, and compares the results against the on-chain bytecode. Sourcify's claim is never trusted; we reproduce it.
+- **Local verification gate.** The app fetches the sources of every contract in the call tree from Sourcify, recompiles them locally, and compares the results against the on-chain bytecode. Sourcify's claim is never trusted; we reproduce it. A contract that the request names must pass. A contract whose code runs as a named contract, the implementation of a proxy or a facet of a diamond, must pass too. A contract that only the call tree reaches may have no sources on Sourcify: that does not block the request, but the review flags it, because what that contract does cannot be checked.
 - **Clear signing.** The verified ABI (Application Binary Interface) plus ERC-7730 descriptors render the request as human-readable intent.
 - **Review next to the wallet.** The app shows its result while the wallet shows its own confirmation. You approve or reject in the wallet, as always.
 - **Digest cross-check ([ERC-8213](https://github.com/ethereum/ERCs/pull/1639)).** The app displays the request's digest using the exact terminology the standard mandates: the Calldata Digest for transactions (`keccak256(uint256(len(calldata)) || calldata)`, chain-independent by design) and the EIP-712 Digest for typed-data signatures. A wallet that also implements ERC-8213 (Keycard Shell is the first hardware wallet to do so) shows the same value before signing; comparing the two proves the wallet received exactly the bytes you reviewed, even if the dapp or browser was compromised in between. This closes the last gap in the flow: the app verifies what you review, the digest verifies what you sign.
@@ -133,7 +133,7 @@ Each step ends with something that runs and can be reviewed. Steps 3 to 6 work o
    - Native Rust Helios, exposed to the webview as EIP-1193 over Tauri IPC (inter-process communication).
 4. **Gate 2: Sourcify.** Fetch sources, recompile locally, compare against the verified on-chain bytecode.
    - Download solc only from the official list, hash-checked before running.
-   - Resolve proxies (EIP-1967 slots) so the implementation gets verified too.
+   - Proxies: the implementation is found by the simulation of step 7, not by reading EIP-1967 slots.
    - Show result, sources, compiler settings; "open files in your editor".
    - Requests to the Sourcify server carry a User-Agent header with the app name and version.
 5. **Clear signing (ERC-7730).** Decode the call with the verified ABI (Application Binary Interface).
@@ -142,7 +142,7 @@ Each step ends with something that runs and can be reviewed. Steps 3 to 6 work o
 6. **Digest (ERC-8213).** Show the Calldata Digest or EIP-712 Digest.
 7. **Call-tree simulation.** Run the transaction in a local EVM (ethereumjs) on verified state.
    - Collect every touched contract, run both gates on each, display them all.
-   - This also covers delegatecalls and diamonds, replacing the step 4 proxy shortcut.
+   - This also covers proxies, delegatecalls and diamonds, so step 4 reads no EIP-1967 slots.
 8. **Other inputs.** Pasted transactions and animated QR codes (ERC-4527) enter the same pipeline.
 
 ### Preparing for step 7 from day one

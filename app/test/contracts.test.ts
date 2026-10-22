@@ -2,7 +2,21 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import type { Hex } from '../src/messages.ts'
-import { add, initial, MAX_CONTRACTS, passedCount, pending, update, type Contract } from '../src/gates/contracts.ts'
+import {
+  add,
+  addImplementation,
+  grow,
+  initial,
+  runVerdict,
+  MAX_CONTRACTS,
+  pending,
+  tally,
+  update,
+  verdictOf,
+  type Contract,
+} from '../src/gates/contracts.ts'
+import type { GateState } from '../src/gates/gate.ts'
+import type { Simulation, Touched } from '../src/gates/simulation.ts'
 import type { Verified } from '../src/gates/verify.ts'
 
 const A: Hex = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -26,30 +40,53 @@ const code = (contract: Contract) => ({ address: contract.address, block: 1, cod
 
 test('initial: one waiting contract for each address, in the order of the request', () => {
   assert.deepEqual(initial([A, B]), [
-    { address: A, helios: waiting, sourcify: waiting },
-    { address: B, helios: waiting, sourcify: waiting },
+    { address: A, foundBy: 'request', helios: waiting, sourcify: waiting },
+    { address: B, foundBy: 'request', helios: waiting, sourcify: waiting },
   ])
   assert.deepEqual(initial([]), [])
 })
 
 test('add: a new address goes at the end, in lower case', () => {
-  const contracts = add([], A.toUpperCase().replace('0X', '0x') as Hex)
-  assert.deepEqual(contracts, [{ address: A, helios: waiting, sourcify: waiting }])
+  const contracts = add([], A.toUpperCase().replace('0X', '0x') as Hex, 'simulation')
+  assert.deepEqual(contracts, [{ address: A, foundBy: 'simulation', helios: waiting, sourcify: waiting }])
 })
 
 test('add: an address that is in the list gives the same list, whatever its case', () => {
   const contracts = initial([A])!
-  assert.equal(add(contracts, A), contracts)
-  assert.equal(add(contracts, A.toUpperCase().replace('0X', '0x') as Hex), contracts)
+  assert.equal(add(contracts, A, 'simulation'), contracts)
+  assert.equal(add(contracts, A.toUpperCase().replace('0X', '0x') as Hex, 'request'), contracts)
 })
 
 test('add: a full list gives null, and so does a request with too many contracts', () => {
   const addresses = Array.from({ length: MAX_CONTRACTS }, (_, n) => address(n + 1))
   const full = initial(addresses)!
   assert.equal(full.length, MAX_CONTRACTS)
-  assert.equal(add(full, A), null)
-  assert.equal(add(full, addresses[0]), full)
+  assert.equal(add(full, A, 'simulation'), null)
+  assert.equal(add(full, addresses[0], 'simulation'), full)
   assert.equal(initial([...addresses, A]), null)
+})
+
+test('addImplementation: a new implementation counts as named, with its proxy', () => {
+  const contracts = initial([A])!
+  assert.deepEqual(addImplementation(contracts, A, B.toUpperCase().replace('0X', '0x') as Hex), [
+    ...contracts,
+    { address: B, foundBy: 'request', implementationOf: A, helios: waiting, sourcify: waiting },
+  ])
+})
+
+test('addImplementation: an implementation the simulation found is promoted, and keeps its states', () => {
+  const found = update(add(initial([A])!, B, 'simulation')!, B, {
+    helios: { status: 'passed', value: code({ address: B } as Contract) },
+    sourcify: passed,
+  })
+  const contracts = addImplementation(found, A, B)!
+  assert.deepEqual(contracts[0], found[0])
+  assert.deepEqual(contracts[1], { ...found[1], foundBy: 'request', implementationOf: A })
+})
+
+test('addImplementation: a full list gives null', () => {
+  const full = initial(Array.from({ length: MAX_CONTRACTS }, (_, n) => address(n + 1)))!
+  assert.equal(addImplementation(full, address(1), A), null)
 })
 
 test('update takes the address in any case', () => {
@@ -62,8 +99,8 @@ test('update changes the states of one contract and keeps the others', () => {
   const contracts = initial([A, B])!
   const changed = update(contracts, B, { helios: { status: 'running' } })
   assert.deepEqual(changed, [
-    { address: A, helios: waiting, sourcify: waiting },
-    { address: B, helios: { status: 'running' }, sourcify: waiting },
+    { address: A, foundBy: 'request', helios: waiting, sourcify: waiting },
+    { address: B, foundBy: 'request', helios: { status: 'running' }, sourcify: waiting },
   ])
   assert.deepEqual(contracts[1].helios, waiting)
 })
@@ -77,19 +114,19 @@ test('pending while a gate of a contract waits or runs, not when each one passed
   assert.equal(pending(contracts), true)
   contracts = update(contracts, B, { helios: { status: 'failed', reason: 'no proof' } })
   assert.equal(pending(contracts), false)
-  assert.equal(passedCount(contracts), 1)
+  assert.deepEqual(tally(contracts), { pending: 0, passed: 1, flagged: 0, failed: 1 })
   assert.equal(pending([]), false)
 })
 
 test('a contract passed when each of its gates passed or had nothing to check', () => {
   let contracts = initial([A, B])!
   contracts = update(contracts, A, { helios: { status: 'passed', value: code(contracts[0]) } })
-  assert.equal(passedCount(contracts), 0)
+  assert.equal(verdictOf(contracts[0]), 'pending')
   contracts = update(contracts, A, { sourcify: passed })
-  assert.equal(passedCount(contracts), 1)
+  assert.equal(verdictOf(contracts[0]), 'passed')
   contracts = update(contracts, B, { helios: { status: 'passed', value: code(contracts[1]) } })
   contracts = update(contracts, B, { sourcify: { status: 'skipped', reason: 'not a contract' } })
-  assert.equal(passedCount(contracts), 2)
+  assert.deepEqual(tally(contracts), { pending: 0, passed: 2, flagged: 0, failed: 0 })
   assert.equal(pending(contracts), false)
 })
 
@@ -97,7 +134,125 @@ test('a contract added during the run makes the list pending again', () => {
   let contracts = initial([A])!
   contracts = update(contracts, A, { sourcify: passed, helios: { status: 'passed', value: code(contracts[0]) } })
   assert.equal(pending(contracts), false)
-  contracts = add(contracts, B)!
+  contracts = add(contracts, B, 'simulation')!
   assert.equal(pending(contracts), true)
-  assert.equal(passedCount(contracts), 1)
+  assert.deepEqual(tally(contracts), { pending: 1, passed: 1, flagged: 0, failed: 0 })
+})
+
+const notVerified = { status: 'failed', reason: 'not verified on Sourcify', cause: { kind: 'not verified' } } as const
+const notReproduced = {
+  status: 'failed',
+  reason: 'not the code',
+  cause: { kind: 'not reproduced', claim: {} },
+} as const
+
+test('a contract the simulation found, with nothing on Sourcify, is flagged', () => {
+  let contracts = add(initial([A])!, B, 'simulation')!
+  contracts = update(contracts, B, { helios: { status: 'passed', value: code(contracts[1]) }, sourcify: notVerified })
+  assert.equal(verdictOf(contracts[1]), 'flagged')
+  assert.equal(pending(contracts), true)
+  assert.deepEqual(tally(contracts), { pending: 1, passed: 0, flagged: 1, failed: 0 })
+})
+
+test('a contract the request names, with nothing on Sourcify, fails', () => {
+  let contracts = initial([A])!
+  contracts = update(contracts, A, { helios: { status: 'passed', value: code(contracts[0]) }, sourcify: notVerified })
+  assert.equal(verdictOf(contracts[0]), 'failed')
+})
+
+test('a found contract fails when its code was not read, or its sources do not match', () => {
+  let contracts = add([], B, 'simulation')!
+  const failed = { status: 'failed', reason: 'the code was not read' } as const
+  assert.equal(verdictOf(update(contracts, B, { helios: failed, sourcify: notVerified })[0]), 'failed')
+  contracts = update(contracts, B, { helios: { status: 'passed', value: code(contracts[0]) } })
+  assert.equal(verdictOf(update(contracts, B, { sourcify: notReproduced })[0]), 'failed')
+  assert.equal(verdictOf(update(contracts, B, { sourcify: { status: 'failed', reason: 'HTTP 500' } })[0]), 'failed')
+})
+
+const C: Hex = '0xcccccccccccccccccccccccccccccccccccccccc'
+const touched = (address: Hex, ...contexts: Hex[]): Touched => ({ address, block: 1, code: '0x60', contexts })
+
+test('grow: a contract on the way, an implementation of a named contract, and one already named', () => {
+  const contracts = grow(initial([A])!, [touched(A, A), touched(B, A), touched(C, C)])!
+  assert.deepEqual(
+    contracts.map(({ address, foundBy, implementationOf }) => [address, foundBy, implementationOf]),
+    [
+      [A, 'request', undefined],
+      [B, 'request', A],
+      [C, 'simulation', undefined],
+    ],
+  )
+})
+
+test('grow: code that ran in the context of an implementation, not of a named contract, stays on the way', () => {
+  const contracts = grow(initial([A])!, [touched(B, A), touched(C, B)])!
+  assert.equal(contracts[2].foundBy, 'simulation')
+})
+
+test('grow: a full list gives null', () => {
+  const full = initial(Array.from({ length: MAX_CONTRACTS }, (_, n) => address(n + 1)))!
+  assert.equal(grow(full, [touched(A, A)]), null)
+  assert.equal(grow(full, [touched(address(1), address(1))]), full)
+})
+
+const simulated = (reverts: boolean): GateState<Simulation> => ({
+  status: 'passed',
+  value: {
+    header: {
+      number: 1,
+      timestamp: 0,
+      gasLimit: 0n,
+      baseFee: null,
+      coinbase: A,
+      prevRandao: '0x',
+      excessBlobGas: null,
+    },
+    calls: [{ call: { from: A, to: B, data: '0x', value: 0n, gas: null }, frames: [], error: reverts ? 'nope' : null }],
+    touched: [],
+    reads: { accounts: 0, slots: 0 },
+  },
+})
+const verifiedContract = (address: Hex, foundBy: 'request' | 'simulation' = 'request'): Contract => ({
+  address,
+  foundBy,
+  helios: { status: 'passed', value: { address, block: 1, code: '0x60' } },
+  sourcify: passed,
+})
+
+test('runVerdict: passed when every contract passed and the simulation ran through', () => {
+  assert.deepEqual(runVerdict([verifiedContract(A)], simulated(false), true), { status: 'passed', notes: [] })
+})
+
+test('runVerdict: a contract on the way without sources flags, a named one fails', () => {
+  const onTheWay = { ...verifiedContract(B, 'simulation'), sourcify: notVerified }
+  assert.deepEqual(runVerdict([verifiedContract(A), onTheWay], simulated(false), true), {
+    status: 'flagged',
+    notes: ['1 not verified on Sourcify'],
+  })
+  const named = { ...verifiedContract(B), sourcify: notVerified }
+  assert.equal(runVerdict([verifiedContract(A), named], simulated(false), true).status, 'failed')
+})
+
+test('runVerdict: a revert is a result of its own, below a failed contract', () => {
+  assert.deepEqual(runVerdict([verifiedContract(A)], simulated(true), true), {
+    status: 'reverts',
+    notes: ['the transaction reverts'],
+  })
+  const named = { ...verifiedContract(B), sourcify: notVerified }
+  assert.equal(runVerdict([named], simulated(true), true).status, 'failed')
+})
+
+test('runVerdict: a simulation that was skipped or failed flags a transaction, not a signature', () => {
+  const skipped = { status: 'skipped', reason: 'contract creation · not simulated' } as const
+  assert.deepEqual(runVerdict([verifiedContract(A)], skipped, true), {
+    status: 'flagged',
+    notes: ['call tree not checked · contract creation · not simulated'],
+  })
+  const failed = { status: 'failed', reason: 'the chain did not answer' } as const
+  assert.deepEqual(runVerdict([verifiedContract(A)], failed, true), {
+    status: 'flagged',
+    notes: ['call tree not checked · the chain did not answer'],
+  })
+  const signature = { status: 'skipped', reason: 'a signature only · nothing runs on chain' } as const
+  assert.deepEqual(runVerdict([verifiedContract(A)], signature, false), { status: 'passed', notes: [] })
 })
