@@ -12,7 +12,7 @@ import type { ChainRequestArgs, Hex, SigningRequest } from '../messages.ts'
 import { attesterStore } from './attesters.ts'
 import { providerFor, type Reader } from './provider.ts'
 import { EMPTY_INDEX, registryIndex } from './registry.ts'
-import { inputOf, reasonOf, render, rendered, type DescriptorSource, type Rendering } from './render.ts'
+import { inputOf, reasonOf, render, rendered, type AbiSource, type DescriptorSource, type Rendering } from './render.ts'
 import { listedOn, summary, tokenListStore, versionText } from './tokenLists.ts'
 
 export type ClearSigning = {
@@ -128,9 +128,12 @@ function start(request: SigningRequest, verification: Verification): ClearSignin
     }
     const listed = listedOn(entries, chainId)
     const trustedTokens: TrustedTokens = { [chainId]: {} }
-    const abis = new Map<Hex, unknown[]>()
+    const abis = new Map<Hex, AbiSource>()
     for (const contract of verification.contracts) {
-      if (contract.sourcify.status === 'passed') abis.set(contract.address, contract.sourcify.value.abi)
+      if (contract.sourcify.status === 'passed') {
+        const { abi, claim } = contract.sourcify.value
+        abis.set(contract.address, { address: contract.address, name: claim.name, abi })
+      }
       const lists = listed.get(contract.address)
       if (lists) {
         trustedTokens[chainId][contract.address] = 'erc20'
@@ -140,6 +143,23 @@ function start(request: SigningRequest, verification: Verification): ClearSignin
           proof: false,
         })
       }
+    }
+
+    // The ABI of a contract, then those of its implementations, as far
+    // as the chain of proxies goes.
+    const abisOf = (address: Hex): AbiSource[] => {
+      const result: AbiSource[] = []
+      const queue = [address]
+      while (queue.length > 0) {
+        const current = queue.shift()!
+        if (result.some((source) => source.address === current)) continue
+        const own = abis.get(current)
+        if (own) result.push(own)
+        for (const contract of verification.contracts) {
+          if (contract.via === current) queue.push(contract.address)
+        }
+      }
+      return result
     }
 
     const readers = (id: number) => {
@@ -161,7 +181,7 @@ function start(request: SigningRequest, verification: Verification): ClearSignin
       format,
       index,
       listed,
-      abis: (address) => abis.get(address) ?? null,
+      abis: (address) => abisOf(address),
       tokenName: (address) => provider.resolveToken!(chainId, address).then((token) => token?.name ?? null),
     })
     logOutcome(rendering, log)

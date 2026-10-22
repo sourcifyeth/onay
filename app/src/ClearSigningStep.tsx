@@ -509,10 +509,15 @@ function CallDecoded({ call }: { call: Call }) {
       </Notice>
     )
   }
+  const by = call.decodedBy
+  const viaImplementation = by && by.address !== call.to
   return (
     <div className="flex flex-col gap-2">
       <Notice tone="gray">
-        The function and parameter names come from the ABI, not from a Clear Signing descriptor. {ABI_SOURCE}
+        The function and parameter names come from the ABI, not from a Clear Signing descriptor.{' '}
+        {viaImplementation &&
+          `The contract is a proxy: the function is in the ABI of its implementation ${by.name ?? ''} ${by.address}, which Sourcify names and which was verified the same way. `}
+        {ABI_SOURCE}
       </Notice>
       <DecodedBlock decoded={decoded} />
     </div>

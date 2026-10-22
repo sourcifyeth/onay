@@ -40,6 +40,9 @@ export type Call = {
   // The calldata read with the verified ABI. Null without one, or when
   // it has no function with the selector.
   decoded: Decoded | null
+  // The contract whose ABI decoded the calldata: the callee, or one of
+  // its implementations.
+  decodedBy: { address: Hex; name: string | null } | null
   source: DescriptorSource | null
   // False if the descriptor rendered as a preview: no auditor the user
   // trusts attested it.
@@ -166,8 +169,11 @@ function parseTypedData(value: unknown): Omit<TypedData, 'account'> | null {
   return { types: types as TypedData['types'], primaryType: record.primaryType, domain, message }
 }
 
-// The ABI of a contract, from the Sourcify gate. Null if it did not pass.
-export type Abis = (address: Hex) => unknown[] | null
+// The verified ABIs that can decode a call to a contract: its own first,
+// then those of the implementations that Sourcify names for it. Empty if
+// it did not pass the gate.
+export type AbiSource = { address: Hex; name: string | null; abi: unknown[] }
+export type Abis = (address: Hex) => AbiSource[]
 
 export type RenderOptions = {
   chainId: number
@@ -217,16 +223,26 @@ async function renderCall(
   options: RenderOptions,
 ): Promise<Call> {
   const { to, data, value } = call
-  const abi = to ? options.abis(to) : null
-  const verified = abi !== null
-  const decoded = abi && data !== '0x' ? decodeCalldata(abi, data) : null
+  const sources = to ? options.abis(to) : []
+  const verified = sources.length > 0
+  let decoded: Decoded | null = null
+  let decodedBy: Call['decodedBy'] = null
+  if (data !== '0x') {
+    for (const { address, name, abi } of sources) {
+      decoded = decodeCalldata(abi, data)
+      if (decoded) {
+        decodedBy = { address, name }
+        break
+      }
+    }
+  }
   if (!to || data === '0x') {
-    return { to, data, value, display: null, verified, decoded, source: null, attested: true }
+    return { to, data, value, display: null, verified, decoded, decodedBy, source: null, attested: true }
   }
   const tx = { chainId: options.chainId, to, data, value: value ?? undefined, from: from ?? undefined }
   const { display, attested } = await attempt((format_) => format(tx, format_), options.format)
   const source = rendered(display) ? await sourceOf(options, to) : null
-  return { to, data, value, display, verified, decoded, source, attested }
+  return { to, data, value, display, verified, decoded, decodedBy, source, attested }
 }
 
 export async function render(input: Input, options: RenderOptions): Promise<Rendering> {

@@ -33,6 +33,10 @@ export type Deployment = {
   deployer: Hex
 }
 
+// What Sourcify says a proxy delegates to. A claim: the gate verifies
+// the code at the address, not that the proxy uses it.
+export type Implementation = { address: Hex; name: string | null }
+
 export type Found = {
   runtimeMatch: MatchStatus
   creationMatch: MatchStatus
@@ -44,6 +48,9 @@ export type Found = {
   stdJsonInput: StdJsonInput
   // Null if Sourcify does not know the creation transaction.
   deployment: Deployment | null
+  // The kind of proxy, if Sourcify detected one.
+  proxyType: string | null
+  implementations: Implementation[]
 }
 
 const FIELDS = [
@@ -52,6 +59,7 @@ const FIELDS = [
   'compilation.compilerVersion',
   'compilation.fullyQualifiedName',
   'deployment',
+  'proxyResolution',
 ].join(',')
 
 export function lookupUrl(chainId: number, address: Hex): string {
@@ -174,6 +182,14 @@ function logFound(lookup: Found, log: Log) {
     text: `claims runtime ${claimText(lookup.runtimeMatch)} · creation ${claimText(lookup.creationMatch)} · not trusted, reproduced next`,
     proof: false,
   })
+  if (lookup.proxyType) {
+    const targets = lookup.implementations.map((impl) => `${impl.address}${impl.name ? ` (${impl.name})` : ''}`)
+    log({
+      source: 'sourcify',
+      text: `claims a ${lookup.proxyType} proxy · implementation ${targets.join(', ') || 'unknown'}`,
+      proof: false,
+    })
+  }
 }
 
 // Sourcify's verdict, in words. The log and the review use the same.
@@ -202,7 +218,25 @@ export function parseLookup(body: unknown): Found {
     path: qualified.slice(0, colon),
     stdJsonInput: { language: asString(stdJsonInput.language, 'stdJsonInput.language'), sources, settings },
     deployment: record.deployment == null ? null : parseDeployment(record.deployment),
+    ...parseProxy(record.proxyResolution),
   }
+}
+
+// Absent or null when Sourcify did not look, or found no proxy.
+function parseProxy(value: unknown): Pick<Found, 'proxyType' | 'implementations'> {
+  if (value == null) return { proxyType: null, implementations: [] }
+  const record = asRecord(value, 'proxyResolution')
+  if (record.isProxy !== true) return { proxyType: null, implementations: [] }
+  const list = Array.isArray(record.implementations) ? record.implementations : []
+  const implementations = list.map((item) => {
+    const impl = asRecord(item, 'proxyResolution.implementations')
+    return {
+      address: asHex(impl.address, 40, 'proxyResolution.implementations').toLowerCase() as Hex,
+      name: typeof impl.name === 'string' && impl.name !== '' ? impl.name : null,
+    }
+  })
+  const proxyType = typeof record.proxyType === 'string' && record.proxyType !== '' ? record.proxyType : 'unknown'
+  return { proxyType, implementations }
 }
 
 function parseDeployment(value: unknown): Deployment {

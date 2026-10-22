@@ -2,6 +2,7 @@
 // claims, and what the app reproduced.
 
 import type { Contract } from './gates/contracts.ts'
+import { ThirdPartyIcon } from './Icons.tsx'
 import { claimText, describeCompiler, failureOf, type Found } from './gates/sourcify.ts'
 import type { Verification } from './gates/verification.ts'
 import { matchText } from './gates/verify.ts'
@@ -147,6 +148,15 @@ function ContractVerification({ contract, verification }: { contract: Contract; 
         <span className="font-mono text-[13px] break-all text-gray-700">{contract.address}</span>
         {name && <span className="text-xs text-gray-500">{name}</span>}
       </p>
+      {contract.via && (
+        <p className="flex items-center gap-1.5 pb-2 text-xs text-gray-500">
+          <ThirdPartyIcon className="h-3.5 w-3.5 shrink-0" title="From a third party, not checked here" />
+          <span>
+            implementation of the proxy <span className="font-mono text-gray-700">{contract.via}</span>, as Sourcify
+            claims. The code here is verified; that the proxy uses it is not.
+          </span>
+        </p>
+      )}
       <SourcifyRow contract={contract} />
       <LocalVerification contract={contract} />
       <CollapsibleLog lines={lines} />

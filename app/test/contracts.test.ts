@@ -37,6 +37,12 @@ test('add: a new address goes at the end, in lower case', () => {
   assert.deepEqual(contracts, [{ address: A, helios: waiting, sourcify: waiting }])
 })
 
+test('add: an implementation remembers the proxy that named it', () => {
+  const contracts = add([], B, A)!
+  assert.equal(contracts[0].via, A)
+  assert.equal(add([], B)![0].via, undefined)
+})
+
 test('add: an address that is in the list gives the same list, whatever its case', () => {
   const contracts = initial([A])!
   assert.equal(add(contracts, A), contracts)

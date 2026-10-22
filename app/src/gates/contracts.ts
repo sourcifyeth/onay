@@ -10,6 +10,9 @@ import type { Verified } from './verify.ts'
 
 export type Contract = {
   address: Hex
+  // The proxy that names this contract as its implementation, if the
+  // Sourcify gate found it that way.
+  via?: Hex
   helios: GateState<ChainCode>
   sourcify: GateState<Verified>
 }
@@ -22,11 +25,13 @@ export const MAX_CONTRACTS = 32
 
 // Adds a contract that waits for its gates. Gives the same list if the
 // address is in it already, and null if the list is full.
-export function add(contracts: Contract[], address: Hex): Contract[] | null {
+export function add(contracts: Contract[], address: Hex, via?: Hex): Contract[] | null {
   const key = address.toLowerCase() as Hex
   if (contracts.some((contract) => contract.address === key)) return contracts
   if (contracts.length >= MAX_CONTRACTS) return null
-  return [...contracts, { address: key, helios: { status: 'waiting' }, sourcify: { status: 'waiting' } }]
+  const contract: Contract = { address: key, helios: { status: 'waiting' }, sourcify: { status: 'waiting' } }
+  if (via) contract.via = via
+  return [...contracts, contract]
 }
 
 // The contracts that a request names. Null if there are too many.

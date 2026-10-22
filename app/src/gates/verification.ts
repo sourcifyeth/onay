@@ -4,7 +4,7 @@
 import { chainById, type ChainConfig } from '../chains.ts'
 import type { Hex, SigningRequest } from '../messages.ts'
 import { chainReady, creationReaderFor, heliosGateFor, type Head } from './helios.ts'
-import { initial, MAX_CONTRACTS, passedCount, pending, update, type Contract } from './contracts.ts'
+import { add, initial, MAX_CONTRACTS, passedCount, pending, update, type Contract } from './contracts.ts'
 import { errorText, runGate, type Log, type LogLine } from './gate.ts'
 import { sourcifyGateFor } from './sourcify.ts'
 import { chainOf, contractsOf } from './request.ts'
@@ -157,7 +157,27 @@ function start(request: SigningRequest): VerificationStore {
       const read = await runGate(heliosGate, input, log, (helios) => report(address, { helios }))
       if (read === null) report(address, { sourcify: { status: 'failed', reason: 'the code was not read' } })
       else if (read.code === '0x') report(address, { sourcify: { status: 'skipped', reason: 'not a contract' } })
-      else await runGate(sourcifyGate, { address, code: read.code }, log, (sourcify) => report(address, { sourcify }))
+      else {
+        const verified = await runGate(sourcifyGate, { address, code: read.code }, log, (sourcify) =>
+          report(address, { sourcify }),
+        )
+        // The implementations of a proxy go through both gates too. The
+        // claim that the proxy uses them is Sourcify's.
+        for (const impl of verified?.claim.implementations ?? []) {
+          const next = add(snapshot.contracts, impl.address, address)
+          if (next === null) {
+            log({
+              source: 'sourcify',
+              text: `${impl.address} · not checked · more than ${MAX_CONTRACTS} contracts`,
+              ok: false,
+            })
+          } else if (next !== snapshot.contracts) {
+            set({ contracts: next })
+            log({ source: 'sourcify', text: `${impl.address} · implementation of ${address} · checking it too` })
+            void check(impl.address)
+          }
+        }
+      }
       if (!pending(snapshot.contracts)) end()
     }
     for (const { address } of contracts) void check(address)

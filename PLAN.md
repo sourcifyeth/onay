@@ -133,7 +133,7 @@ Each step ends with something that runs and can be reviewed. Steps 3 to 6 work o
    - Native Rust Helios, exposed to the webview as EIP-1193 over Tauri IPC (inter-process communication).
 4. **Gate 2: Sourcify.** Fetch sources, recompile locally, compare against the verified on-chain bytecode.
    - Download solc only from the official list, hash-checked before running.
-   - Resolve proxies (EIP-1967 slots) so the implementation gets verified too.
+   - Resolve proxies so the implementation gets verified too. For now the implementation address is what Sourcify's proxy detection names, shown as a third-party claim; the slot read through Helios comes with step 7.
    - Show result, sources, compiler settings; "open files in your editor".
    - Requests to the Sourcify server carry a User-Agent header with the app name and version.
 5. **Clear Signing (ERC-7730).** Decode the call with the verified ABI (Application Binary Interface).

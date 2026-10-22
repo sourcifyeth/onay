@@ -110,7 +110,7 @@ function options(
     format,
     index,
     listed: new Map(),
-    abis: (address) => (address === USDC ? ABI : null),
+    abis: (address) => (address === USDC ? [{ address: USDC, name: 'USDC', abi: ABI }] : []),
     ...change,
   }
 }
@@ -261,14 +261,37 @@ test('a token from a list renders with the bundled template, and the source name
   const trustedTokens = { 1: { [OTHER]: 'erc20' as const } }
   const listed = new Map<Hex, string[]>([[OTHER, ['CoW Swap']]])
   const tokenName = async () => 'Other Token'
-  const result = await render(input, options({ listed, abis: () => ABI, tokenName }, undefined, trustedTokens))
+  const abis = () => [{ address: OTHER, name: null, abi: ABI }]
+  const result = await render(input, options({ listed, abis, tokenName }, undefined, trustedTokens))
   if (result.kind !== 'transaction') return assert.fail(result.kind)
   assert.equal(result.call.display?.intent, 'Send')
   assert.deepEqual(result.call.source, { kind: 'template', lists: ['CoW Swap'], name: 'Other Token' })
-  const unnamed = await render(input, options({ listed, abis: () => ABI }, undefined, trustedTokens))
+  const unnamed = await render(input, options({ listed, abis }, undefined, trustedTokens))
   if (unnamed.kind !== 'transaction') return assert.fail(unnamed.kind)
   assert.deepEqual(unnamed.call.source, { kind: 'template', lists: ['CoW Swap'], name: null })
   assert.equal(result.call.decoded?.name, 'transfer')
+})
+
+test('a proxy decodes with the ABI of its implementation, and says so', async () => {
+  const input = inputOf(request('eth_sendTransaction', [{ to: OTHER, data: TRANSFER }]))
+  const proxyAbi = JSON.parse(new Interface(['function upgradeTo(address impl)']).formatJson()) as unknown[]
+  const abis = () => [
+    { address: OTHER, name: 'Proxy', abi: proxyAbi },
+    { address: USDC, name: 'FiatTokenV2', abi: ABI },
+  ]
+  const result = await render(input, options({ abis }))
+  if (result.kind !== 'transaction') return assert.fail(result.kind)
+  assert.equal(result.call.verified, true)
+  assert.equal(result.call.decoded?.name, 'transfer')
+  assert.deepEqual(result.call.decodedBy, { address: USDC, name: 'FiatTokenV2' })
+  const own = await render(inputOf(request('eth_sendTransaction', [{ to: USDC, data: TRANSFER }])), options())
+  if (own.kind !== 'transaction') return assert.fail(own.kind)
+  assert.deepEqual(own.call.decodedBy, { address: USDC, name: 'USDC' })
+  const none = await render(input, options({ abis: () => [{ address: OTHER, name: 'Proxy', abi: proxyAbi }] }))
+  if (none.kind !== 'transaction') return assert.fail(none.kind)
+  assert.equal(none.call.verified, true)
+  assert.equal(none.call.decoded, null)
+  assert.equal(none.call.decodedBy, null)
 })
 
 test('a plain value transfer has nothing to render', async () => {
@@ -282,6 +305,7 @@ test('a plain value transfer has nothing to render', async () => {
     display: null,
     verified: false,
     decoded: null,
+    decodedBy: null,
     source: null,
     attested: true,
   })
