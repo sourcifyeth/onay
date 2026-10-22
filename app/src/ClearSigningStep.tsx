@@ -381,30 +381,6 @@ function Unattested({ state }: { state: ClearSigning }) {
   )
 }
 
-// What else the descriptor says about the contract.
-function MetadataRows({ display }: { display: DisplayModel }) {
-  const { owner, info } = display.metadata ?? {}
-  return (
-    <>
-      {owner && (
-        <Row label="Owner">
-          <span className="text-sm text-gray-800">{owner}</span>
-        </Row>
-      )}
-      {info?.url && (
-        <Row label="Website">
-          <span className="font-mono text-[13px] break-all text-gray-800">{info.url}</span>
-        </Row>
-      )}
-      {info?.deploymentDate && (
-        <Row label="Deployed">
-          <span className="text-sm text-gray-800">{info.deploymentDate}</span>
-        </Row>
-      )}
-    </>
-  )
-}
-
 // A descriptor rendered the data: intent, sentence, fields.
 function DisplayPane({
   display,
@@ -462,7 +438,6 @@ function DisplayPane({
             </Row>
           )}
           <FieldRows fields={display.fields} />
-          <MetadataRows display={display} />
         </dl>
       )}
       <Warnings warnings={display.warnings} />
@@ -526,8 +501,10 @@ function CallDecoded({ call, state }: { call: Call; state: ClearSigning }) {
     return (
       <div className="flex flex-col gap-2">
         <Notice tone="amber">
-          {why && `${why} `}The source code of the contract is not verified, so the calldata cannot be decoded. It shows
-          raw.
+          {why && `${why} `}
+          {call.verified
+            ? 'The verified ABI of the contract has no function with the selector of this call, so the calldata cannot be decoded. A proxy, for example, forwards every call to its implementation through its fallback function. It shows raw.'
+            : 'The source code of the contract is not verified, so the calldata cannot be decoded. It shows raw.'}
         </Notice>
         {display && <RawWords display={display} />}
       </div>
@@ -869,7 +846,7 @@ function tabsOf(state: ClearSigning, chainId: number, currency: Currency): Tab[]
   const calls = rendering.kind === 'batch' ? rendering.calls : [rendering.call]
   const withData = calls.filter((call) => call.to !== null && call.data !== '0x')
   const decoded = {
-    label: withData.some((call) => call.decoded) || withData.length === 0 ? 'ABI-Decoded' : 'Not decoded',
+    label: withData.some((call) => call.decoded) || withData.length === 0 ? 'ABI-Decoded' : 'No ABI-Decoding',
     content: <DecodedPane state={state} />,
   }
   const anyRendered = withData.length === 0 || withData.some((call) => rendered(call.display))

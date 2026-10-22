@@ -280,6 +280,7 @@ test('a plain value transfer has nothing to render', async () => {
     data: '0x',
     value: 1n,
     display: null,
+    verified: false,
     decoded: null,
     source: null,
     attested: true,

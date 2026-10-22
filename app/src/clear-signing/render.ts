@@ -35,6 +35,8 @@ export type Call = {
   value: bigint | null
   // The result of the library. Null if there was no calldata to render.
   display: DisplayModel | null
+  // True if the contract passed the verification gate, so an ABI exists.
+  verified: boolean
   // The calldata read with the verified ABI. Null without one, or when
   // it has no function with the selector.
   decoded: Decoded | null
@@ -216,12 +218,15 @@ async function renderCall(
 ): Promise<Call> {
   const { to, data, value } = call
   const abi = to ? options.abis(to) : null
+  const verified = abi !== null
   const decoded = abi && data !== '0x' ? decodeCalldata(abi, data) : null
-  if (!to || data === '0x') return { to, data, value, display: null, decoded, source: null, attested: true }
+  if (!to || data === '0x') {
+    return { to, data, value, display: null, verified, decoded, source: null, attested: true }
+  }
   const tx = { chainId: options.chainId, to, data, value: value ?? undefined, from: from ?? undefined }
   const { display, attested } = await attempt((format_) => format(tx, format_), options.format)
   const source = rendered(display) ? await sourceOf(options, to) : null
-  return { to, data, value, display, decoded, source, attested }
+  return { to, data, value, display, verified, decoded, source, attested }
 }
 
 export async function render(input: Input, options: RenderOptions): Promise<Rendering> {
