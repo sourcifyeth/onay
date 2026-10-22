@@ -345,7 +345,10 @@ function DisplayPane({
   state: ClearSigning
 }) {
   const [open, setOpen] = useState(false)
-  const { contractName, owner } = display.metadata ?? {}
+  // The template has no metadata: the name is the token's own, from the
+  // chain.
+  const contractName = display.metadata?.contractName ?? (source?.kind === 'template' ? source.name : undefined)
+  const owner = display.metadata?.owner
   const intent = intentText(display.intent)
   const sentence = display.interpolatedIntent
   // Without a sentence the fields are the intent, so they show at once.

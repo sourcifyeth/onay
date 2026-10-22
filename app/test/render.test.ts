@@ -260,10 +260,14 @@ test('a token from a list renders with the bundled template, and the source name
   const input = inputOf(request('eth_sendTransaction', [{ to: OTHER, data: TRANSFER }]))
   const trustedTokens = { 1: { [OTHER]: 'erc20' as const } }
   const listed = new Map<Hex, string[]>([[OTHER, ['CoW Swap']]])
-  const result = await render(input, options({ listed, abis: () => ABI }, undefined, trustedTokens))
+  const tokenName = async () => 'Other Token'
+  const result = await render(input, options({ listed, abis: () => ABI, tokenName }, undefined, trustedTokens))
   if (result.kind !== 'transaction') return assert.fail(result.kind)
   assert.equal(result.call.display?.intent, 'Send')
-  assert.deepEqual(result.call.source, { kind: 'template', lists: ['CoW Swap'] })
+  assert.deepEqual(result.call.source, { kind: 'template', lists: ['CoW Swap'], name: 'Other Token' })
+  const unnamed = await render(input, options({ listed, abis: () => ABI }, undefined, trustedTokens))
+  if (unnamed.kind !== 'transaction') return assert.fail(unnamed.kind)
+  assert.deepEqual(unnamed.call.source, { kind: 'template', lists: ['CoW Swap'], name: null })
   assert.equal(result.call.decoded?.name, 'transfer')
 })
 

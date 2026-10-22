@@ -22,8 +22,11 @@ import { decodeCalldata, type Decoded } from './decode.ts'
 
 // Where the descriptor of a rendered call came from: a file in the
 // registry, or the bundled template of a token standard, with the names
-// of the token lists that hold the address.
-export type DescriptorSource = { kind: 'registry'; path: string } | { kind: 'template'; lists: string[] }
+// of the token lists that hold the address and the name the token gives
+// itself on the chain.
+export type DescriptorSource =
+  | { kind: 'registry'; path: string }
+  | { kind: 'template'; lists: string[]; name: string | null }
 
 export type Call = {
   to: Hex | null
@@ -171,15 +174,18 @@ export type RenderOptions = {
   // The names of the token lists that hold each address on the chain.
   listed: Map<Hex, string[]>
   abis: Abis
+  // The name a token gives itself, read from the chain. Null if not read.
+  tokenName?: (address: Hex) => Promise<string | null>
 }
 
-function sourceOf(options: RenderOptions, address: Hex): DescriptorSource | null {
+async function sourceOf(options: RenderOptions, address: Hex): Promise<DescriptorSource | null> {
   const { chainId, index, listed } = options
   const path = index.calldataIndex[`eip155:${chainId}:${address}`]
   if (path) return { kind: 'registry', path }
   const lists = listed.get(address)
-  if (lists) return { kind: 'template', lists }
-  return null
+  if (!lists) return null
+  const name = (await options.tokenName?.(address).catch(() => null)) ?? null
+  return { kind: 'template', lists, name }
 }
 
 // The format options without the attestation policy: the library then
@@ -214,7 +220,7 @@ async function renderCall(
   if (!to || data === '0x') return { to, data, value, display: null, decoded, source: null, attested: true }
   const tx = { chainId: options.chainId, to, data, value: value ?? undefined, from: from ?? undefined }
   const { display, attested } = await attempt((format_) => format(tx, format_), options.format)
-  const source = rendered(display) ? sourceOf(options, to) : null
+  const source = rendered(display) ? await sourceOf(options, to) : null
   return { to, data, value, display, decoded, source, attested }
 }
 

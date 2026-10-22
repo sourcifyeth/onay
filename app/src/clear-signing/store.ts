@@ -162,6 +162,7 @@ function start(request: SigningRequest, verification: Verification): ClearSignin
       index,
       listed,
       abis: (address) => abis.get(address) ?? null,
+      tokenName: (address) => provider.resolveToken!(chainId, address).then((token) => token?.name ?? null),
     })
     logOutcome(rendering, log)
     set({ status: 'done', rendering })
