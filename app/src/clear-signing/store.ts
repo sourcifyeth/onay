@@ -28,6 +28,8 @@ export type ClearSigning = {
 export type ClearSigningStore = {
   subscribe(listener: () => void): () => void
   getSnapshot(): ClearSigning
+  // Stops the store from rendering again when the settings change.
+  stop(): void
 }
 
 const stores = new Map<string, ClearSigningStore>()
@@ -45,7 +47,9 @@ export function clearSigningFor(request: SigningRequest, verification: Verificat
 }
 
 export function forgetClearSigning(request: SigningRequest) {
-  stores.delete(requestKey(request))
+  const key = requestKey(request)
+  stores.get(key)?.stop()
+  stores.delete(key)
 }
 
 // The chains that pay their fees in ether. A chain that is not here has
@@ -73,7 +77,6 @@ function readerFor(chain: ChainConfig): Reader {
 }
 
 function start(request: SigningRequest, verification: Verification): ClearSigningStore {
-  const started = performance.now()
   const listeners = new Set<() => void>()
   let snapshot: ClearSigning = {
     status: 'running',
@@ -86,9 +89,32 @@ function start(request: SigningRequest, verification: Verification): ClearSignin
     snapshot = { ...snapshot, ...change }
     for (const listener of listeners) listener()
   }
-  const log: Log = (line) => set({ lines: [...snapshot.lines, { ...line, at: performance.now() - started }] })
 
-  const run = async () => {
+  // The rendering runs again when the auditors or the token lists
+  // change. A run that a later one overtook changes nothing.
+  let generation = 0
+  const render_ = () => {
+    const mine = ++generation
+    const started = performance.now()
+    snapshot = {
+      ...snapshot,
+      status: 'running',
+      registryError: null,
+      attesters: attesterStore.getSnapshot(),
+      lines: [],
+    }
+    for (const listener of listeners) listener()
+    const guarded = (change: Partial<ClearSigning>) => {
+      if (mine === generation) set(change)
+    }
+    const log: Log = (line) => guarded({ lines: [...snapshot.lines, { ...line, at: performance.now() - started }] })
+    run(guarded, log).catch((error: unknown) => {
+      log({ source: 'erc7730', text: `rendering failed · ${errorText(error)}`, ok: false })
+      guarded({ status: 'done' })
+    })
+  }
+
+  const run = async (set: (change: Partial<ClearSigning>) => void, log: Log) => {
     const chainId = verification.chainId
     if (chainId === null || !verification.chain) return set({ status: 'done' })
     log({ source: 'erc7730', text: `rendering with the clear-signing library · ${request.method}` })
@@ -187,10 +213,9 @@ function start(request: SigningRequest, verification: Verification): ClearSignin
     logOutcome(rendering, log)
     set({ status: 'done', rendering })
   }
-  run().catch((error: unknown) => {
-    log({ source: 'erc7730', text: `rendering failed · ${errorText(error)}`, ok: false })
-    set({ status: 'done' })
-  })
+
+  render_()
+  const unsubscribe = [attesterStore.subscribe(render_), tokenListStore.subscribe(render_)]
 
   return {
     subscribe(listener) {
@@ -198,6 +223,7 @@ function start(request: SigningRequest, verification: Verification): ClearSignin
       return () => listeners.delete(listener)
     },
     getSnapshot: () => snapshot,
+    stop: () => unsubscribe.forEach((stop) => stop()),
   }
 }
 

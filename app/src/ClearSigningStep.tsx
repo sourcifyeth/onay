@@ -49,10 +49,14 @@ function Pill({ children }: { children: ReactNode }) {
   )
 }
 
-function Notice({ tone, children }: { tone: 'amber' | 'gray'; children: ReactNode }) {
-  const color =
-    tone === 'amber' ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-gray-300 bg-gray-50 text-gray-600'
-  return <p className={`rounded-lg border-l-2 px-3 py-2 text-xs leading-relaxed ${color}`}>{children}</p>
+const TONES = {
+  amber: 'border-amber-400 bg-amber-50 text-amber-800',
+  gray: 'border-gray-300 bg-gray-50 text-gray-600',
+  red: 'border-light-coral-500 bg-light-coral-100/40 text-light-coral-700',
+}
+
+function Notice({ tone, children }: { tone: keyof typeof TONES; children: ReactNode }) {
+  return <p className={`rounded-lg border-l-2 px-3 py-2 text-xs leading-relaxed ${TONES[tone]}`}>{children}</p>
 }
 
 // The intent of a descriptor: a sentence, or labels with values.
@@ -386,11 +390,18 @@ function Provenance({
 
 // A descriptor that no trusted auditor attested rendered the data.
 function Unattested({ state }: { state: ClearSigning }) {
+  if (state.attesters.length === 0) {
+    return (
+      <Notice tone="amber">
+        Preview: you trust no auditor yet, so no one has checked this description for you. Anyone can submit a
+        descriptor to the registry. Choose auditors under settings → Clear Signing.
+      </Notice>
+    )
+  }
   return (
-    <Notice tone="amber">
-      {state.attesters.length === 0
-        ? 'Preview: you trust no auditor yet, so no one has checked this description for you. Anyone can submit a descriptor to the registry. Choose auditors under settings → Clear Signing.'
-        : 'Preview: no auditor you trust has attested this descriptor, so no one has checked this description for you. Anyone can submit a descriptor to the registry.'}
+    <Notice tone="red">
+      <strong className="font-semibold">Warning:</strong> no auditor you trust attested this descriptor in the registry.
+      Anyone can submit a descriptor, so this description is unreviewed. Read the ABI-Decoded tab before you sign.
     </Notice>
   )
 }
