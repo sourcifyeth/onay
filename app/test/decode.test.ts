@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import { Interface } from 'ethers'
-import { decodeCalldata, selectorOf } from '../src/clear-signing/decode.ts'
+import { decodeCalldata, rawWords, selectorOf } from '../src/clear-signing/decode.ts'
 import type { Hex } from '../src/messages.ts'
 
 const ALICE = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'
@@ -48,6 +48,17 @@ test('decodeCalldata gives null for an unknown selector, short calldata, or a br
   assert.equal(decodeCalldata(json(ERC20_ABI), '0x12345678'), null)
   assert.equal(decodeCalldata(json(ERC20_ABI), '0xa9059cbb0000'), null)
   assert.equal(decodeCalldata([{ type: 'function', inputs: 'no' }], '0xa9059cbb'), null)
+})
+
+test('rawWords splits the calldata after the selector into 32-byte words', () => {
+  const word = (n: number) => n.toString(16).padStart(64, '0')
+  assert.deepEqual(rawWords(`0xA9059CBB${word(1)}${word(2)}` as Hex), {
+    selector: '0xa9059cbb',
+    words: [word(1), word(2)],
+  })
+  assert.deepEqual(rawWords('0xa9059cbb'), { selector: '0xa9059cbb', words: [] })
+  assert.deepEqual(rawWords(`0xa9059cbb${word(1)}ff` as Hex), { selector: '0xa9059cbb', words: [word(1), 'ff'] })
+  assert.equal(rawWords('0x1234'), null)
 })
 
 test('selectorOf takes the first four bytes', () => {

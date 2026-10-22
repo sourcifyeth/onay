@@ -26,6 +26,18 @@ export function selectorOf(data: Hex): Hex | null {
   return /^0x[0-9a-fA-F]{8}/.test(data) ? (data.slice(0, 10).toLowerCase() as Hex) : null
 }
 
+// The calldata as the ABI words after the selector, 32 bytes each, in
+// hex. The last word is shorter if the calldata is not a whole number
+// of words. Null if the calldata has no selector.
+export function rawWords(data: Hex): { selector: Hex; words: string[] } | null {
+  const selector = selectorOf(data)
+  if (!selector) return null
+  const rest = data.slice(10).toLowerCase()
+  const words: string[] = []
+  for (let i = 0; i < rest.length; i += 64) words.push(rest.slice(i, i + 64))
+  return { selector, words }
+}
+
 // Null if the ABI has no function with the selector of the calldata, or
 // if the calldata does not decode with it.
 export function decodeCalldata(abi: unknown[], data: Hex): Decoded | null {

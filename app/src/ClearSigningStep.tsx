@@ -9,7 +9,7 @@ import { useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { DisplayField, DisplayFieldGroup, DisplayModel, Warning } from '@ethereum-sourcify/clear-signing'
 import { isFieldGroup } from '@ethereum-sourcify/clear-signing'
 import { chainById } from './chains.ts'
-import type { Decoded } from './clear-signing/decode.ts'
+import { rawWords, type Decoded } from './clear-signing/decode.ts'
 import { REGISTRY_URL } from './clear-signing/registry.ts'
 import {
   formatAmount,
@@ -468,16 +468,19 @@ function NotRendered({ display, state }: { display: DisplayModel; state: ClearSi
   return <Notice tone="amber">{notRenderedText(display, state)}</Notice>
 }
 
-function RawWords({ display }: { display: DisplayModel }) {
-  const fallback = display.rawCalldataFallback
-  if (!fallback) return null
+// The calldata in ABI words, when nothing decodes it.
+function RawWords({ data }: { data: Hex }) {
+  const raw = rawWords(data)
+  if (!raw) {
+    return <p className="font-mono text-xs break-all text-gray-700">{data} · shorter than a selector</p>
+  }
   return (
     <dl className="mt-3 divide-y divide-gray-100">
       <div className="flex items-baseline justify-between gap-6 py-1">
         <dt className="shrink-0 font-mono text-sm text-gray-500">selector</dt>
-        <dd className="text-right font-mono text-sm text-gray-800">{fallback.selector}</dd>
+        <dd className="text-right font-mono text-sm text-gray-800">{raw.selector}</dd>
       </div>
-      {fallback.args.map((word, index) => (
+      {raw.words.map((word, index) => (
         <div key={index} className="flex items-baseline justify-between gap-6 py-1">
           <dt className="shrink-0 font-mono text-sm text-gray-500">word {index}</dt>
           <dd className="text-right font-mono text-xs break-all text-gray-800">{word}</dd>
@@ -506,7 +509,7 @@ function CallDecoded({ call, state }: { call: Call; state: ClearSigning }) {
             ? 'The verified ABI of the contract has no function with the selector of this call, so the calldata cannot be decoded. A proxy, for example, forwards every call to its implementation through its fallback function. It shows raw.'
             : 'The source code of the contract is not verified, so the calldata cannot be decoded. It shows raw.'}
         </Notice>
-        {display && <RawWords display={display} />}
+        <RawWords data={call.data} />
       </div>
     )
   }
