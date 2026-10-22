@@ -198,8 +198,11 @@ function Warnings({ contract }: { contract: Contract }) {
   )
 }
 
-// A named account with a delegate (EIP-7702). The code of the delegate
-// runs, so the delegate has the card, right below.
+// The code of a contract, if the chain gate read it.
+const codeOf = (contract: Contract) => (contract.helios.status === 'passed' ? contract.helios.value.code : null)
+
+// An account with a delegate (EIP-7702). The code of the delegate runs,
+// so the delegate has the card, right below.
 function DelegatedAccount({ contract }: { contract: Contract }) {
   return (
     <p className="flex flex-wrap items-baseline gap-x-2 rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm shadow-sm">
@@ -210,6 +213,23 @@ function DelegatedAccount({ contract }: { contract: Contract }) {
       <span className="text-gray-500">· delegate checked below</span>
     </p>
   )
+}
+
+// The entry of a contract in the list: the one-line box for an account
+// with a delegate, the full card for every other one.
+function ContractEntry({
+  contract,
+  verification,
+  open,
+}: {
+  contract: Contract
+  verification: Verification
+  open: boolean
+}) {
+  if (contract.sourcify.status === 'skipped' && delegateOf(codeOf(contract) ?? '0x')) {
+    return <DelegatedAccount contract={contract} />
+  }
+  return <ContractVerification contract={contract} verification={verification} open={open} />
 }
 
 // The full card of a contract, behind its summary line.
@@ -261,16 +281,13 @@ function CalledContracts({ contracts, verification }: { contracts: Contract[]; v
       {open && (
         <div className="flex flex-col gap-2 px-3 pb-3">
           {contracts.map((contract) => (
-            <ContractVerification key={contract.address} contract={contract} verification={verification} open={false} />
+            <ContractEntry key={contract.address} contract={contract} verification={verification} open={false} />
           ))}
         </div>
       )}
     </div>
   )
 }
-
-// The code of a contract, if the chain gate read it.
-const codeOf = (contract: Contract) => (contract.helios.status === 'passed' ? contract.helios.value.code : null)
 
 export function VerificationStep({ verification }: { verification: Verification }) {
   // An address without code has nothing to verify, and is left out. An
@@ -292,18 +309,14 @@ export function VerificationStep({ verification }: { verification: Verification 
       ) : (
         <div className="flex flex-col gap-2">
           {/* The contracts the request names open. Their implementations wait behind their line. */}
-          {named.map((contract) =>
-            contract.sourcify.status === 'skipped' && delegateOf(codeOf(contract) ?? '0x') ? (
-              <DelegatedAccount key={contract.address} contract={contract} />
-            ) : (
-              <ContractVerification
-                key={contract.address}
-                contract={contract}
-                verification={verification}
-                open={!contract.implementationOf}
-              />
-            ),
-          )}
+          {named.map((contract) => (
+            <ContractEntry
+              key={contract.address}
+              contract={contract}
+              verification={verification}
+              open={!contract.implementationOf}
+            />
+          ))}
           {called.length > 0 && <CalledContracts contracts={called} verification={verification} />}
         </div>
       )}
