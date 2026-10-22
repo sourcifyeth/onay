@@ -379,7 +379,7 @@ function DisplayPane({
         </p>
       )}
       {fields && (
-        <dl className="mt-2 divide-y divide-gray-100 border-t border-gray-100">
+        <dl className="mt-2 divide-y divide-gray-100 border-t border-gray-100 px-4">
           {sentence && (
             <Row label="Intent">
               <span className="text-sm font-semibold text-gray-900">{intent}</span>
@@ -793,12 +793,6 @@ function tabsOf(state: ClearSigning, chainId: number, currency: Currency): Tab[]
   return anyRendered ? [clear, decoded, raw] : [decoded, raw]
 }
 
-const TITLES: Record<string, string> = {
-  wallet_sendCalls: 'Batch of transactions',
-  eth_signTypedData_v3: 'Signature request',
-  eth_signTypedData_v4: 'Signature request',
-}
-
 const EXPLAINER =
   'An ERC-7730 descriptor explains a call in plain words: what it does, and what each value means. A descriptor counts as reviewed only after an auditor you trust attested it; one that none did shows as a preview with a warning, since a wrong description can hide what you sign. The ABI-Decoded tab shows the call as the verified source code decodes it, with or without a descriptor.'
 
@@ -810,9 +804,6 @@ export function ClearSigningStep({ request, verification }: { request: SigningRe
   return (
     <Step number={3} title="Clear Signing" explainer={EXPLAINER}>
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h3 className="pb-3 font-mono text-xs tracking-widest text-gray-500 uppercase">
-          {TITLES[request.method] ?? 'Transaction'}
-        </h3>
         <Tabs tabs={tabsOf(state, chainId, currency)} />
         <CollapsibleLog lines={state.lines} />
       </section>
