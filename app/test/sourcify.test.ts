@@ -99,7 +99,41 @@ test('lookupUrl asks only for the fields that the gates need', () => {
     'compilation.compilerVersion',
     'compilation.fullyQualifiedName',
     'deployment',
+    'proxyResolution',
   ])
+})
+
+test('parseLookup reads the proxy resolution, and gives none without it', () => {
+  const plain = parseLookup(FOUND)
+  assert.equal(plain.proxyType, null)
+  assert.deepEqual(plain.implementations, [])
+  const notProxy = parseLookup({ ...FOUND, proxyResolution: { isProxy: false, proxyType: null, implementations: [] } })
+  assert.equal(notProxy.proxyType, null)
+  const IMPL = '0x028271E30a695c0527A0C50cA30603feD004cDb0'
+  const proxy = parseLookup({
+    ...FOUND,
+    proxyResolution: {
+      isProxy: true,
+      proxyType: 'AragonAppProxy',
+      implementations: [
+        { address: IMPL, name: 'Lido' },
+        { address: ADDRESS, name: '' },
+      ],
+    },
+  })
+  assert.equal(proxy.proxyType, 'AragonAppProxy')
+  assert.deepEqual(proxy.implementations, [
+    { address: IMPL.toLowerCase(), name: 'Lido' },
+    { address: ADDRESS, name: null },
+  ])
+  // A malformed hint does not fail the lookup: the bad entry is left out.
+  const broken = parseLookup({
+    ...FOUND,
+    proxyResolution: { isProxy: true, implementations: [{ address: '0x12' }, null, { address: IMPL }] },
+  })
+  assert.equal(broken.proxyType, 'unknown')
+  assert.deepEqual(broken.implementations, [{ address: IMPL.toLowerCase(), name: null }])
+  assert.deepEqual(parseLookup({ ...FOUND, proxyResolution: 'junk' }).implementations, [])
 })
 
 test('lookup: a verified contract, with the claim in the log', async () => {

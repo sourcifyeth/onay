@@ -12,8 +12,8 @@ export type GateState<T> =
   | { status: 'skipped'; reason: string }
 
 // Where a line comes from. The page shows the lines of each gate under
-// its own header. 'evm' is the simulation.
-export type Source = 'browser' | 'helios' | 'rpc' | 'evm' | 'sourcify' | 'solc'
+// its own header. 'evm' is the simulation, 'erc7730' the Clear Signing.
+export type Source = 'browser' | 'helios' | 'rpc' | 'evm' | 'sourcify' | 'solc' | 'erc7730'
 
 export type LogLine = {
   source: Source

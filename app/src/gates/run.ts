@@ -20,7 +20,7 @@ import {
 } from './contracts.ts'
 import { errorText, runGate, type Gate, type GateState, type Log, type LogLine } from './gate.ts'
 import { delegateOf, type Simulation, type SimulationInput } from './simulation.ts'
-import { callsOf, chainOf, contractsOf } from './request.ts'
+import { callsOf, chainOf, contractsOf, requestProblem } from './request.ts'
 import type { Verified } from './verify.ts'
 
 export type TimedLine = LogLine & {
@@ -140,6 +140,15 @@ export function startVerification(request: SigningRequest, deps: Deps): Verifica
         simulation: notRead,
         status: 'failed',
       })
+    }
+    // A request with a field that does not read is not checked at all:
+    // the wallet reads it its own way, and a review of a guess would
+    // confirm the wrong thing.
+    const problem = requestProblem(request)
+    if (problem) {
+      const reason = `the request could not be read · ${problem}`
+      log({ source: 'browser', text: reason, ok: false })
+      return fail(reason)
     }
     if (resolved.chainId === null) {
       if (addresses.length === 0) return endWithoutContracts()
