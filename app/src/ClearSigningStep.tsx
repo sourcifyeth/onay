@@ -357,8 +357,7 @@ function DisplayPane({
           <Unattested state={state} />
         </div>
       )}
-      <Interpolated text={sentence ?? intent} values={sentence ? valuesOf(display.fields) : []} />
-      <p className="px-4 pt-3 pb-1 text-sm leading-relaxed text-gray-600">
+      <p className="pb-2 text-sm leading-relaxed text-gray-600">
         {contractName ? (
           <>
             Interacting with <span className="font-medium text-gray-800">{contractName}</span>
@@ -373,8 +372,9 @@ function DisplayPane({
           'The descriptor does not name the contract.'
         )}
       </p>
+      <Interpolated text={sentence ?? intent} values={sentence ? valuesOf(display.fields) : []} />
       {sentence && (
-        <p className="px-4 pb-1">
+        <p className="pt-2">
           <Details open={open} onToggle={() => setOpen((v) => !v)} />
         </p>
       )}
