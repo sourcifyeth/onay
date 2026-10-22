@@ -11,6 +11,7 @@ import {
   withAttester,
   type Profile,
 } from './clear-signing/attesters.ts'
+import { ExternalLink } from './ExternalLink.tsx'
 import { errorText } from './gates/gate.ts'
 import type { Hex } from './messages.ts'
 
@@ -93,9 +94,9 @@ export function AttesterSettings() {
         An ERC-7730 descriptor explains a transaction in plain words. Anyone can submit one to the registry, so Onay
         uses a descriptor only after an auditor you trust attested it (ERC-8176). Each auditor signs with an Ethereum
         address. Add the addresses of the auditors you trust. The{' '}
-        <a href={AUDITORS_URL} target="_blank" rel="noreferrer" className="text-cerulean-blue-600 hover:underline">
+        <ExternalLink href={AUDITORS_URL} className="text-cerulean-blue-600 hover:underline">
           auditors directory of the registry ↗
-        </a>{' '}
+        </ExternalLink>{' '}
         lists them with their profiles.
       </p>
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">

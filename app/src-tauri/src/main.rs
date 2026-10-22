@@ -1,6 +1,7 @@
 // No console window on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod browser;
 mod chain;
 mod channel;
 mod host_manifest;
@@ -146,7 +147,8 @@ fn main() {
             chain::start_chain,
             chain::stop_chain,
             chain::chain_ready,
-            chain::chain_request
+            chain::chain_request,
+            browser::open_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running the Onay app");

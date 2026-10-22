@@ -1,8 +1,9 @@
 // Step 3 of the review: what the request asks to sign, in words. An
 // ERC-7730 descriptor renders the intent and the fields; one that no
-// trusted auditor attested shows as a preview with a warning. Without a
-// descriptor, the calldata shows as the verified ABI (Application Binary
-// Interface) decodes it. Taken from the mock's transaction card.
+// trusted auditor attested shows as a preview with a warning. A second
+// tab shows the calldata as the verified ABI (Application Binary
+// Interface) decodes it, and a third the raw request. Taken from the
+// mock's transaction card.
 
 import { useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { DisplayField, DisplayFieldGroup, DisplayModel, Warning } from '@ethereum-sourcify/clear-signing'
@@ -19,6 +20,7 @@ import {
   type Rendering,
 } from './clear-signing/render.ts'
 import { chainInfoOf, clearSigningFor, type ClearSigning } from './clear-signing/store.ts'
+import { ExternalLink } from './ExternalLink.tsx'
 import type { Verification } from './gates/verification.ts'
 import { CollapsibleLog, Cursor } from './Log.tsx'
 import type { Hex, SigningRequest } from './messages.ts'
@@ -269,15 +271,13 @@ function Provenance({
   const path = source?.kind === 'registry' ? source.path : null
   return (
     <p className="pt-3 font-mono text-[11px] leading-relaxed text-gray-400">
-      <a
+      <ExternalLink
         href={path ? `${REGISTRY_URL}/blob/master/${path}` : REGISTRY_URL}
-        target="_blank"
-        rel="noreferrer"
         className="hover:text-cerulean-blue-600"
       >
         ERC-7730 descriptor{owner ? ` by ${owner}` : ''} from the registry ·{' '}
         {attested ? 'attested by an auditor you trust' : 'not attested by an auditor you trust'} ↗
-      </a>
+      </ExternalLink>
     </p>
   )
 }
@@ -338,39 +338,25 @@ function DisplayPane({
 }
 
 // Why no descriptor rendered the data.
-function NotRendered({ display, state }: { display: DisplayModel; state: ClearSigning }) {
+function notRenderedText(display: DisplayModel, state: ClearSigning): string {
   const reason = reasonOf(display)
-  let text: ReactNode
   switch (reason?.code) {
     case 'NO_DESCRIPTOR':
-      text = state.registryError
+      return state.registryError
         ? `The index of the registry could not be fetched (${state.registryError}), so no descriptor was looked up.`
         : 'No ERC-7730 descriptor is registered for this contract, so there is no reviewed description of what this call does.'
-      break
     case 'NO_TRUSTED_ATTESTATION':
       // The preview failed too, so the descriptor cannot render this call.
-      text = 'The registry has a descriptor for this contract, but it does not render this call.'
-      break
+      return 'The registry has a descriptor for this contract, but it does not render this call.'
     case 'DESCRIPTOR_FETCH_ERROR':
-      text = `The registry could not be reached, so no descriptor was checked. ${reason.message}`
-      break
+      return `The registry could not be reached, so no descriptor was checked. ${reason.message}`
     default:
-      text = reason?.message ?? 'The descriptor did not render this call.'
+      return reason?.message ?? 'The descriptor did not render this call.'
   }
-  return <Notice tone="amber">{text}</Notice>
 }
 
-function DecodedList({ decoded }: { decoded: Decoded }) {
-  return (
-    <dl className="mt-3 divide-y divide-gray-100">
-      {decoded.params.map((param, index) => (
-        <div key={index} className="flex items-baseline justify-between gap-6 py-1">
-          <dt className="shrink-0 font-mono text-sm text-gray-500">{param.name}</dt>
-          <dd className="text-right font-mono text-sm break-all text-gray-800">{param.value}</dd>
-        </div>
-      ))}
-    </dl>
-  )
+function NotRendered({ display, state }: { display: DisplayModel; state: ClearSigning }) {
+  return <Notice tone="amber">{notRenderedText(display, state)}</Notice>
 }
 
 function RawWords({ display }: { display: DisplayModel }) {
@@ -392,32 +378,47 @@ function RawWords({ display }: { display: DisplayModel }) {
   )
 }
 
-// The calldata read with the verified ABI, when no descriptor did.
-function Fallback({ call, state }: { call: Call; state: ClearSigning }) {
+const ABI_SOURCE =
+  'The ABI comes from the source code verified in step 2: fetched from sourcify.dev, compiled on this machine, and matched to the code on the chain.'
+
+// The calldata as the verified ABI decodes it, with the reason why no
+// descriptor rendered it.
+function CallDecoded({ call, state }: { call: Call; state: ClearSigning }) {
   const { display, decoded } = call
+  if (call.data === '0x') return <Notice tone="gray">A plain value transfer: no calldata, nothing to decode.</Notice>
+  if (call.to === null) return <Creation />
+  const why = display && !rendered(display) ? notRenderedText(display, state) : null
+  if (!decoded) {
+    return (
+      <div className="flex flex-col gap-2">
+        <Notice tone="amber">
+          {why && `${why} `}The source code of the contract is not verified, so the calldata cannot be decoded. It shows
+          raw.
+        </Notice>
+        {display && <RawWords display={display} />}
+      </div>
+    )
+  }
   return (
     <div className="flex flex-col gap-2">
-      {display && <NotRendered display={display} state={state} />}
-      {decoded ? (
-        <>
-          <Notice tone="gray">
-            No description in words. The call is decoded with the verified source code: the function is{' '}
-            <span className="font-mono">{decoded.signature}</span>
-            {decoded.params.length === 0
-              ? ', and it takes no parameters.'
-              : '. The names of the parameters come from the code.'}
-          </Notice>
-          {decoded.params.length > 0 && <DecodedList decoded={decoded} />}
-        </>
+      {why ? (
+        <Notice tone="amber">
+          {why} The call is decoded with the verified ABI instead: the names come from the code, not from a reviewed
+          descriptor. {ABI_SOURCE}
+        </Notice>
       ) : (
-        <>
-          <Notice tone="gray">
-            The source code of the contract is not verified, so the calldata cannot be decoded. It shows raw.
-          </Notice>
-          {display && <RawWords display={display} />}
-        </>
+        <Notice tone="gray">The names come from the code, not from the descriptor. {ABI_SOURCE}</Notice>
       )}
+      <DecodedBlock decoded={decoded} />
     </div>
+  )
+}
+
+function Creation() {
+  return (
+    <Notice tone="amber">
+      This transaction creates a contract: the calldata is its creation code. Nothing describes what the code does.
+    </Notice>
   )
 }
 
@@ -449,17 +450,13 @@ function Transfer({ call, currency }: { call: Call; currency: Currency }) {
 
 function CallPane({ call, currency, state }: { call: Call; currency: Currency; state: ClearSigning }) {
   if (call.data === '0x') return <Transfer call={call} currency={currency} />
-  if (call.to === null) {
-    return (
-      <Notice tone="amber">
-        This transaction creates a contract: the calldata is its creation code. Nothing describes what the code does.
-      </Notice>
-    )
-  }
+  if (call.to === null) return <Creation />
   if (rendered(call.display)) {
     return <DisplayPane display={call.display!} source={call.source} attested={call.attested} state={state} />
   }
-  return <Fallback call={call} state={state} />
+  // A call of a batch that no descriptor rendered. The decoding is in
+  // the ABI tab.
+  return <CallDecoded call={call} state={state} />
 }
 
 function BatchPane({
@@ -595,21 +592,22 @@ function CalldataBlock({ data }: { data: Hex }) {
 function DecodedBlock({ decoded }: { decoded: Decoded }) {
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-      <p className="font-mono text-xs leading-relaxed">
-        <a
-          href={`https://4byte.sourcify.dev/?q=${decoded.selector}`}
-          target="_blank"
-          rel="noreferrer"
-          title="Look up this selector on 4byte.sourcify.dev"
-          className="text-cerulean-blue-600 hover:underline"
-        >
-          {decoded.selector} ↗
-        </a>
-        <span className="text-gray-400"> · </span>
-        <span className="break-all text-gray-800">{decoded.signature}</span>
-      </p>
-      {decoded.params.length === 0 && <p className="mt-2 font-mono text-xs text-gray-500">no parameters</p>}
-      <dl className="mt-2 divide-y divide-gray-200/70">
+      <dl className="divide-y divide-gray-200/70">
+        <div className="pb-1.5 font-mono text-xs">
+          <dt className="text-gray-500">function</dt>
+          <dd className="pt-0.5 break-all text-gray-800">
+            <span className="font-medium">{decoded.name}</span>
+            <span className="text-gray-400"> · </span>
+            <ExternalLink
+              href={`https://4byte.sourcify.dev/?q=${decoded.selector}`}
+              title="Look up this selector on 4byte.sourcify.dev"
+              className="text-cerulean-blue-600 hover:underline"
+            >
+              {decoded.selector} ↗
+            </ExternalLink>
+          </dd>
+        </div>
+        {decoded.params.length === 0 && <p className="pt-1.5 font-mono text-xs text-gray-500">no parameters</p>}
         {decoded.params.map((param, index) => (
           <div key={index} className="py-1.5 font-mono text-xs">
             <dt className="text-gray-500">
@@ -623,6 +621,33 @@ function DecodedBlock({ decoded }: { decoded: Decoded }) {
   )
 }
 
+function DecodedPane({ state }: { state: ClearSigning }) {
+  const { rendering } = state
+  if (state.status === 'running') {
+    return (
+      <p className="font-mono text-xs text-gray-500">
+        rendering <Cursor />
+      </p>
+    )
+  }
+  if (!rendering || rendering.kind === 'none' || rendering.kind === 'typedData') {
+    return <Notice tone="gray">Nothing to decode.</Notice>
+  }
+  if (rendering.kind === 'transaction') return <CallDecoded call={rendering.call} state={state} />
+  return (
+    <div className="flex flex-col gap-2">
+      {rendering.calls.map((call, index) => (
+        <div key={index} className="rounded-lg border border-gray-200 p-3">
+          <p className="pb-1 font-mono text-xs text-gray-400">
+            call {index + 1} · {call.to ?? 'a new contract'}
+          </p>
+          <CallDecoded call={call} state={state} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function CallRaw({ call, currency }: { call: Call; currency: Currency }) {
   return (
     <>
@@ -630,12 +655,6 @@ function CallRaw({ call, currency }: { call: Call; currency: Currency }) {
         <RawRow label="to">{call.to ?? 'none · creates a contract'}</RawRow>
         <RawRow label="value">{amountText(call.value, currency)}</RawRow>
       </dl>
-      {call.decoded && (
-        <>
-          <SectionLabel>decoded calldata</SectionLabel>
-          <DecodedBlock decoded={call.decoded} />
-        </>
-      )}
       <SectionLabel>calldata</SectionLabel>
       <CalldataBlock data={call.data} />
     </>
@@ -694,17 +713,27 @@ function RawPane({ state, chainId, currency }: { state: ClearSigning; chainId: n
   }
 }
 
-// The label of the first tab says what it shows: clear signing only
-// when a descriptor rendered every call.
-function labelOf(state: ClearSigning): string {
+type Tab = { label: string; content: ReactNode }
+
+// The clear-signing tab shows only when a descriptor rendered at least
+// one call, or until the rendering is done. The ABI tab shows for every
+// transaction, the raw tab always.
+function tabsOf(state: ClearSigning, chainId: number, currency: Currency): Tab[] {
   const { rendering } = state
-  if (state.status === 'running' || !rendering || rendering.kind === 'none') return 'Clear signing'
-  if (rendering.kind === 'typedData') return rendered(rendering.display) ? 'Clear signing' : 'Message'
+  const clear = { label: 'Clear signing', content: <ClearSigningPane state={state} currency={currency} /> }
+  const raw = { label: 'Raw', content: <RawPane state={state} chainId={chainId} currency={currency} /> }
+  if (state.status === 'running' || !rendering || rendering.kind === 'none') return [clear, raw]
+  if (rendering.kind === 'typedData') {
+    return [{ ...clear, label: rendered(rendering.display) ? 'Clear signing' : 'Message' }, raw]
+  }
   const calls = rendering.kind === 'batch' ? rendering.calls : [rendering.call]
   const withData = calls.filter((call) => call.to !== null && call.data !== '0x')
-  if (withData.every((call) => rendered(call.display))) return 'Clear signing'
-  if (withData.some((call) => call.decoded)) return 'Decoded calldata'
-  return 'Not decoded'
+  const decoded = {
+    label: withData.some((call) => call.decoded) || withData.length === 0 ? 'ABI-Decoded' : 'Not decoded',
+    content: <DecodedPane state={state} />,
+  }
+  const anyRendered = withData.length === 0 || withData.some((call) => rendered(call.display))
+  return anyRendered ? [clear, decoded, raw] : [decoded, raw]
 }
 
 const TITLES: Record<string, string> = {
@@ -714,7 +743,7 @@ const TITLES: Record<string, string> = {
 }
 
 const EXPLAINER =
-  'An ERC-7730 descriptor explains a call in plain words: what it does, and what each value means. A descriptor counts as reviewed only after an auditor you trust attested it; one that none did shows as a preview with a warning, since a wrong description can hide what you sign. Without a descriptor, the call is decoded with the verified source code.'
+  'An ERC-7730 descriptor explains a call in plain words: what it does, and what each value means. A descriptor counts as reviewed only after an auditor you trust attested it; one that none did shows as a preview with a warning, since a wrong description can hide what you sign. The ABI-Decoded tab shows the call as the verified source code decodes it, with or without a descriptor.'
 
 export function ClearSigningStep({ request, verification }: { request: SigningRequest; verification: Verification }) {
   const store = clearSigningFor(request, verification)
@@ -727,12 +756,7 @@ export function ClearSigningStep({ request, verification }: { request: SigningRe
         <h3 className="pb-3 font-mono text-xs tracking-widest text-gray-500 uppercase">
           {TITLES[request.method] ?? 'Transaction'}
         </h3>
-        <Tabs
-          tabs={[
-            { label: labelOf(state), content: <ClearSigningPane state={state} currency={currency} /> },
-            { label: 'Raw', content: <RawPane state={state} chainId={chainId} currency={currency} /> },
-          ]}
-        />
+        <Tabs tabs={tabsOf(state, chainId, currency)} />
         <CollapsibleLog lines={state.lines} />
       </section>
     </Step>
