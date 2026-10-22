@@ -3,17 +3,14 @@
 // The compiler build is downloaded once into test/.cache.
 
 import assert from 'node:assert/strict'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { test } from 'node:test'
 
 import type { Hex } from '../src/messages.ts'
 import type { Creation, CreationReader } from '../src/gates/creation.ts'
 import type { Fetch, LogLine } from '../src/gates/gate.ts'
-import { solcFor } from '../src/gates/solc.ts'
 import { failureOf, lookupUrl, sourcifyGateFor } from '../src/gates/sourcify.ts'
+import { solc, VERSION } from './solc.ts'
 
-const CACHE = new URL('./.cache/', import.meta.url)
-const VERSION = '0.8.24+commit.e11b9ed9'
 const ADDRESS: Hex = '0x1111111111111111111111111111111111111111'
 const TX_HASH: Hex = '0xe7e0fe390354509cd08c9a0168536938600ddc552b3f7cb96030ebef62e75895'
 const DEPLOYMENT = { transactionHash: TX_HASH, blockNumber: '6083505', transactionIndex: '42', deployer: ADDRESS }
@@ -33,23 +30,6 @@ const STD_JSON_INPUT = {
   sources: { 'src/Counter.sol': { content: CONTRACT } },
   settings: { optimizer: { enabled: false, runs: 200 }, evmVersion: 'shanghai' },
 }
-
-// binaries.soliditylang.org, through a file cache. The list is not
-// cached: a test that needs a newer build must see it.
-const cachedFetch: Fetch = async (url, init) => {
-  if (url.endsWith('/list.json')) return fetch(url, init)
-  mkdirSync(CACHE, { recursive: true })
-  const file = new URL(url.slice(url.lastIndexOf('/') + 1), CACHE)
-  try {
-    return new Response(readFileSync(file))
-  } catch {
-    const response = await fetch(url, init)
-    if (response.ok) writeFileSync(file, new Uint8Array(await response.clone().arrayBuffer()))
-    return response
-  }
-}
-
-const solc = solcFor(cachedFetch)
 
 // Sourcify, answering for one address only. With a deployment, or without.
 function sourcify(found: boolean, deployment: typeof DEPLOYMENT | null = null, address = ADDRESS): Fetch {

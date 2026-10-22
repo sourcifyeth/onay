@@ -40,9 +40,10 @@ export type Call = {
   // The calldata read with the verified ABI. Null without one, or when
   // it has no function with the selector.
   decoded: Decoded | null
-  // The contract whose ABI decoded the calldata: the callee, or one of
-  // its implementations.
-  decodedBy: { address: Hex; name: string | null } | null
+  // The contract whose ABI decoded the calldata: the callee, or a
+  // contract that ran as it, with Sourcify's proxy type if it confirms
+  // that one as the implementation.
+  decodedBy: { address: Hex; name: string | null; proxyType: string | null } | null
   source: DescriptorSource | null
   // False if the descriptor rendered as a preview: no auditor the user
   // trusts attested it.
@@ -170,9 +171,11 @@ function parseTypedData(value: unknown): Omit<TypedData, 'account'> | null {
 }
 
 // The verified ABIs that can decode a call to a contract: its own first,
-// then those of the implementations that Sourcify names for it. Empty if
-// it did not pass the gate.
-export type AbiSource = { address: Hex; name: string | null; abi: unknown[] }
+// then those of the contracts whose code ran as it in the simulation.
+// `proxyType` is set when Sourcify's proxy detection names that contract
+// as the implementation of the callee. Empty if the callee did not pass
+// the gate.
+export type AbiSource = { address: Hex; name: string | null; abi: unknown[]; proxyType: string | null }
 export type Abis = (address: Hex) => AbiSource[]
 
 export type RenderOptions = {
@@ -228,10 +231,10 @@ async function renderCall(
   let decoded: Decoded | null = null
   let decodedBy: Call['decodedBy'] = null
   if (data !== '0x') {
-    for (const { address, name, abi } of sources) {
+    for (const { address, name, abi, proxyType } of sources) {
       decoded = decodeCalldata(abi, data)
       if (decoded) {
-        decodedBy = { address, name }
+        decodedBy = { address, name, proxyType }
         break
       }
     }

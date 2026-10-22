@@ -8,6 +8,7 @@ import { chainById, type ChainConfig } from '../chains.ts'
 import { errorText, type Log } from '../gates/gate.ts'
 import { rpcRequest } from '../gates/helios.ts'
 import { requestKey, type TimedLine, type Verification } from '../gates/verification.ts'
+import type { Verified } from '../gates/verify.ts'
 import type { ChainRequestArgs, Hex, SigningRequest } from '../messages.ts'
 import { attesterStore } from './attesters.ts'
 import { providerFor, type Reader } from './provider.ts'
@@ -154,12 +155,9 @@ function start(request: SigningRequest, verification: Verification): ClearSignin
     }
     const listed = listedOn(entries, chainId)
     const trustedTokens: TrustedTokens = { [chainId]: {} }
-    const abis = new Map<Hex, AbiSource>()
+    const verified = new Map<Hex, Verified>()
     for (const contract of verification.contracts) {
-      if (contract.sourcify.status === 'passed') {
-        const { abi, claim } = contract.sourcify.value
-        abis.set(contract.address, { address: contract.address, name: claim.name, abi })
-      }
+      if (contract.sourcify.status === 'passed') verified.set(contract.address, contract.sourcify.value)
       const lists = listed.get(contract.address)
       if (lists) {
         trustedTokens[chainId][contract.address] = 'erc20'
@@ -171,19 +169,32 @@ function start(request: SigningRequest, verification: Verification): ClearSignin
       }
     }
 
-    // The ABI of a contract, then those of its implementations, as far
-    // as the chain of proxies goes.
+    // The contracts whose code ran in the context of a contract in the
+    // simulation: the implementation of a proxy, the facet of a diamond,
+    // or a library. Only the ones this transaction reached.
+    const ranAs = (address: Hex): Hex[] => {
+      const { simulation } = verification
+      if (simulation.status !== 'passed') return []
+      return simulation.value.touched
+        .filter((touched) => touched.address !== address && touched.contexts.includes(address))
+        .map((touched) => touched.address)
+    }
+    // The verified ABI of a contract, then those of the contracts that
+    // ran as it. Sourcify's proxy detection, a claim, says whether it
+    // names such a contract as the implementation.
     const abisOf = (address: Hex): AbiSource[] => {
-      const result: AbiSource[] = []
-      const queue = [address]
-      while (queue.length > 0) {
-        const current = queue.shift()!
-        if (result.some((source) => source.address === current)) continue
-        const own = abis.get(current)
-        if (own) result.push(own)
-        for (const contract of verification.contracts) {
-          if (contract.via === current) queue.push(contract.address)
-        }
+      const own = verified.get(address)
+      const result: AbiSource[] = own ? [{ address, name: own.claim.name, abi: own.abi, proxyType: null }] : []
+      for (const delegate of ranAs(address)) {
+        const value = verified.get(delegate)
+        if (!value) continue
+        const named = own?.claim.implementations.some((impl) => impl.address === delegate) ?? false
+        result.push({
+          address: delegate,
+          name: value.claim.name,
+          abi: value.abi,
+          proxyType: named ? own!.claim.proxyType : null,
+        })
       }
       return result
     }

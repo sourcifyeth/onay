@@ -39,13 +39,23 @@ function Pairing({ connection }: { connection: ConnectionInfo }) {
 const STATUS_TEXT = {
   running: 'Checks are running.',
   passed: 'All checks passed.',
+  flagged: 'Checks passed, with a warning.',
+  reverts: 'The transaction reverts in simulation. Do not sign it.',
   failed: 'A check failed.',
+}
+
+const STATUS_COLOR = {
+  running: 'text-gray-600',
+  passed: 'text-gray-600',
+  flagged: 'text-amber-700',
+  reverts: 'text-red-700',
+  failed: 'text-red-700',
 }
 
 function CheckStatus({ request }: { request: SigningRequest }) {
   const store = verificationFor(request)
   const { status } = useSyncExternalStore(store.subscribe, store.getSnapshot)
-  return <span className={status === 'failed' ? 'text-red-700' : 'text-gray-600'}>{STATUS_TEXT[status]}</span>
+  return <span className={STATUS_COLOR[status]}>{STATUS_TEXT[status]}</span>
 }
 
 function Request({ request, onOpen }: { request: SigningRequest; onOpen: () => void }) {

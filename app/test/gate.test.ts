@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { errorText, runGate, type Gate, type GateState, type LogLine } from '../src/gates/gate.ts'
+import { getEventListeners } from 'node:events'
+
+import { errorText, runGate, withDeadline, type Gate, type GateState, type LogLine } from '../src/gates/gate.ts'
 
 function collect() {
   const states: GateState<string>[] = []
@@ -57,4 +59,24 @@ test('errorText takes the message of an Error and the text of anything else', ()
   assert.equal(errorText(new Error('boom')), 'boom')
   assert.equal(errorText('a string from a Tauri command'), 'a string from a Tauri command')
   assert.equal(errorText(42), '42')
+})
+
+test('withDeadline: a call after the abort, or one that hangs past it, rejects with the text', async () => {
+  const abort = new AbortController()
+  const hanging = withDeadline(() => new Promise<string>(() => {}), abort.signal, 'too late')
+  const pending = hanging()
+  abort.abort()
+  await assert.rejects(pending, /too late/)
+  await assert.rejects(hanging(), /too late/)
+})
+
+test('withDeadline: a call that ends in time keeps its result, and leaves no listener behind', async () => {
+  const abort = new AbortController()
+  const read = withDeadline(async (n: number) => n * 2, abort.signal, 'too late')
+  assert.equal(await read(21), 42)
+  await assert.rejects(
+    withDeadline(() => Promise.reject(new Error('HTTP 429')), abort.signal, 'too late')(),
+    /HTTP 429/,
+  )
+  assert.equal(getEventListeners(abort.signal, 'abort').length, 0)
 })

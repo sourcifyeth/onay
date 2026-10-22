@@ -541,7 +541,11 @@ function CallDecoded({ call }: { call: Call }) {
       <Notice tone="gray">
         The function and parameter names come from the ABI, not from a Clear Signing descriptor.{' '}
         {viaImplementation &&
-          `The contract is a proxy: the function is in the ABI of its implementation ${by.name ?? ''} ${by.address}, which Sourcify names and which was verified the same way. `}
+          `The function is not in the ABI of the contract itself but in the ABI of ${by.name ?? 'the contract'} ${by.address}, whose code ran as this contract in the simulation, and which was verified the same way. ${
+            by.proxyType
+              ? `Sourcify also detects this contract as a ${by.proxyType} proxy with that implementation. `
+              : 'Sourcify does not list it as a proxy implementation: it may be the facet of a diamond or a library. '
+          }`}
         {ABI_SOURCE}
       </Notice>
       <DecodedBlock decoded={decoded} />
@@ -898,7 +902,7 @@ export function ClearSigningStep({ request, verification }: { request: SigningRe
   const chainId = verification.chainId ?? 0
   const currency = chainInfoOf(chainById(chainId))?.nativeCurrency ?? null
   return (
-    <Step number={3} title="Clear Signing" explainer={EXPLAINER}>
+    <Step number={4} title="Clear Signing" explainer={EXPLAINER}>
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <Tabs tabs={tabsOf(state, chainId, currency)} />
         <div className="pt-3">

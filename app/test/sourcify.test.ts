@@ -126,10 +126,14 @@ test('parseLookup reads the proxy resolution, and gives none without it', () => 
     { address: IMPL.toLowerCase(), name: 'Lido' },
     { address: ADDRESS, name: null },
   ])
-  assert.throws(
-    () => parseLookup({ ...FOUND, proxyResolution: { isProxy: true, implementations: [{ address: '0x12' }] } }),
-    /proxyResolution.implementations/,
-  )
+  // A malformed hint does not fail the lookup: the bad entry is left out.
+  const broken = parseLookup({
+    ...FOUND,
+    proxyResolution: { isProxy: true, implementations: [{ address: '0x12' }, null, { address: IMPL }] },
+  })
+  assert.equal(broken.proxyType, 'unknown')
+  assert.deepEqual(broken.implementations, [{ address: IMPL.toLowerCase(), name: null }])
+  assert.deepEqual(parseLookup({ ...FOUND, proxyResolution: 'junk' }).implementations, [])
 })
 
 test('lookup: a verified contract, with the claim in the log', async () => {

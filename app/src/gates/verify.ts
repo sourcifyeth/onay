@@ -28,6 +28,9 @@ export type Match = 'perfect' | 'partial'
 
 export type Transformations = { list: Transformation[]; values: TransformationValues }
 
+// The note of a creation match whose transaction came from an endpoint.
+export const WITHOUT_PROOF = 'the transaction was read without proof'
+
 export type Verified = {
   // What Sourcify claimed.
   claim: Found
@@ -129,7 +132,7 @@ export async function verify(
       const { verified } = read.creation
       const text = `creation bytecode compare · ${matchText(creationMatch)}${verified ? '' : ' · transaction without proof'}`
       log({ source: 'sourcify', text, ok: true, proof: verified })
-      if (!verified) creationNote = 'the transaction was read without proof'
+      if (!verified) creationNote = WITHOUT_PROOF
     } else {
       creationNote = 'the input of the transaction is not the recompiled creation bytecode'
       log({ source: 'sourcify', text: `creation bytecode compare · no match · ${creationNote}` })

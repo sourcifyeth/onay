@@ -82,6 +82,13 @@ export function failureOf(state: GateState<Verified>): SourcifyFailure | null {
   return null
 }
 
+// What Sourcify claims, from a passed gate or from a failure that kept it.
+export function claimOf(state: GateState<Verified>): Found | null {
+  if (state.status === 'passed') return state.value.claim
+  const failure = failureOf(state)
+  return failure?.kind === 'not reproduced' ? failure.claim : null
+}
+
 // Verifications by chain, address and code, so that a contract that is in
 // many requests compiles once.
 const verified = new Map<string, Promise<Verified>>()
@@ -222,19 +229,24 @@ export function parseLookup(body: unknown): Found {
   }
 }
 
-// Absent or null when Sourcify did not look, or found no proxy.
+// Absent or null when Sourcify did not look, or found no proxy. The
+// field is a hint, so a malformed one does not fail the lookup: a bad
+// entry is left out.
 function parseProxy(value: unknown): Pick<Found, 'proxyType' | 'implementations'> {
-  if (value == null) return { proxyType: null, implementations: [] }
-  const record = asRecord(value, 'proxyResolution')
-  if (record.isProxy !== true) return { proxyType: null, implementations: [] }
+  const none = { proxyType: null, implementations: [] }
+  const record = value as Record<string, unknown> | null
+  if (typeof record !== 'object' || record === null || record.isProxy !== true) return none
   const list = Array.isArray(record.implementations) ? record.implementations : []
-  const implementations = list.map((item) => {
-    const impl = asRecord(item, 'proxyResolution.implementations')
-    return {
-      address: asHex(impl.address, 40, 'proxyResolution.implementations').toLowerCase() as Hex,
+  const implementations: Implementation[] = []
+  for (const item of list) {
+    const impl = item as Record<string, unknown> | null
+    if (typeof impl !== 'object' || impl === null) continue
+    if (typeof impl.address !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(impl.address)) continue
+    implementations.push({
+      address: impl.address.toLowerCase() as Hex,
       name: typeof impl.name === 'string' && impl.name !== '' ? impl.name : null,
-    }
-  })
+    })
+  }
   const proxyType = typeof record.proxyType === 'string' && record.proxyType !== '' ? record.proxyType : 'unknown'
   return { proxyType, implementations }
 }

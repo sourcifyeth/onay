@@ -4,6 +4,10 @@
 //
 // The chain must be ready first. That check is for the chain, so it runs
 // once for each request, not once for each contract.
+//
+// Every read of the chain goes through one `ChainRead`: the gates, the
+// creation transaction, and the state of the simulation. The gates take
+// it as a parameter, so a test gives a fake.
 
 import { invoke } from '@tauri-apps/api/core'
 import { heliosStarted, type ChainConfig } from '../chains.ts'
@@ -18,6 +22,20 @@ import {
 } from './creation.ts'
 import { errorText, type Gate, type Log } from './gate.ts'
 import { parseQuantity } from './request.ts'
+
+// One JSON-RPC call to the chain, as an EIP-1193 provider answers it. In
+// Helios mode the light client checks the answer with a proof.
+export type ChainRead = (method: string, params: unknown[]) => Promise<unknown>
+
+export function chainReaderFor(chain: ChainConfig): ChainRead {
+  if (chain.mode === 'rpc') return (method, params) => rpcRequest(chain.executionRpc, method, params)
+  return (method, params) =>
+    invoke<unknown>('chain_request', { chainId: chain.id, method, params } satisfies ChainRequestArgs).catch(
+      (error) => {
+        throw new Error(explainProofError(errorText(error), chain))
+      },
+    )
+}
 
 export type Target = { address: Hex; block: number }
 
@@ -78,21 +96,12 @@ async function rpcReady(chain: ChainConfig, log: Log): Promise<Head> {
   return { block, checkpoint: null }
 }
 
-export function heliosGateFor(chain: ChainConfig): Gate<Target, ChainCode> {
+export function heliosGateFor(chain: ChainConfig, read: ChainRead): Gate<Target, ChainCode> {
   const helios = chain.mode === 'helios'
   return {
     source: chain.mode,
     async run(target, log) {
-      const params = [target.address, `0x${target.block.toString(16)}`]
-      const code = helios
-        ? await invoke<Hex>('chain_request', {
-            chainId: chain.id,
-            method: 'eth_getCode',
-            params,
-          } satisfies ChainRequestArgs).catch((error) => {
-            throw new Error(explainProofError(errorText(error), chain))
-          })
-        : await rpcRequest(chain.executionRpc, 'eth_getCode', params)
+      const code = await read('eth_getCode', [target.address, `0x${target.block.toString(16)}`])
       if (typeof code !== 'string' || !/^0x[0-9a-fA-F]*$/.test(code)) throw new Error('eth_getCode gave no code')
       // Helios rejects code that does not match the account proof.
       const size = code === '0x' ? 'empty · not a contract' : `${(code.length - 2) / 2} bytes`
@@ -114,20 +123,12 @@ export function heliosGateFor(chain: ChainConfig): Gate<Target, ChainCode> {
 // comes from the execution endpoint without proof: the creation compare
 // says how the contract was deployed, not what runs at the address, and
 // the runtime compare covers that with a proof.
-export function creationReaderFor(chain: ChainConfig, log: Log): CreationReader {
+export function creationReaderFor(chain: ChainConfig, read: ChainRead, log: Log): CreationReader {
   const helios = chain.mode === 'helios'
   const host = new URL(chain.executionRpc).host
-  const read = async (transactionHash: Hex, verified: boolean) => {
+  const readBoth = async (transactionHash: Hex, verified: boolean) => {
     const request = (method: string) =>
-      verified
-        ? invoke<unknown>('chain_request', {
-            chainId: chain.id,
-            method,
-            params: [transactionHash],
-          } satisfies ChainRequestArgs).catch((error) => {
-            throw new Error(errorText(error))
-          })
-        : rpcRequest(chain.executionRpc, method, [transactionHash])
+      verified ? read(method, [transactionHash]) : rpcRequest(chain.executionRpc, method, [transactionHash])
     const [tx, receipt] = await Promise.all([request('eth_getTransactionByHash'), request('eth_getTransactionReceipt')])
     return { tx, receipt }
   }
@@ -143,12 +144,12 @@ export function creationReaderFor(chain: ChainConfig, log: Log): CreationReader 
     let check = helios ? 'block hash and receipts root verified' : `from ${host} · no proof`
     try {
       try {
-        answers = await read(transactionHash, verified)
+        answers = await readBoth(transactionHash, verified)
       } catch (error) {
         const old = helios ? oldBlock(errorText(error)) : null
         if (!old) throw error
         verified = false
-        answers = await read(transactionHash, verified)
+        answers = await readBoth(transactionHash, verified)
         check = `${old} · from ${host} without proof`
       }
     } catch (error) {

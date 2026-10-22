@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use alloy::eips::BlockId;
-use alloy::primitives::{Address, B256};
+use alloy::primitives::{Address, B256, U256};
 use alloy::rpc::types::{SyncStatus, TransactionRequest};
 use helios_ethereum::config::networks::Network;
 use helios_ethereum::database::FileDB;
@@ -122,7 +122,9 @@ pub async fn chain_ready(chains: State<'_, Chains>, chain_id: u64) -> Result<Rea
 }
 
 /// Answers an EIP-1193 request with verified state. It supports only the
-/// methods below.
+/// methods below. Helios checks each account, code and storage slot against
+/// the state root of the block with a Merkle proof, and each block header
+/// against the consensus chain.
 #[tauri::command]
 pub async fn chain_request(
     chains: State<'_, Chains>,
@@ -140,6 +142,35 @@ pub async fn chain_request(
                 .await
                 .map_err(|err| err.to_string())?;
             Ok(json!(code))
+        }
+        // The account fields in one answer: nonce, balance, code hash and
+        // storage root. The simulation reads accounts this way.
+        "eth_getProof" => {
+            let (address, slots, block): (Address, Vec<B256>, BlockId) =
+                serde_json::from_value(params).map_err(|err| err.to_string())?;
+            let proof = client
+                .get_proof(address, &slots, block)
+                .await
+                .map_err(|err| err.to_string())?;
+            Ok(json!(proof))
+        }
+        "eth_getStorageAt" => {
+            let (address, slot, block): (Address, U256, BlockId) =
+                serde_json::from_value(params).map_err(|err| err.to_string())?;
+            let value = client
+                .get_storage_at(address, slot, block)
+                .await
+                .map_err(|err| err.to_string())?;
+            Ok(json!(value))
+        }
+        "eth_getBlockByNumber" => {
+            let (block, full): (BlockId, bool) =
+                serde_json::from_value(params).map_err(|err| err.to_string())?;
+            let block = client
+                .get_block(block, full)
+                .await
+                .map_err(|err| err.to_string())?;
+            Ok(json!(block))
         }
         // Helios finds the block of the transaction through EIP-2935, so the
         // block must be in the newest 8191. It checks the transaction against
@@ -170,17 +201,6 @@ pub async fn chain_request(
                 .await
                 .map_err(|err| err.to_string())?;
             Ok(json!(data))
-        }
-        // The block comes with its header checked against the verified
-        // chain, so its timestamp can be trusted.
-        "eth_getBlockByNumber" => {
-            let (block, full): (BlockId, bool) =
-                serde_json::from_value(params).map_err(|err| err.to_string())?;
-            let block = client
-                .get_block(block, full)
-                .await
-                .map_err(|err| err.to_string())?;
-            Ok(json!(block))
         }
         _ => Err(format!("{method} is not supported")),
     }

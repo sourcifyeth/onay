@@ -12,8 +12,8 @@ export type GateState<T> =
   | { status: 'skipped'; reason: string }
 
 // Where a line comes from. The page shows the lines of each gate under
-// its own header.
-export type Source = 'browser' | 'helios' | 'rpc' | 'sourcify' | 'solc' | 'erc7730'
+// its own header. 'evm' is the simulation, 'erc7730' the Clear Signing.
+export type Source = 'browser' | 'helios' | 'rpc' | 'evm' | 'sourcify' | 'solc' | 'erc7730'
 
 export type LogLine = {
   source: Source
@@ -53,6 +53,24 @@ export async function runGate<In, Out>(
     report(cause === undefined ? { status: 'failed', reason } : { status: 'failed', reason, cause })
     return null
   }
+}
+
+// A call that fails once the signal aborts: a call after that, or one
+// that hangs past it, rejects with the text.
+export function withDeadline<Args extends unknown[], Out>(
+  call: (...args: Args) => Promise<Out>,
+  signal: AbortSignal,
+  text: string,
+): (...args: Args) => Promise<Out> {
+  return (...args) =>
+    new Promise((resolve, reject) => {
+      const fail = () => reject(new Error(text))
+      if (signal.aborted) return fail()
+      signal.addEventListener('abort', fail, { once: true })
+      call(...args)
+        .then(resolve, reject)
+        .finally(() => signal.removeEventListener('abort', fail))
+    })
 }
 
 // Tauri commands reject with a string.
