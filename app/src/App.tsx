@@ -108,6 +108,9 @@ function Request({ request, onOpen }: { request: SigningRequest; onOpen: () => v
       {reportedChain && (
         <p className="mt-1 text-gray-600">The site reports the chain. Check that your wallet shows the same network.</p>
       )}
+      {request.signed && (
+        <p className="mt-1 text-gray-600">The transaction is signed. Its sender comes from the signature.</p>
+      )}
       <pre className="mt-2 max-h-80 overflow-auto rounded bg-gray-100 p-2 font-mono text-xs break-all whitespace-pre-wrap">
         {JSON.stringify(request.params, null, 2)}
       </pre>

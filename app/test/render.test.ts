@@ -129,6 +129,7 @@ function request(method: string, params: unknown): SigningRequest {
     chainId: 1,
     receivedAt: 0,
     outcome: null,
+    signed: false,
   }
 }
 

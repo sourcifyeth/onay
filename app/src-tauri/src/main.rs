@@ -50,12 +50,13 @@ fn add_request(
     link: State<'_, LinkState>,
     method: String,
     params: serde_json::Value,
+    signed: bool,
 ) -> Result<(), String> {
     let link = link
         .inner()
         .as_ref()
         .map_err(|_| "the link is not running")?;
-    link.add_request(method, params)
+    link.add_request(method, params, signed)
 }
 
 #[tauri::command]

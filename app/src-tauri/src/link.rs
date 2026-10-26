@@ -182,6 +182,9 @@ pub struct SigningRequest {
     received_at: u64,
     /// The answer of the wallet, when it is known.
     outcome: Option<Outcome>,
+    /// Set for a pasted raw transaction that carries its signature. Its
+    /// sender comes from the signature.
+    signed: bool,
 }
 
 pub enum Notice {
@@ -330,7 +333,7 @@ impl Link {
 
     /// Adds a request that the user pasted. No wallet answers it, so it
     /// gets no outcome.
-    pub fn add_request(&self, method: String, params: Value) -> Result<(), String> {
+    pub fn add_request(&self, method: String, params: Value, signed: bool) -> Result<(), String> {
         if method.len() > MAX_METHOD_LEN {
             return Err("the method is too long".into());
         }
@@ -347,6 +350,7 @@ impl Link {
             chain_id: None,
             received_at: now_millis(),
             outcome: None,
+            signed,
         });
         drop(state);
         (self.notify)(Notice::Changed);
@@ -547,6 +551,7 @@ impl Link {
                     chain_id,
                     received_at: now_millis(),
                     outcome: None,
+                    signed: false,
                 });
                 Notice::NewRequest
             }
@@ -749,6 +754,7 @@ mod tests {
         assert_eq!(snapshot.requests[0].origin, "https://example.org");
         assert_eq!(snapshot.requests[0].method, "personal_sign");
         assert_eq!(snapshot.requests[0].outcome, None);
+        assert!(!snapshot.requests[0].signed);
 
         client.send(json!({ "type": "settled", "id": "a", "outcome": "fulfilled" }));
         wait_for(&link, &changes, |s| {
@@ -842,12 +848,12 @@ mod tests {
     fn pasted_request_has_no_connection() {
         let (link, changes) = link("paste", verified);
         let transaction = json!([{ "to": "0x0000000000000000000000000000000000000001" }]);
-        link.add_request("eth_sendTransaction".into(), transaction.clone())
+        link.add_request("eth_sendTransaction".into(), transaction.clone(), true)
             .unwrap();
-        link.add_request("personal_sign".into(), json!(["0x68656c6c6f"]))
+        link.add_request("personal_sign".into(), json!(["0x68656c6c6f"]), false)
             .unwrap();
         assert!(
-            link.add_request("x".repeat(MAX_METHOD_LEN + 1), transaction)
+            link.add_request("x".repeat(MAX_METHOD_LEN + 1), transaction, false)
                 .is_err()
         );
         // The webview reloads on each notice: one for each request it added.
@@ -857,7 +863,15 @@ mod tests {
         let requests: Vec<_> = snapshot
             .requests
             .iter()
-            .map(|r| (r.connection, r.id.as_str(), r.source, r.method.as_str()))
+            .map(|r| {
+                (
+                    r.connection,
+                    r.id.as_str(),
+                    r.source,
+                    r.method.as_str(),
+                    r.signed,
+                )
+            })
             .collect();
         assert_eq!(
             requests,
@@ -866,9 +880,16 @@ mod tests {
                     NO_CONNECTION,
                     "1",
                     RequestSource::Paste,
-                    "eth_sendTransaction"
+                    "eth_sendTransaction",
+                    true
                 ),
-                (NO_CONNECTION, "2", RequestSource::Paste, "personal_sign"),
+                (
+                    NO_CONNECTION,
+                    "2",
+                    RequestSource::Paste,
+                    "personal_sign",
+                    false
+                ),
             ]
         );
         link.dismiss_request(NO_CONNECTION, "1");

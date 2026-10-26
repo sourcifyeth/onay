@@ -66,7 +66,10 @@ export type SigningRequest = {
   receivedAt: number
   // The answer of the wallet, when it is known.
   outcome: 'fulfilled' | 'rejected' | null
+  // Set for a pasted raw transaction that carries its signature. Its
+  // sender comes from the signature.
+  signed: boolean
 }
 
 // `add_request` adds a request that the user pasted into the app.
-export type AddRequestArgs = { method: string; params: unknown }
+export type AddRequestArgs = { method: string; params: unknown; signed: boolean }

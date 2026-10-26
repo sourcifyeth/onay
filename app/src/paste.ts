@@ -57,7 +57,7 @@ function parse(text: string): AddRequestArgs {
   if (object.to === undefined && object.data === undefined && object.input === undefined) {
     throw new Error('the JSON is not a transaction or a JSON-RPC request')
   }
-  return { method: 'eth_sendTransaction', params: [object] }
+  return { method: 'eth_sendTransaction', params: [object], signed: false }
 }
 
 function readRpc(method: string, params: unknown): AddRequestArgs {
@@ -70,7 +70,7 @@ function readRpc(method: string, params: unknown): AddRequestArgs {
   if (!SIGNING_METHODS.has(method)) throw new Error(`${method} is not a signing method`)
   const typed = method === 'eth_signTypedData_v3' || method === 'eth_signTypedData_v4'
   if (typed && !isAddress(params[0])) throw new Error(NO_ACCOUNT)
-  return { method, params }
+  return { method, params, signed: false }
 }
 
 // Loose on purpose: a paste that looks like typed data gets the hint
@@ -107,5 +107,6 @@ function rawTransaction(raw: string): AddRequestArgs {
         ...(tx.chainId !== 0n && { chainId: toQuantity(tx.chainId) }),
       },
     ],
+    signed: tx.isSigned(),
   }
 }

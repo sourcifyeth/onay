@@ -41,7 +41,11 @@ const SIGNED_PARAMS = [
 ]
 
 test('a signed raw transaction: the sender comes from the signature', async () => {
-  assert.deepEqual(readPaste(` ${await signed()}\n`), { method: 'eth_sendTransaction', params: SIGNED_PARAMS })
+  assert.deepEqual(readPaste(` ${await signed()}\n`), {
+    method: 'eth_sendTransaction',
+    params: SIGNED_PARAMS,
+    signed: true,
+  })
 })
 
 test('a raw transaction broken into lines reads as one', async () => {
@@ -51,7 +55,11 @@ test('a raw transaction broken into lines reads as one', async () => {
 
 test('eth_sendRawTransaction is a raw transaction in a JSON-RPC request', async () => {
   const request = { jsonrpc: '2.0', id: 1, method: 'eth_sendRawTransaction', params: [await signed()] }
-  assert.deepEqual(readPaste(JSON.stringify(request)), { method: 'eth_sendTransaction', params: SIGNED_PARAMS })
+  assert.deepEqual(readPaste(JSON.stringify(request)), {
+    method: 'eth_sendTransaction',
+    params: SIGNED_PARAMS,
+    signed: true,
+  })
   assert.throws(
     () => readPaste(JSON.stringify({ method: 'eth_sendRawTransaction', params: [1] })),
     /takes a raw transaction in hex/,
@@ -60,7 +68,11 @@ test('eth_sendRawTransaction is a raw transaction in a JSON-RPC request', async 
 
 test('an unsigned raw transaction has no sender, and a creation has no recipient', () => {
   const raw = Transaction.from({ type: 2, chainId: 1, gasLimit: 100000n, data: '0x6080' }).unsignedSerialized
-  assert.deepEqual(readPaste(raw).params, [{ data: '0x6080', value: '0x0', gas: '0x186a0', chainId: '0x1' }])
+  assert.deepEqual(readPaste(raw), {
+    method: 'eth_sendTransaction',
+    params: [{ data: '0x6080', value: '0x0', gas: '0x186a0', chainId: '0x1' }],
+    signed: false,
+  })
 })
 
 test('a legacy raw transaction without EIP-155 names no chain, so it is refused', () => {
@@ -87,7 +99,7 @@ test('hex that is not a transaction, such as calldata alone, is refused', () => 
 
 test('a transaction as JSON must name its chain', () => {
   const tx = { chainId: 10, from: ACCOUNT, to: USDC_OP, data: TRANSFER }
-  assert.deepEqual(readPaste(JSON.stringify(tx)), { method: 'eth_sendTransaction', params: [tx] })
+  assert.deepEqual(readPaste(JSON.stringify(tx)), { method: 'eth_sendTransaction', params: [tx], signed: false })
   assert.throws(() => readPaste(JSON.stringify({ ...tx, chainId: undefined })), /names no chainId/)
   assert.throws(() => readPaste('{"chainId": 1, "value": "0x1"}'), /not a transaction or a JSON-RPC request/)
 })
@@ -126,6 +138,7 @@ test('a JSON-RPC request keeps its method and params, for signing methods only',
   assert.deepEqual(readPaste(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_signTypedData_v4', params })), {
     method: 'eth_signTypedData_v4',
     params,
+    signed: false,
   })
   assert.throws(() => readPaste(JSON.stringify({ method: 'eth_call', params: [] })), /eth_call is not a signing method/)
 })

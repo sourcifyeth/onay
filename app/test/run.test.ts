@@ -31,6 +31,7 @@ function request(method: string, params: unknown, chainId: number | null = 1): S
     chainId,
     receivedAt: 0,
     outcome: null,
+    signed: false,
   }
 }
 
