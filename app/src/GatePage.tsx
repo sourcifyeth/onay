@@ -3,6 +3,7 @@ import type { SigningRequest } from './messages.ts'
 import { chainName } from './chains.ts'
 import { ChainDataStep } from './ChainDataStep.tsx'
 import { ClearSigningStep } from './ClearSigningStep.tsx'
+import { LocallyVerifiedIcon } from './Icons.tsx'
 import { Cursor, LogLineView } from './Log.tsx'
 import { SimulationStep } from './SimulationStep.tsx'
 import { VerificationStep } from './VerificationStep.tsx'
@@ -12,22 +13,52 @@ import { verificationFor, type TimedLine, type Verification } from './gates/veri
 // The stamps show the real time of each line.
 const LINE_PACE = 200
 
+// What a method asks for, and what you do with it.
+const ASKS: Record<string, [string, string]> = {
+  eth_sendTransaction: ['a transaction', 'to sign and execute'],
+  eth_signTransaction: ['a transaction', 'to sign'],
+  wallet_sendCalls: ['a batch of transactions', 'to sign and execute'],
+}
+
 function Headline({ request }: { request: SigningRequest }) {
-  const site = (
-    <>
-      Website <span className="text-cerulean-blue-600">{request.origin}</span>
-    </>
-  )
-  switch (request.method) {
-    case 'eth_sendTransaction':
-      return <>{site} created a transaction for you to sign and execute</>
-    case 'eth_signTransaction':
-      return <>{site} created a transaction for you to sign</>
-    case 'wallet_sendCalls':
-      return <>{site} created a batch of transactions for you to sign and execute</>
-    default:
-      return <>{site} created a message for you to sign</>
+  const [what, task] = request.signed
+    ? ['a signed transaction', 'to execute']
+    : (ASKS[request.method] ?? ['a message', 'to sign'])
+  switch (request.source) {
+    case 'browser':
+      return (
+        <>
+          Website <span className="text-cerulean-blue-600">{request.origin}</span> created {what} for you {task}
+        </>
+      )
+    case 'paste':
+      return (
+        <>
+          You pasted {what} {task}
+        </>
+      )
   }
+}
+
+const NEXT_STEP = {
+  browser: 'Your wallet has the same request now. Check it here before you confirm there.',
+  paste: 'Onay only checks it. Nothing is signed or sent.',
+  signed: 'Onay only checks it and does not send it.',
+}
+
+// The signature of a pasted transaction gives its sender. The app
+// recovered it, so the sender is proven, not claimed.
+function Signer({ request }: { request: SigningRequest }) {
+  if (!request.signed) return null
+  const [tx] = request.params as [{ from?: unknown }]
+  if (typeof tx.from !== 'string') return null
+  return (
+    <p className="pt-3 text-sm text-gray-700">
+      <LocallyVerifiedIcon className="mr-1.5 inline-block h-3.5 w-3.5 align-[-2px]" title="Checked on this machine" />
+      Signed by <span className="font-mono break-all">{tx.from}</span>
+      <span className="text-gray-500"> · the signature proves it</span>
+    </p>
+  )
 }
 
 // One badge in joined parts: chain id, chain name, and the address.
@@ -64,9 +95,8 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
       <p className="text-base font-medium text-gray-900">
         <Headline request={request} />
       </p>
-      <p className="pt-1 text-sm text-gray-500">
-        Your wallet has the same request now. Check it here before you confirm there.
-      </p>
+      <p className="pt-1 text-sm text-gray-500">{NEXT_STEP[request.signed ? 'signed' : request.source]}</p>
+      <Signer request={request} />
       {named.length === 0 ? (
         chainId !== null && (
           <div className="pt-5">
@@ -120,18 +150,26 @@ function Section({
   )
 }
 
-function GateLog({ verification, shown }: { verification: Verification; shown: number }) {
+function GateLog({
+  request,
+  verification,
+  shown,
+}: {
+  request: SigningRequest
+  verification: Verification
+  shown: number
+}) {
   const { contracts, chainId, chain } = verification
   const mode = chain?.mode ?? null
   const visible = verification.lines.slice(0, shown)
-  const browser = visible.filter((line) => line.source === 'browser')
+  const asked = visible.filter((line) => line.source === request.source)
   const evm = visible.filter((line) => line.source === 'evm')
   const sourcify = visible.filter((line) => line.source === 'sourcify' || line.source === 'solc')
   const chainLines = visible.filter((line) => line.source === mode)
   const target = contracts.length === 1 ? contracts[0].address : `${contracts.length} contracts`
   return (
     <div className="font-mono text-xs leading-relaxed">
-      {browser.map((line, index) => (
+      {asked.map((line, index) => (
         <LogLineView key={index} line={line} tag />
       ))}
       {mode && chainLines.length > 0 ? (
@@ -191,7 +229,7 @@ export function GatePage({ request, onBack }: { request: SigningRequest; onBack:
         ← all requests
       </button>
       <Summary request={request} verification={verification} />
-      {!done && <GateLog verification={verification} shown={shown} />}
+      {!done && <GateLog request={request} verification={verification} shown={shown} />}
       {done && verification.chain && (
         <>
           <ChainDataStep verification={verification} />

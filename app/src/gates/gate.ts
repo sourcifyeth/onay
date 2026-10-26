@@ -1,6 +1,8 @@
 // A gate checks one contract and gives one result. The review of a request
 // opens only when each gate passed for each contract in it.
 
+import type { RequestSource } from '../messages.ts'
+
 export type GateState<T> =
   | { status: 'waiting' }
   | { status: 'running' }
@@ -11,9 +13,10 @@ export type GateState<T> =
   // with no code. The contract can still pass.
   | { status: 'skipped'; reason: string }
 
-// Where a line comes from. The page shows the lines of each gate under
-// its own header. 'evm' is the simulation, 'erc7730' the Clear Signing.
-export type Source = 'browser' | 'helios' | 'rpc' | 'evm' | 'sourcify' | 'solc' | 'erc7730'
+// Where a line comes from: the source of the request (the browser or a
+// paste), or a gate. The page shows the lines of each gate under its own
+// header. 'evm' is the simulation, 'erc7730' the Clear Signing.
+export type Source = RequestSource | 'helios' | 'rpc' | 'evm' | 'sourcify' | 'solc' | 'erc7730'
 
 export type LogLine = {
   source: Source

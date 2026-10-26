@@ -122,12 +122,14 @@ function request(method: string, params: unknown): SigningRequest {
   return {
     connection: 1,
     id: '1',
+    source: 'browser',
     origin: 'https://dapp.example',
     method,
     params,
     chainId: 1,
     receivedAt: 0,
     outcome: null,
+    signed: false,
   }
 }
 
@@ -207,7 +209,14 @@ test('inputOf: params with the wrong shape give none, not a throw', () => {
     inputOf(request('eth_signTypedData_v4', [YOU, { ...typedData, types: { Permit: 'junk' } }])).kind,
     'none',
   )
-  assert.equal(inputOf(request('eth_signTypedData_v4', ['junk', typedData])).kind, 'none')
+  assert.deepEqual(inputOf(request('eth_signTypedData_v4', ['junk', typedData])), {
+    kind: 'none',
+    reason: 'the request names no signing account',
+  })
+  assert.deepEqual(inputOf(request('eth_signTypedData_v4', [YOU, '{not json'])), {
+    kind: 'none',
+    reason: 'the request has no typed data',
+  })
 })
 
 test('asValue takes a hex quantity with the prefix only, and treats a missing value as zero', () => {

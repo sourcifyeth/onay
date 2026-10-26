@@ -18,7 +18,7 @@ import {
   type Warning,
 } from '@ethereum-sourcify/clear-signing'
 import { formatUnits, keccak256, toUtf8Bytes } from 'ethers'
-import { requestProblem } from '../gates/request.ts'
+import { isAddress, requestProblem } from '../gates/request.ts'
 import type { Hex, SigningRequest } from '../messages.ts'
 import { decodeCalldata, type Decoded } from './decode.ts'
 
@@ -88,10 +88,6 @@ export function reasonOf(display: DisplayModel | null): Warning | null {
   return display?.warnings?.find((warning) => warning.code !== 'INTERPOLATION_ERROR') ?? null
 }
 
-function isAddress(value: unknown): value is Hex {
-  return typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value)
-}
-
 // The fields below take what `requestProblem` in the gates accepted. A
 // field that does not read gives the empty form here, and never shows,
 // since the request is not rendered at all then.
@@ -143,7 +139,8 @@ export function inputOf(request: SigningRequest): Input {
     case 'eth_signTypedData_v4': {
       const account = asAddress(list[0])
       const typed = parseTypedData(list[1])
-      if (!account || !typed) return { kind: 'none', reason: 'the request has no typed data' }
+      if (!typed) return { kind: 'none', reason: 'the request has no typed data' }
+      if (!account) return { kind: 'none', reason: 'the request names no signing account' }
       return { kind: 'typedData', account, typed: { ...typed, account } }
     }
     default:

@@ -16,7 +16,7 @@ cargo fmt --all --check
 cargo deny check       # advisories, licenses, sources, bans
 ```
 
-The Rust tests cover the channel against the shared vectors, the key store, the peer rules, the whole link with a fake extension over a socket pair, and the relay binary against a fake app. The page tests in `test/` cover the pure gate modules: what a request names and what it runs, how a gate reports, the contract set and its verdicts, the Sourcify lookup, the compiler list and its hash check, the creation transaction, and the state of the simulation on a fake chain. Two tests run the real compiler: one with the real lib-sourcify on a small contract, one with the real EVM on three contracts that call each other. Both take the compiler build from `test/.cache/`, downloaded on the first run. The Clear Signing tests cover the trusted auditors, the plain decoding with the verified ABI, the data provider over a fake chain, the token lists, and the rendering with the real clear-signing library over a registry in memory.
+The Rust tests cover the channel against the shared vectors, the key store, the peer rules, the whole link with a fake extension over a socket pair, and the relay binary against a fake app. The page tests in `test/` cover the pure gate modules: what a request names and what it runs, how a gate reports, the contract set and its verdicts, the Sourcify lookup, the compiler list and its hash check, the creation transaction, the state of the simulation on a fake chain, and the forms of a pasted request. Two tests run the real compiler: one with the real lib-sourcify on a small contract, one with the real EVM on three contracts that call each other. Both take the compiler build from `test/.cache/`, downloaded on the first run. The Clear Signing tests cover the trusted auditors, the plain decoding with the verified ABI, the data provider over a fake chain, the token lists, and the rendering with the real clear-signing library over a registry in memory.
 
 The package settings live in `src-tauri/tauri.bundle.conf.json`, apart from the main Tauri config, so that `tauri dev` works without a packaged relay. `src-tauri/packaging/postinstall.sh` is the install script of the Linux packages.
 
@@ -63,7 +63,7 @@ Chrome can start a program for an extension, but it cannot connect to a program 
 5. **Hello.** Both sides send one message in the clear: their long-term X25519 public key and a random salt. Both derive the session keys with HKDF-SHA-256, two AES-256-GCM keys, one for each direction. The specification and the test vectors are shared with the extension, see `src-tauri/src/channel.rs` and `../testdata/`.
 6. **Pairing.** If the app does not know the extension's key, both sides show a six-digit code computed from the two public keys. The user compares the codes and approves in the window. The app stores the key next to its own in the app data directory, for example `~/.local/share/dev.sourcify.onay/link.json` on Linux, and tells the extension. Delete that file to reset all pairings. A rejection closes the connection and stores nothing.
 7. **Sealed messages.** Every later message is encrypted with a counter as nonce. A lost, repeated, reordered, or changed message fails to open, and the connection ends. The extension sends three kinds: a signing request that a page made, with the origin that the browser reported, the outcome the wallet gave, and a request to bring the window to the front. The app sends two kinds: paired, and pairing rejected.
-8. **State and window.** The app keeps the connections, the pairing requests, and the last 50 signing requests in memory. After each change it emits one event to the page. The page then calls a command that returns the whole state and renders it. Two more commands answer a pairing and dismiss a request.
+8. **State and window.** The app keeps the connections, the pairing requests, and the last 50 signing requests in memory. After each change it emits one event to the page. The page then calls a command that returns the whole state and renders it. Three more commands answer a pairing, add a request that the user pasted, and dismiss a request.
 
 ## Clear Signing
 
@@ -74,6 +74,16 @@ Links to the registry and to the signature database open in the browser of the d
 For this, `chain_request` answers `eth_call` and `eth_getBlockByNumber` too. Helios runs a call in its own EVM and fetches a proof for each account and slot that the call reads.
 
 The relay ships inside the app package, next to the `onay` binary, so the user installs only app and extension. During development both binaries are in `target/debug/`. The Linux package makes the relay setgid to its own group, so the user cannot trace it or preload code into it.
+
+## Pasted requests
+
+A request can also come from the user, not from a page: pasted as text. `src/paste.ts` turns each form into the method and params of a request from a page, and the `add_request` command puts it in the same list, with the source `paste` and no connection. From there it goes through the same checks.
+
+- A raw transaction: the RLP (Recursive Length Prefix) encoding in hex, signed or not, as `cast mktx` gives it. A typed transaction has its type byte in front of the RLP payload. ethers decodes it, and the sender of a signed one comes from its signature. A signed one gets the flag `signed`: the review calls it a signed transaction and shows its sender with the green local icon, because the signature proves it. Blob transactions and EIP-7702 transactions are refused, because the simulation does not model them.
+- JSON: a transaction, or a JSON-RPC request with a signing method or with `eth_sendRawTransaction`, whose one param is a raw transaction. Calldata alone goes in as a transaction: `{"chainId": 1, "to": "0x…", "data": "0x…"}`.
+- EIP-712 typed data goes in as a JSON-RPC request, with the signing account in `params[0]`. Clear Signing needs that account, and typed data alone does not name it, so the card refuses typed data without an account and shows the form to use.
+
+No wallet reports the chain of a pasted request, so a pasted transaction in any form must name its chain. The card also runs `requestProblem`, the check that the review runs first, so it refuses a field that the review would refuse, such as a decimal `value`, and shows the reason.
 
 ## The simulation
 

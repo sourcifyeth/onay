@@ -11,12 +11,14 @@ function request(method: string, params: unknown, chainId: number | null = null)
   return {
     connection: 1,
     id: '1',
+    source: 'browser',
     origin: 'https://dapp.example',
     method,
     params,
     chainId,
     receivedAt: 0,
     outcome: null,
+    signed: false,
   }
 }
 
