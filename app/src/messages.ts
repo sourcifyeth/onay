@@ -1,6 +1,7 @@
 // What the Rust side sends to the webview. Types only.
-// Mirrors `Snapshot`, `ConnectionInfo`, and `SigningRequest` in
-// src-tauri/src/link.rs, and `Installed` in src-tauri/src/host_manifest.rs.
+// Mirrors `Snapshot`, `ConnectionInfo`, `SigningRequest`, and
+// `RequestSource` in src-tauri/src/link.rs, and `Installed` in
+// src-tauri/src/host_manifest.rs.
 // The chain types mirror the commands and `Ready` in src-tauri/src/chain.rs.
 
 export type Hex = `0x${string}`
@@ -46,9 +47,16 @@ export type ConnectionInfo = {
   pairingCode: string | null
 }
 
+// Where a request came from: a page, through the extension, or the user,
+// who pasted it into the app.
+export type RequestSource = 'browser' | 'paste'
+
 export type SigningRequest = {
+  // 0 for a pasted request.
   connection: number
   id: string
+  source: RequestSource
+  // The site. Empty for a pasted request.
   origin: string
   method: string
   params: unknown
@@ -59,3 +67,6 @@ export type SigningRequest = {
   // The answer of the wallet, when it is known.
   outcome: 'fulfilled' | 'rejected' | null
 }
+
+// `add_request` adds a request that the user pasted into the app.
+export type AddRequestArgs = { method: string; params: unknown }

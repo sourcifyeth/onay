@@ -143,7 +143,8 @@ export function inputOf(request: SigningRequest): Input {
     case 'eth_signTypedData_v4': {
       const account = asAddress(list[0])
       const typed = parseTypedData(list[1])
-      if (!account || !typed) return { kind: 'none', reason: 'the request has no typed data' }
+      if (!typed) return { kind: 'none', reason: 'the request has no typed data' }
+      if (!account) return { kind: 'none', reason: 'the request names no signing account' }
       return { kind: 'typedData', account, typed: { ...typed, account } }
     }
     default:

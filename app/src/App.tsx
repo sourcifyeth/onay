@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import type { ConnectionInfo, SigningRequest, Snapshot } from './messages.ts'
 import { GatePage } from './GatePage.tsx'
+import { PasteCard } from './PasteCard.tsx'
 import { SettingsPage } from './SettingsPage.tsx'
 import { forgetVerification, requestKey, verificationFor } from './gates/verification.ts'
 import { forgetClearSigning } from './clear-signing/store.ts'
@@ -58,19 +59,39 @@ function CheckStatus({ request }: { request: SigningRequest }) {
   return <span className={STATUS_COLOR[status]}>{STATUS_TEXT[status]}</span>
 }
 
+// Who asks for the request, on its card.
+function Asker({ request }: { request: SigningRequest }) {
+  const method = <span className="font-mono">{request.method}</span>
+  switch (request.source) {
+    case 'browser':
+      return (
+        <>
+          <span className="font-semibold">{request.origin}</span> asks for {method}
+        </>
+      )
+    case 'paste':
+      return (
+        <>
+          <span className="font-semibold">You</span> pasted {method}
+        </>
+      )
+  }
+}
+
 function Request({ request, onOpen }: { request: SigningRequest; onOpen: () => void }) {
   const dismiss = () => {
     forgetVerification(request)
     forgetClearSigning(request)
     return invoke('dismiss_request', { connection: request.connection, id: request.id })
   }
+  // The page reports the chain of eth_sendTransaction, apart from the request.
+  const reportedChain = request.source === 'browser' && request.method === 'eth_sendTransaction'
   return (
     <div className="mt-3 rounded border border-gray-300 p-4">
       <div className="flex items-baseline justify-between gap-4">
         <p>
-          <span className="font-semibold">{request.origin}</span> asks for{' '}
-          <span className="font-mono">{request.method}</span>
-          {request.method === 'eth_sendTransaction' && (
+          <Asker request={request} />
+          {reportedChain && (
             <>
               {' '}
               on{' '}
@@ -84,7 +105,7 @@ function Request({ request, onOpen }: { request: SigningRequest; onOpen: () => v
         </p>
         <span className="shrink-0 text-gray-500">{new Date(request.receivedAt).toLocaleTimeString()}</span>
       </div>
-      {request.method === 'eth_sendTransaction' && (
+      {reportedChain && (
         <p className="mt-1 text-gray-600">The site reports the chain. Check that your wallet shows the same network.</p>
       )}
       <pre className="mt-2 max-h-80 overflow-auto rounded bg-gray-100 p-2 font-mono text-xs break-all whitespace-pre-wrap">
@@ -93,7 +114,8 @@ function Request({ request, onOpen }: { request: SigningRequest; onOpen: () => v
       <div className="mt-2 flex items-center justify-between gap-4">
         <span className="text-gray-600">
           <CheckStatus request={request} />{' '}
-          {request.outcome ? OUTCOME_TEXT[request.outcome] : 'The wallet has the same request now.'}
+          {request.source === 'browser' &&
+            (request.outcome ? OUTCOME_TEXT[request.outcome] : 'The wallet has the same request now.')}
         </span>
         <div className="flex shrink-0 gap-2">
           <button className="rounded bg-cerulean-blue-500 px-3 py-1 text-white" onClick={onOpen}>
@@ -215,6 +237,7 @@ export default function App() {
       ) : (
         <>
           <AttesterNotice onSettings={() => setSettings(true)} />
+          <PasteCard />
           <section className="mt-6">
             <h2 className="font-semibold">Signing requests</h2>
             {requests.length === 0 && (

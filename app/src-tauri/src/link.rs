@@ -9,6 +9,9 @@
 //! 5. The extension sends each signing request it sees. The wallet gets
 //!    the same request at the same time. The app only shows it.
 //!
+//! The user can also paste a request into the app. Such a request has no
+//! connection.
+//!
 //! `extension/src/messages.ts` has the same message types.
 
 use std::collections::BTreeMap;
@@ -42,6 +45,9 @@ const MAX_METHOD_LEN: usize = 64;
 const MAX_ORIGIN_LEN: usize = 2048;
 /// The largest chain ID that JavaScript can hold as a number.
 const MAX_CHAIN_ID: u64 = (1 << 53) - 1;
+/// The connection of a pasted request. The connections of the extension
+/// start at 1.
+const NO_CONNECTION: u64 = 0;
 
 // ---- Messages on the wire ----
 
@@ -151,11 +157,22 @@ pub struct ConnectionInfo {
     pairing_code: Option<String>,
 }
 
+/// Where a request came from: a page, through the extension, or the user,
+/// who pasted it into the app.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RequestSource {
+    Browser,
+    Paste,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SigningRequest {
     connection: u64,
     id: String,
+    source: RequestSource,
+    /// The site. Empty for a pasted request.
     origin: String,
     method: String,
     params: Value,
@@ -196,7 +213,23 @@ struct State {
     next_connection: u64,
     connections: BTreeMap<u64, Connection>,
     requests: Vec<SigningRequest>,
+    /// The ID of the last pasted request.
+    last_pasted: u64,
     rejected: Vec<String>,
+}
+
+impl State {
+    fn push_request(&mut self, request: SigningRequest) {
+        self.requests.push(request);
+        let excess = self.requests.len().saturating_sub(MAX_REQUESTS);
+        self.requests.drain(..excess);
+    }
+}
+
+fn now_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_millis() as u64)
 }
 
 /// The peer check: the browser, or why the app refuses the peer.
@@ -239,6 +272,7 @@ impl Link {
                 next_connection: 1,
                 connections: BTreeMap::new(),
                 requests: Vec::new(),
+                last_pasted: 0,
                 rejected: Vec::new(),
             }),
             verify,
@@ -289,6 +323,31 @@ impl Link {
             sent
         }
         .map_err(|err| format!("cannot tell the extension: {err}"))?;
+        drop(state);
+        (self.notify)(Notice::Changed);
+        Ok(())
+    }
+
+    /// Adds a request that the user pasted. No wallet answers it, so it
+    /// gets no outcome.
+    pub fn add_request(&self, method: String, params: Value) -> Result<(), String> {
+        if method.len() > MAX_METHOD_LEN {
+            return Err("the method is too long".into());
+        }
+        let mut state = self.state();
+        state.last_pasted += 1;
+        let id = state.last_pasted.to_string();
+        state.push_request(SigningRequest {
+            connection: NO_CONNECTION,
+            id,
+            source: RequestSource::Paste,
+            origin: String::new(),
+            method,
+            params,
+            chain_id: None,
+            received_at: now_millis(),
+            outcome: None,
+        });
         drop(state);
         (self.notify)(Notice::Changed);
         Ok(())
@@ -478,20 +537,17 @@ impl Link {
                     // ignores one that gets through.
                     return Ok(());
                 }
-                state.requests.push(SigningRequest {
+                state.push_request(SigningRequest {
                     connection,
                     id,
+                    source: RequestSource::Browser,
                     origin,
                     method,
                     params,
                     chain_id,
-                    received_at: SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .map_or(0, |elapsed| elapsed.as_millis() as u64),
+                    received_at: now_millis(),
                     outcome: None,
                 });
-                let excess = state.requests.len().saturating_sub(MAX_REQUESTS);
-                state.requests.drain(..excess);
                 Notice::NewRequest
             }
             ClientMessage::Focus => Notice::Focus,
@@ -689,6 +745,7 @@ mod tests {
 
         client.send(request("a"));
         let snapshot = wait_for(&link, &changes, |s| s.requests.len() == 1);
+        assert_eq!(snapshot.requests[0].source, RequestSource::Browser);
         assert_eq!(snapshot.requests[0].origin, "https://example.org");
         assert_eq!(snapshot.requests[0].method, "personal_sign");
         assert_eq!(snapshot.requests[0].outcome, None);
@@ -779,6 +836,41 @@ mod tests {
         let ids: Vec<_> = snapshot.requests.iter().map(|r| r.id.as_str()).collect();
         assert_eq!(ids, ["a", "b"]);
         assert_eq!(snapshot.connections.len(), 1);
+    }
+
+    #[test]
+    fn pasted_request_has_no_connection() {
+        let (link, _changes) = link("paste", verified);
+        let transaction = json!([{ "to": "0x0000000000000000000000000000000000000001" }]);
+        link.add_request("eth_sendTransaction".into(), transaction.clone())
+            .unwrap();
+        link.add_request("personal_sign".into(), json!(["0x68656c6c6f"]))
+            .unwrap();
+        assert!(
+            link.add_request("x".repeat(MAX_METHOD_LEN + 1), transaction)
+                .is_err()
+        );
+
+        let snapshot = link.snapshot();
+        let requests: Vec<_> = snapshot
+            .requests
+            .iter()
+            .map(|r| (r.connection, r.id.as_str(), r.source, r.method.as_str()))
+            .collect();
+        assert_eq!(
+            requests,
+            [
+                (
+                    NO_CONNECTION,
+                    "1",
+                    RequestSource::Paste,
+                    "eth_sendTransaction"
+                ),
+                (NO_CONNECTION, "2", RequestSource::Paste, "personal_sign"),
+            ]
+        );
+        link.dismiss_request(NO_CONNECTION, "1");
+        assert_eq!(link.snapshot().requests.len(), 1);
     }
 
     #[test]

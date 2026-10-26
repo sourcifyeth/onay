@@ -121,12 +121,13 @@ export function startVerification(request: SigningRequest, deps: Deps): Verifica
   const endWithoutContracts = () => {
     skipSimulation()
     if (!runs) return set({ status: 'passed' })
-    log({ source: 'browser', text: `call tree not checked · ${requestCalls.reason}` })
+    log({ source: request.source, text: `call tree not checked · ${requestCalls.reason}` })
     set({ status: 'flagged' })
   }
 
   const run = async () => {
-    log({ source: 'browser', text: `request received · ${request.method} · from ${request.origin}` })
+    const from = request.origin ? ` · from ${request.origin}` : ''
+    log({ source: request.source, text: `request received · ${request.method}${from}` })
     // Before any gate runs: the chain gate takes the reason, the other
     // gates did not start.
     const fail = (reason: string) => {
@@ -147,18 +148,18 @@ export function startVerification(request: SigningRequest, deps: Deps): Verifica
     const problem = requestProblem(request)
     if (problem) {
       const reason = `the request could not be read · ${problem}`
-      log({ source: 'browser', text: reason, ok: false })
+      log({ source: request.source, text: reason, ok: false })
       return fail(reason)
     }
     if (resolved.chainId === null) {
       if (addresses.length === 0) return endWithoutContracts()
-      log({ source: 'browser', text: resolved.reason, ok: false })
+      log({ source: request.source, text: resolved.reason, ok: false })
       return fail(resolved.reason)
     }
-    log({ source: 'browser', text: `chain ${resolved.chainId} ${CHAIN_SOURCE_TEXT[resolved.source]}` })
+    log({ source: request.source, text: `chain ${resolved.chainId} ${CHAIN_SOURCE_TEXT[resolved.source]}` })
     if (!chain) {
       const reason = `chain ${chainId} is not in the settings`
-      log({ source: 'browser', text: reason, ok: false })
+      log({ source: request.source, text: reason, ok: false })
       return fail(reason)
     }
     if (addresses.length === 0) {
@@ -167,7 +168,7 @@ export function startVerification(request: SigningRequest, deps: Deps): Verifica
     }
     if (contracts === null) {
       const reason = `more than ${MAX_CONTRACTS} contracts in the request`
-      log({ source: 'browser', text: reason, ok: false })
+      log({ source: request.source, text: reason, ok: false })
       return fail(reason)
     }
 

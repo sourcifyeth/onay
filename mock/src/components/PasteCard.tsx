@@ -47,12 +47,10 @@ export function PasteCard({ onVerify }: { onVerify: (tx: PastedTx) => void }) {
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <h2 className="pb-1 text-xs font-mono uppercase tracking-widest text-gray-500">Verify a transaction</h2>
+      <h2 className="pb-1 text-xs font-mono uppercase tracking-widest text-gray-500">Check a request yourself</h2>
       <p className="pb-3 text-sm text-gray-500">
-        Paste the transaction as JSON. Required: <span className="font-mono text-xs">chainId</span>,{' '}
-        <span className="font-mono text-xs">to</span>, <span className="font-mono text-xs">data</span>. Optional:{' '}
-        <span className="font-mono text-xs">value</span>, <span className="font-mono text-xs">from</span> (makes the
-        simulation sender-accurate).
+        Paste a raw transaction, or a transaction or a JSON-RPC request as JSON. Typed data goes in a JSON-RPC request,
+        with the account that signs it.
       </p>
       <textarea
         value={raw}

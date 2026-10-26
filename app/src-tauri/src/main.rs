@@ -46,6 +46,19 @@ fn answer_pairing(
 }
 
 #[tauri::command]
+fn add_request(
+    link: State<'_, LinkState>,
+    method: String,
+    params: serde_json::Value,
+) -> Result<(), String> {
+    let link = link
+        .inner()
+        .as_ref()
+        .map_err(|_| "the link is not running")?;
+    link.add_request(method, params)
+}
+
+#[tauri::command]
 fn dismiss_request(link: State<'_, LinkState>, connection: u64, id: String) {
     if let Ok(link) = link.inner() {
         link.dismiss_request(connection, &id);
@@ -143,6 +156,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             link_state,
             answer_pairing,
+            add_request,
             dismiss_request,
             chain::start_chain,
             chain::stop_chain,

@@ -47,7 +47,7 @@ The verifier is view only: it never signs and never holds a request back. The wa
 ### Feature set
 
 - **Interception.** A thin extension wraps the page's EIP-1193 provider (the standard wallet-injection interface) and copies `eth_sendTransaction` and signing requests to the app. The call to the wallet is not delayed and not changed. If the app is not running, the extension asks you to open it, then forwards.
-- **Beyond the extension.** The app also accepts requests that never touched a browser: transaction data pasted by hand (a raw transaction, calldata, or an EIP-712 payload), and animated QR codes from air-gapped hardware wallets via [ERC-4527](https://eips.ethereum.org/EIPS/eip-4527), the `eth-sign-request` Uniform Resources format used by Keystone, OneKey, and AirGap.
+- **Beyond the extension.** The app also accepts requests that never touched a browser: transaction data pasted by hand (a raw transaction, or a transaction or a JSON-RPC request as JSON; an EIP-712 payload goes in a JSON-RPC request, with the account that signs it).
 - **Call-tree simulation.** The transaction is executed locally (ethereumjs EVM) against verified chain state, for one purpose in this version: reconstructing the call tree, so the review shows every contract the transaction actually touches, not just the entry point. Effects preview (balance changes, storage writes, events) is deliberately out of scope until a later version.
 - **Local verification gate.** The app fetches the sources of every contract in the call tree from Sourcify, recompiles them locally, and compares the results against the on-chain bytecode. Sourcify's claim is never trusted; we reproduce it. A contract that the request names must pass. A contract whose code runs as a named contract, the implementation of a proxy or a facet of a diamond, must pass too. A contract that only the call tree reaches may have no sources on Sourcify: that does not block the request, but the review flags it, because what that contract does cannot be checked.
 - **Clear Signing.** The verified ABI (Application Binary Interface) plus ERC-7730 descriptors render the request as human-readable intent. A descriptor from the registry counts as reviewed only after an auditor the user trusts attested it (ERC-8176); the user picks the auditors, and none is trusted by default. A descriptor that none attested shows as a preview with a warning. A call to a token on one of the user's token lists (Uniswap Token Lists format, the Uniswap Labs Default list from the start) renders with the bundled ERC-20 template; the list is a claim of its publisher and shows as such. Without a descriptor, the calldata shows as the verified ABI decodes it.
@@ -145,7 +145,7 @@ Each step ends with something that runs and can be reviewed. Steps 3 to 6 work o
 7. **Call-tree simulation.** Run the transaction in a local EVM (ethereumjs) on verified state.
    - Collect every touched contract, run both gates on each, display them all.
    - This also covers proxies, delegatecalls and diamonds, so step 4 reads no EIP-1967 slots.
-8. **Other inputs.** Pasted transactions and animated QR codes (ERC-4527) enter the same pipeline.
+8. **Other inputs.** Pasted requests enter the same pipeline: a raw transaction, or a transaction or a JSON-RPC request as JSON. Typed data needs its signing account, so it goes in a JSON-RPC request. QR codes (ERC-4527) are out for now.
 
 ### Preparing for step 7 from day one
 
@@ -168,4 +168,4 @@ Each step ends with something that runs and can be reviewed. Steps 3 to 6 work o
 
 ## Version 1+
 
-To be planned. Candidates from the target, in no confirmed order: an effects preview built on the Version 0 call-tree simulation (balance changes, storage writes, events), the transaction builder and contract explorer, Ledger signing, post-mining verification and activity history, address book, Firefox port. Also for later: a list of trusted attesters that ships with the app, so that Clear Signing works before the user picks any.
+To be planned. Candidates from the target, in no confirmed order: an effects preview built on the Version 0 call-tree simulation (balance changes, storage writes, events), the transaction builder and contract explorer, animated QR codes from air-gapped hardware wallets via [ERC-4527](https://eips.ethereum.org/EIPS/eip-4527) (the `eth-sign-request` Uniform Resources format used by Keystone, OneKey, and AirGap), Ledger signing, post-mining verification and activity history, address book, Firefox port. Also for later: a list of trusted attesters that ships with the app, so that Clear Signing works before the user picks any.
