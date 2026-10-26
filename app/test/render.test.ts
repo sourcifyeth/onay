@@ -20,6 +20,7 @@ import {
   inputOf,
   reasonOf,
   render,
+  encodeType,
   rendered,
   typedDataPath,
   type RenderOptions,
@@ -382,6 +383,38 @@ test('typedDataPath picks the entry whose type hash matches, as the library does
     types: { EIP712Domain: [{ name: 'name', type: 'string' }], ...typedData.types },
   }
   assert.equal(typedDataPath(entries, withDomain), 'b.json')
+  // A type that nothing uses does not change the hash.
+  const unused = {
+    ...typedData,
+    account: YOU,
+    types: { ...typedData.types, Unused: [{ name: 'x', type: 'uint8' }] },
+  }
+  assert.equal(typedDataPath(entries, unused), 'b.json')
+  assert.equal(typedDataPath(entries, { ...typedData, account: YOU, primaryType: 'Missing' }), null)
+})
+
+test('encodeType: the primary type, then the types it references, sorted, and nothing else', () => {
+  const types = {
+    Mail: [
+      { name: 'from', type: 'Person' },
+      { name: 'to', type: 'Person[]' },
+      { name: 'asset', type: 'Asset[2][]' },
+    ],
+    Person: [
+      { name: 'wallet', type: 'address' },
+      { name: 'name', type: 'string' },
+    ],
+    Asset: [{ name: 'id', type: 'uint256' }],
+    Unused: [{ name: 'x', type: 'uint8' }],
+  }
+  assert.equal(
+    encodeType(types, 'Mail'),
+    'Mail(Person from,Person[] to,Asset[2][] asset)Asset(uint256 id)Person(address wallet,string name)',
+  )
+  assert.equal(encodeType(types, 'Person'), 'Person(address wallet,string name)')
+  assert.equal(encodeType(types, 'constructor'), null)
+  const builtin = { Root: [{ name: 'x', type: 'toString' }] }
+  assert.equal(encodeType(builtin, 'Root'), 'Root(toString x)')
 })
 
 test('typed data renders with its descriptor', async () => {

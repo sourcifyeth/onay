@@ -83,8 +83,14 @@ function callProblem(value: unknown, what: string): string | null {
   const call = value as Record<string, unknown>
   if (call.from != null && !isAddress(call.from)) return `the sender of ${what} is not an address`
   if (call.to != null && !isAddress(call.to)) return `the recipient of ${what} is not an address`
-  const data = call.data ?? call.input
-  if (data != null && !isData(data)) return `the data of ${what} is not hex bytes with the 0x prefix`
+  for (const data of [call.data, call.input]) {
+    if (data != null && !isData(data)) return `the data of ${what} is not hex bytes with the 0x prefix`
+  }
+  // A wallet may take either field. Geth refuses a transaction with both
+  // when they differ, so this check does too.
+  if (isData(call.data) && isData(call.input) && call.data.toLowerCase() !== call.input.toLowerCase()) {
+    return `${what} has both data and input, and they differ`
+  }
   if (call.value != null && !isQuantity(call.value)) {
     return `the value of ${what} is not a hex quantity with the 0x prefix`
   }

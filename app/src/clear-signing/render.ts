@@ -17,7 +17,7 @@ import {
   type TypedDataIndexEntry,
   type Warning,
 } from '@ethereum-sourcify/clear-signing'
-import { TypedDataEncoder, formatUnits, keccak256, toUtf8Bytes } from 'ethers'
+import { formatUnits, keccak256, toUtf8Bytes } from 'ethers'
 import { requestProblem } from '../gates/request.ts'
 import type { Hex, SigningRequest } from '../messages.ts'
 import { decodeCalldata, type Decoded } from './decode.ts'
@@ -318,18 +318,36 @@ export async function render(input: Input, options: RenderOptions): Promise<Rend
   }
 }
 
+// The EIP-712 encoding of a type, as the library computes it: the
+// primary type first, then the types it references, sorted by name.
+// Types that it does not reference are left out. Null if the primary
+// type is not in the types.
+export function encodeType(types: TypedData['types'], primary: string): string | null {
+  if (!Object.hasOwn(types, primary)) return null
+  const referenced = new Set<string>()
+  const collect = (name: string) => {
+    if (referenced.has(name)) return
+    referenced.add(name)
+    for (const member of types[name]) {
+      const base = member.type.replace(/(\[.*?\])+$/, '')
+      if (Object.hasOwn(types, base)) collect(base)
+    }
+  }
+  collect(primary)
+  referenced.delete(primary)
+  return [primary, ...[...referenced].sort()]
+    .map((name) => `${name}(${types[name].map((member) => `${member.type} ${member.name}`).join(',')})`)
+    .join('')
+}
+
 // The descriptor file that rendered the typed data: the entry whose type
 // hashes hold the hash of the message type, as the library picks it.
 // Null when no entry matches.
 export function typedDataPath(entries: TypedDataIndexEntry[] | undefined, typed: TypedData): string | null {
   if (!entries || entries.length === 0) return null
-  const { EIP712Domain: _domain, ...types } = typed.types
-  let hash: string
-  try {
-    hash = keccak256(toUtf8Bytes(TypedDataEncoder.from(types).encodeType(typed.primaryType)))
-  } catch {
-    return null
-  }
+  const encoded = encodeType(typed.types, typed.primaryType)
+  if (encoded === null) return null
+  const hash = keccak256(toUtf8Bytes(encoded))
   return entries.find((entry) => entry.encodeTypeHashes.includes(hash))?.path ?? null
 }
 
