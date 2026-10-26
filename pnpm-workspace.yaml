@@ -10,3 +10,8 @@ allowBuilds:
   cbor-extract: false
 
 minimumReleaseAge: 10080 # minutes = 7 days
+
+# Sourcify's own clear-signing library: the newest release goes in as soon
+# as it is published, without the seven-day wait.
+minimumReleaseAgeExclude:
+  - '@ethereum-sourcify/clear-signing'

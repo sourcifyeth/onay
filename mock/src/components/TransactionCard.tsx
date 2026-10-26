@@ -144,7 +144,7 @@ function ClearSigningPane({ request }: { request: MockRequest }) {
     return (
       <div>
         <p className="rounded-lg border-l-2 border-amber-400 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-          No ERC-7730 clear signing descriptor is registered for this contract, so there is no reviewed description of
+          No ERC-7730 Clear Signing descriptor is registered for this contract, so there is no reviewed description of
           what this transaction does.{' '}
           {unverifiedEntry
             ? 'The contract is not verified either: parameter names below are a signature database guess.'
@@ -286,7 +286,7 @@ export function TransactionCard({ request }: { request: MockRequest }) {
       </h2>
       <Tabs
         tabs={[
-          { label: 'Clear signing', content: <ClearSigningPane request={request} /> },
+          { label: 'Clear Signing', content: <ClearSigningPane request={request} /> },
           { label: 'Advanced', content: <AdvancedPane request={request} /> },
         ]}
       />

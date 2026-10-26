@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import type { SigningRequest } from '../src/messages.ts'
-import { callsOf, chainOf, contractsOf, parseChainId, parseQuantity } from '../src/gates/request.ts'
+import { callsOf, chainOf, contractsOf, parseChainId, parseQuantity, requestProblem } from '../src/gates/request.ts'
 
 const A = '0xff75a951eeb963dd34a1712edc3c358f08e6b0aa'
 const B = '0x1111111111111111111111111111111111111111'
@@ -92,6 +92,37 @@ test('parseQuantity takes hex strings only', () => {
 })
 
 const FROM = '0x9f21b45c7e83a10fd4e2c11098d2ce6f4b76c04e'
+
+test('requestProblem: a field that is there but does not read', () => {
+  const tx = (change: Record<string, unknown>) => request('eth_sendTransaction', [{ from: A, to: B, ...change }])
+  assert.equal(requestProblem(tx({})), null)
+  assert.equal(requestProblem(tx({ data: '0x', value: '0x0', gas: '0x5208' })), null)
+  assert.equal(requestProblem(tx({ to: undefined })), null)
+  assert.equal(requestProblem(tx({ to: null, data: null, value: null })), null)
+  assert.match(requestProblem(tx({ value: '1000000000000000000' }))!, /value .* not a hex quantity/)
+  assert.match(requestProblem(tx({ value: '' }))!, /value/)
+  assert.match(requestProblem(tx({ value: 1 }))!, /value/)
+  assert.match(requestProblem(tx({ data: 'a9059cbb' }))!, /data .* not hex bytes/)
+  assert.match(requestProblem(tx({ data: '0xabc' }))!, /data/)
+  assert.match(requestProblem(tx({ data: '0XAB' }))!, /data/)
+  assert.match(requestProblem(tx({ input: 'junk' }))!, /data/)
+  assert.match(requestProblem(tx({ data: '0xab', input: 'junk' }))!, /data .* not hex bytes/)
+  assert.equal(requestProblem(tx({ data: '0xAB', input: '0xab' })), null)
+  assert.equal(requestProblem(tx({ input: '0xab' })), null)
+  assert.match(requestProblem(tx({ data: '0xab', input: '0xcd' }))!, /both data and input, and they differ/)
+  const both = request('wallet_sendCalls', [{ from: A, calls: [{ to: B, data: '0x01', input: '0x02' }] }])
+  assert.match(requestProblem(both)!, /call 1 has both data and input/)
+  assert.match(requestProblem(tx({ to: B.slice(2) }))!, /recipient .* not an address/)
+  assert.match(requestProblem(tx({ from: 'me' }))!, /sender/)
+  assert.match(requestProblem(tx({ gas: '21000' }))!, /gas limit/)
+  assert.match(requestProblem(request('eth_sendTransaction', ['junk']))!, /not an object/)
+  const batch = (calls: unknown[]) => request('wallet_sendCalls', [{ from: A, calls }])
+  assert.equal(requestProblem(batch([{ to: B, data: '0x' }])), null)
+  assert.match(requestProblem(batch([{ to: B }, { to: B, value: '5' }]))!, /value of call 2/)
+  assert.match(requestProblem(request('wallet_sendCalls', [{ from: 'x', calls: [] }]))!, /sender of the batch/)
+  assert.equal(requestProblem(request('eth_signTypedData_v4', [A, '{}'])), null)
+  assert.equal(requestProblem(request('personal_sign', ['0x1234', A])), null)
+})
 
 test('callsOf: a transaction, with its data, value and gas', () => {
   const tx = { from: FROM.toUpperCase().replace('0X', '0x'), to: A, data: '0x12345678', value: '0x5', gas: '0x5208' }

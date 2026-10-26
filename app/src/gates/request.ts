@@ -53,6 +53,59 @@ export function parseChainId(value: unknown): number | null {
   return Number.isSafeInteger(chainId) && chainId > 0 ? chainId : null
 }
 
+// Why a request cannot be read: a field that is there but not in the
+// form a wallet takes, for example a value without the 0x prefix. The
+// wallet reads such a field its own way, so Onay must not guess what it
+// means. Null if every field reads.
+export function requestProblem({ method, params }: SigningRequest): string | null {
+  const list = Array.isArray(params) ? params : []
+  switch (method) {
+    case 'eth_sendTransaction':
+    case 'eth_signTransaction':
+      return callProblem(list[0], 'the transaction')
+    case 'wallet_sendCalls': {
+      const batch = list[0] as { from?: unknown; calls?: unknown } | undefined
+      if (batch?.from != null && !isAddress(batch.from)) return 'the sender of the batch is not an address'
+      if (!Array.isArray(batch?.calls)) return null
+      for (const [index, call] of batch.calls.entries()) {
+        const problem = callProblem(call, `call ${index + 1}`)
+        if (problem) return problem
+      }
+      return null
+    }
+    default:
+      return null
+  }
+}
+
+function callProblem(value: unknown, what: string): string | null {
+  if (typeof value !== 'object' || value === null) return `${what} is not an object`
+  const call = value as Record<string, unknown>
+  if (call.from != null && !isAddress(call.from)) return `the sender of ${what} is not an address`
+  if (call.to != null && !isAddress(call.to)) return `the recipient of ${what} is not an address`
+  for (const data of [call.data, call.input]) {
+    if (data != null && !isData(data)) return `the data of ${what} is not hex bytes with the 0x prefix`
+  }
+  // A wallet may take either field. Geth refuses a transaction with both
+  // when they differ, so this check does too.
+  if (isData(call.data) && isData(call.input) && call.data.toLowerCase() !== call.input.toLowerCase()) {
+    return `${what} has both data and input, and they differ`
+  }
+  if (call.value != null && !isQuantity(call.value)) {
+    return `the value of ${what} is not a hex quantity with the 0x prefix`
+  }
+  if (call.gas != null && !isQuantity(call.gas)) return `the gas limit of ${what} is not a hex quantity`
+  return null
+}
+
+function isData(value: unknown): value is Hex {
+  return typeof value === 'string' && /^0x([0-9a-fA-F]{2})*$/.test(value)
+}
+
+function isQuantity(value: unknown): value is Hex {
+  return typeof value === 'string' && /^0x[0-9a-fA-F]+$/.test(value)
+}
+
 // The contracts that a request names. The params come from the page, so
 // check each value. Messages (personal_sign, eth_sign) name no contract.
 export function contractsOf({ method, params }: SigningRequest): Hex[] {

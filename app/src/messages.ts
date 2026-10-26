@@ -22,6 +22,10 @@ export type ChainReady = {
 // `chain_request` answers like an EIP-1193 provider.
 export type ChainRequestArgs = { chainId: number; method: string; params: unknown[] }
 
+// `open_url` in src-tauri/src/browser.rs opens a link in the browser of
+// the desktop. The app allows a few sites only.
+export type OpenUrlArgs = { url: string }
+
 export type Snapshot = {
   socket: string
   relay: string | null

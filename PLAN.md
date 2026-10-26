@@ -12,7 +12,7 @@ Onay is a local desktop app with a thin browser extension that sits between the 
 
 ## Where we start
 
-A fully working prototype already exists (the `project-independence` repo, from when the project was called Independence): a Tauri desktop app that was vibecoded to explore the idea end to end. It is the reference implementation. It defines the target feature set (Helios light client, local Sourcify verification gate, proxy and diamond resolution, ERC-7730 clear signing, local EVM simulation, Ledger signing, post-mining verification, activity history, address book), but none of its code is trusted as-is: every feature re-enters the product through a from-zero rewrite in which each line is reviewed.
+A fully working prototype already exists (the `project-independence` repo, from when the project was called Independence): a Tauri desktop app that was vibecoded to explore the idea end to end. It is the reference implementation. It defines the target feature set (Helios light client, local Sourcify verification gate, proxy and diamond resolution, ERC-7730 Clear Signing, local EVM simulation, Ledger signing, post-mining verification, activity history, address book), but none of its code is trusted as-is: every feature re-enters the product through a from-zero rewrite in which each line is reviewed.
 
 ## How we rebuild
 
@@ -33,7 +33,7 @@ flowchart LR
     helios["Helios<br/>verified chain state"]
     sim["local EVM<br/>call-tree trace"]
     sourcify["lib-sourcify<br/>recompile + compare"]
-    cs["clear signing<br/>readable intent"]
+    cs["Clear Signing<br/>readable intent"]
     review["you review<br/>then decide in the wallet"]
   end
   dapp --> ext
@@ -50,7 +50,7 @@ The verifier is view only: it never signs and never holds a request back. The wa
 - **Beyond the extension.** The app also accepts requests that never touched a browser: transaction data pasted by hand (a raw transaction, calldata, or an EIP-712 payload), and animated QR codes from air-gapped hardware wallets via [ERC-4527](https://eips.ethereum.org/EIPS/eip-4527), the `eth-sign-request` Uniform Resources format used by Keystone, OneKey, and AirGap.
 - **Call-tree simulation.** The transaction is executed locally (ethereumjs EVM) against verified chain state, for one purpose in this version: reconstructing the call tree, so the review shows every contract the transaction actually touches, not just the entry point. Effects preview (balance changes, storage writes, events) is deliberately out of scope until a later version.
 - **Local verification gate.** The app fetches the sources of every contract in the call tree from Sourcify, recompiles them locally, and compares the results against the on-chain bytecode. Sourcify's claim is never trusted; we reproduce it. A contract that the request names must pass. A contract whose code runs as a named contract, the implementation of a proxy or a facet of a diamond, must pass too. A contract that only the call tree reaches may have no sources on Sourcify: that does not block the request, but the review flags it, because what that contract does cannot be checked.
-- **Clear signing.** The verified ABI (Application Binary Interface) plus ERC-7730 descriptors render the request as human-readable intent.
+- **Clear Signing.** The verified ABI (Application Binary Interface) plus ERC-7730 descriptors render the request as human-readable intent. A descriptor from the registry counts as reviewed only after an auditor the user trusts attested it (ERC-8176); the user picks the auditors, and none is trusted by default. A descriptor that none attested shows as a preview with a warning. A call to a token on one of the user's token lists (Uniswap Token Lists format, the Uniswap Labs Default list from the start) renders with the bundled ERC-20 template; the list is a claim of its publisher and shows as such. Without a descriptor, the calldata shows as the verified ABI decodes it.
 - **Review next to the wallet.** The app shows its result while the wallet shows its own confirmation. You approve or reject in the wallet, as always.
 - **Digest cross-check ([ERC-8213](https://github.com/ethereum/ERCs/pull/1639)).** The app displays the request's digest using the exact terminology the standard mandates: the Calldata Digest for transactions (`keccak256(uint256(len(calldata)) || calldata)`, chain-independent by design) and the EIP-712 Digest for typed-data signatures. A wallet that also implements ERC-8213 (Keycard Shell is the first hardware wallet to do so) shows the same value before signing; comparing the two proves the wallet received exactly the bytes you reviewed, even if the dapp or browser was compromised in between. This closes the last gap in the flow: the app verifies what you review, the digest verifies what you sign.
 
@@ -101,7 +101,7 @@ Both ecosystems:
 
 ### UX
 
-The whole product in one interaction: a dapp request opens the wallet as usual, and at the same time the app verifies and explains it (verification result with sources and compiler settings, the exact function called, an "open files in your editor" action, clear signing as both extrapolated intent and a table of fields), so you can compare before you confirm in the wallet.
+The whole product in one interaction: a dapp request opens the wallet as usual, and at the same time the app verifies and explains it (verification result with sources and compiler settings, the exact function called, an "open files in your editor" action, Clear Signing as both extrapolated intent and a table of fields), so you can compare before you confirm in the wallet.
 
 The app's visual style follows Sourcify's design language (sourcify.dev, verify.sourcify.dev, repo.sourcify.dev).
 
@@ -133,12 +133,14 @@ Each step ends with something that runs and can be reviewed. Steps 3 to 6 work o
    - Native Rust Helios, exposed to the webview as EIP-1193 over Tauri IPC (inter-process communication).
 4. **Gate 2: Sourcify.** Fetch sources, recompile locally, compare against the verified on-chain bytecode.
    - Download solc only from the official list, hash-checked before running.
-   - Proxies: the implementation is found by the simulation of step 7, not by reading EIP-1967 slots.
+   - Proxies: the implementation is found by the simulation of step 7, not by reading EIP-1967 slots. Sourcify's proxy detection is read as a cross-check of that finding, shown as a third-party claim.
    - Show result, sources, compiler settings; "open files in your editor".
    - Requests to the Sourcify server carry a User-Agent header with the app name and version.
-5. **Clear signing (ERC-7730).** Decode the call with the verified ABI (Application Binary Interface).
+5. **Clear Signing (ERC-7730).** Decode the call with the verified ABI (Application Binary Interface).
    - Render intent and field table from ERC-7730 descriptors; plain decoding as fallback.
    - Use our own ERC-7730 library.
+   - A descriptor counts as reviewed only when an auditor the user trusts attested it (ERC-8176), and shows as a preview with a warning otherwise; the attestation's revocation state is read on mainnet through Helios.
+   - Every value the descriptor needs (token symbols and decimals, ENS names, block times) is read from the chain through the same gate as the code, never from a third-party API.
 6. **Digest (ERC-8213).** Show the Calldata Digest or EIP-712 Digest.
 7. **Call-tree simulation.** Run the transaction in a local EVM (ethereumjs) on verified state.
    - Collect every touched contract, run both gates on each, display them all.
@@ -166,4 +168,4 @@ Each step ends with something that runs and can be reviewed. Steps 3 to 6 work o
 
 ## Version 1+
 
-To be planned. Candidates from the target, in no confirmed order: an effects preview built on the Version 0 call-tree simulation (balance changes, storage writes, events), the transaction builder and contract explorer, Ledger signing, post-mining verification and activity history, address book, Firefox port. Also for later: the user chooses which attestors to trust.
+To be planned. Candidates from the target, in no confirmed order: an effects preview built on the Version 0 call-tree simulation (balance changes, storage writes, events), the transaction builder and contract explorer, Ledger signing, post-mining verification and activity history, address book, Firefox port. Also for later: a list of trusted attesters that ships with the app, so that Clear Signing works before the user picks any.

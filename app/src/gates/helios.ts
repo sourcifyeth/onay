@@ -191,7 +191,7 @@ let nextRpcId = 1
 
 // One JSON-RPC call to an endpoint in RPC mode. The answer must carry the
 // id of the request.
-async function rpcRequest(url: string, method: string, params: unknown[]): Promise<unknown> {
+export async function rpcRequest(url: string, method: string, params: unknown[]): Promise<unknown> {
   const id = nextRpcId++
   const response = await fetch(url, {
     method: 'POST',

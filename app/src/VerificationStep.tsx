@@ -138,9 +138,19 @@ function LocalVerification({ contract }: { contract: Contract }) {
   )
 }
 
-function roleOf(contract: Contract): string {
-  if (contract.implementationOf) return `Implementation of ${short(contract.implementationOf)}`
-  return contract.foundBy === 'request' ? 'Contract' : 'Called contract'
+// The role of a contract. Code that ran in the context of a named
+// contract is its proxy implementation only when Sourcify's proxy
+// detection, a claim, names it so; otherwise it may be the facet of a
+// diamond or a library, and the role says what the simulation saw.
+function roleOf(contract: Contract, contracts: Contract[]): string {
+  const of = contract.implementationOf
+  if (!of) return contract.foundBy === 'request' ? 'Contract' : 'Called contract'
+  const named = contracts.find((other) => other.address === of)
+  if (named && delegateOf(codeOf(named) ?? '0x')) return `Delegate of ${short(of)}`
+  const claim = named ? claimOf(named.sourcify) : null
+  const confirmed = claim?.implementations.some((impl) => impl.address === contract.address) ?? false
+  if (confirmed && claim) return `Implementation of ${short(of)} · ${claim.proxyType} proxy per Sourcify`
+  return `Ran as ${short(of)}`
 }
 
 const MARKS: Record<Verdict, [string, string]> = {
@@ -151,13 +161,13 @@ const MARKS: Record<Verdict, [string, string]> = {
 }
 
 // One line per contract: its verdict, role, address and name.
-function ContractSummary({ contract }: { contract: Contract }) {
+function ContractSummary({ contract, contracts }: { contract: Contract; contracts: Contract[] }) {
   const [mark, color] = MARKS[verdictOf(contract)]
   const name = claimOf(contract.sourcify)?.name
   return (
     <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
       <span className={`font-medium ${color}`}>{mark}</span>
-      <span className="text-xs text-gray-500">{roleOf(contract)}</span>
+      <span className="text-xs text-gray-500">{roleOf(contract, contracts)}</span>
       <span className="font-mono text-[13px] text-gray-700" title={contract.address}>
         {short(contract.address)}
       </span>
@@ -246,7 +256,7 @@ function ContractVerification({
     (line) => line.address === contract.address && (line.source === 'sourcify' || line.source === 'solc'),
   )
   return (
-    <CollapsibleCard open={open} summary={<ContractSummary contract={contract} />}>
+    <CollapsibleCard open={open} summary={<ContractSummary contract={contract} contracts={verification.contracts} />}>
       <Warnings contract={contract} />
       <p className="pb-2 font-mono text-[13px] break-all text-gray-700">{contract.address}</p>
       <SourcifyRow contract={contract} />
