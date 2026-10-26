@@ -25,6 +25,7 @@ ignore = [
   { id = "RUSTSEC-2026-0119", reason = "hickory-proto 0.25, via helios > reqwest 0.12; the resolver encodes only its own small queries; fixed in 0.26, which reqwest 0.12 does not accept" },
   { id = "RUSTSEC-2024-0436", reason = "unmaintained paste, a compile-time macro, via helios > alloy-primitives" },
   { id = "RUSTSEC-2024-0449", reason = "unmaintained unsafe-libyaml, via helios-ethereum > serde_yaml; parses the checkpoint service list that Helios fetches from GitHub over HTTPS" },
+  { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5, via helios > alloy-signer > elliptic-curve 0.13; timing leaks on secret integers, and Onay holds no keys: the curve code only verifies signatures on public data; fixed in 0.7, which elliptic-curve 0.13 does not accept" },
 ]
 
 [licenses]

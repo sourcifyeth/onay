@@ -67,3 +67,7 @@ reason = "unmaintained instant, via helios-verifiable-api-client > reqwest-retry
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0449"
 reason = "unmaintained unsafe-libyaml, via helios-ethereum > serde_yaml; parses the checkpoint service list that Helios fetches from GitHub over HTTPS"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0387"
+reason = "crypto-bigint 0.5, via helios > alloy-signer > elliptic-curve 0.13; timing leaks on secret integers, and Onay holds no keys: the curve code only verifies signatures on public data; fixed in 0.7, which elliptic-curve 0.13 does not accept"
