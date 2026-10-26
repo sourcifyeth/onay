@@ -22,7 +22,8 @@ export function chainOf(request: SigningRequest): RequestChain {
   return { chainId: null, reason: 'the request names no chain' }
 }
 
-function chainNamedIn({ method, params }: SigningRequest): number | null {
+// The chain that the params of a request name, if any.
+export function chainNamedIn({ method, params }: Pick<SigningRequest, 'method' | 'params'>): number | null {
   const list = Array.isArray(params) ? params : []
   const first = list[0] as { chainId?: unknown } | undefined
   switch (method) {
@@ -57,7 +58,7 @@ export function parseChainId(value: unknown): number | null {
 // form a wallet takes, for example a value without the 0x prefix. The
 // wallet reads such a field its own way, so Onay must not guess what it
 // means. Null if every field reads.
-export function requestProblem({ method, params }: SigningRequest): string | null {
+export function requestProblem({ method, params }: Pick<SigningRequest, 'method' | 'params'>): string | null {
   const list = Array.isArray(params) ? params : []
   switch (method) {
     case 'eth_sendTransaction':
@@ -204,6 +205,6 @@ function parseTypedData(data: unknown): unknown {
   }
 }
 
-function isAddress(value: unknown): value is Hex {
+export function isAddress(value: unknown): value is Hex {
   return typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value)
 }

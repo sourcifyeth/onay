@@ -18,7 +18,7 @@ import {
   type Warning,
 } from '@ethereum-sourcify/clear-signing'
 import { formatUnits, keccak256, toUtf8Bytes } from 'ethers'
-import { requestProblem } from '../gates/request.ts'
+import { isAddress, requestProblem } from '../gates/request.ts'
 import type { Hex, SigningRequest } from '../messages.ts'
 import { decodeCalldata, type Decoded } from './decode.ts'
 
@@ -86,10 +86,6 @@ export function rendered(display: DisplayModel | null): boolean {
 // The warning that says why no descriptor rendered the data, if any.
 export function reasonOf(display: DisplayModel | null): Warning | null {
   return display?.warnings?.find((warning) => warning.code !== 'INTERPOLATION_ERROR') ?? null
-}
-
-function isAddress(value: unknown): value is Hex {
-  return typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value)
 }
 
 // The fields below take what `requestProblem` in the gates accepted. A

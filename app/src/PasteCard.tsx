@@ -6,7 +6,7 @@ import type { AddRequestArgs } from './messages.ts'
 import { errorText } from './gates/gate.ts'
 import { readPaste } from './paste.ts'
 
-const PLACEHOLDER = `0x02f8…  a raw transaction
+const PLACEHOLDER = `0x02f8…  a raw transaction (RLP, signed or unsigned)
 { "chainId": 1, "to": "0x…", "data": "0x…" }  a transaction
 { "method": "eth_signTypedData_v4", "params": ["0x…", { "types": … }] }  typed data, with the account that signs`
 
@@ -28,8 +28,8 @@ export function PasteCard() {
     <section className="mt-6">
       <h2 className="font-semibold">Check a request yourself</h2>
       <p className="mt-1 text-gray-600">
-        Paste a raw transaction, or a transaction or a JSON-RPC request as JSON. Typed data goes in a JSON-RPC request,
-        with the account that signs it.
+        Paste a raw transaction (RLP-encoded, signed or unsigned, as <code>cast mktx</code> gives it), or a transaction
+        or a JSON-RPC request as JSON. Typed data goes in a JSON-RPC request, with the account that signs it.
       </p>
       <textarea
         value={text}

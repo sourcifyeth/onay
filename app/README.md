@@ -79,9 +79,11 @@ The relay ships inside the app package, next to the `onay` binary, so the user i
 
 A request can also come from the user, not from a page: pasted as text. `src/paste.ts` turns each form into the method and params of a request from a page, and the `add_request` command puts it in the same list, with the source `paste` and no connection. From there it goes through the same checks.
 
-- A raw transaction in hex, signed or not. ethers decodes it, and the sender of a signed one comes from its signature. Blob transactions and EIP-7702 transactions are refused, because the simulation does not model them.
-- JSON: a transaction with its `chainId`, or a JSON-RPC request with a signing method. Calldata alone goes in as a transaction: `{"chainId": 1, "to": "0x…", "data": "0x…"}`.
+- A raw transaction: the RLP (Recursive Length Prefix) encoding in hex, signed or not, as `cast mktx` gives it. A typed transaction has its type byte in front of the RLP payload. ethers decodes it, and the sender of a signed one comes from its signature. Blob transactions and EIP-7702 transactions are refused, because the simulation does not model them.
+- JSON: a transaction, or a JSON-RPC request with a signing method or with `eth_sendRawTransaction`, whose one param is a raw transaction. Calldata alone goes in as a transaction: `{"chainId": 1, "to": "0x…", "data": "0x…"}`.
 - EIP-712 typed data goes in as a JSON-RPC request, with the signing account in `params[0]`. Clear Signing needs that account, and typed data alone does not name it, so the card refuses typed data without an account and shows the form to use.
+
+No wallet reports the chain of a pasted request, so a pasted transaction in any form must name its chain. The card also runs `requestProblem`, the check that the review runs first, so it refuses a field that the review would refuse, such as a decimal `value`, and shows the reason.
 
 ## The simulation
 

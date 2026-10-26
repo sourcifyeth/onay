@@ -126,7 +126,7 @@ export function startVerification(request: SigningRequest, deps: Deps): Verifica
   }
 
   const run = async () => {
-    const from = request.origin ? ` · from ${request.origin}` : ''
+    const from = request.source === 'browser' ? ` · from ${request.origin}` : ''
     log({ source: request.source, text: `request received · ${request.method}${from}` })
     // Before any gate runs: the chain gate takes the reason, the other
     // gates did not start.

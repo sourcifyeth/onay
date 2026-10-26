@@ -840,7 +840,7 @@ mod tests {
 
     #[test]
     fn pasted_request_has_no_connection() {
-        let (link, _changes) = link("paste", verified);
+        let (link, changes) = link("paste", verified);
         let transaction = json!([{ "to": "0x0000000000000000000000000000000000000001" }]);
         link.add_request("eth_sendTransaction".into(), transaction.clone())
             .unwrap();
@@ -850,6 +850,8 @@ mod tests {
             link.add_request("x".repeat(MAX_METHOD_LEN + 1), transaction)
                 .is_err()
         );
+        // The webview reloads on each notice: one for each request it added.
+        assert_eq!(changes.try_iter().count(), 2);
 
         let snapshot = link.snapshot();
         let requests: Vec<_> = snapshot
