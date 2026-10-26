@@ -135,6 +135,11 @@ const typedData = {
   domain: { name: 'USDC', chainId: 1, verifyingContract: USDC },
   primaryType: 'Permit',
   types: {
+    EIP712Domain: [
+      { name: 'name', type: 'string' },
+      { name: 'chainId', type: 'uint256' },
+      { name: 'verifyingContract', type: 'address' },
+    ],
     Permit: [
       { name: 'spender', type: 'address' },
       { name: 'value', type: 'uint256' },
@@ -377,12 +382,8 @@ test('typedDataPath picks the entry whose type hash matches, as the library does
   assert.equal(typedDataPath(entries, { ...typedData, account: YOU }), 'b.json')
   assert.equal(typedDataPath([entries[0]], { ...typedData, account: YOU }), null)
   assert.equal(typedDataPath(undefined, { ...typedData, account: YOU }), null)
-  const withDomain = {
-    ...typedData,
-    account: YOU,
-    types: { EIP712Domain: [{ name: 'name', type: 'string' }], ...typedData.types },
-  }
-  assert.equal(typedDataPath(entries, withDomain), 'b.json')
+  const withoutDomain = { ...typedData, account: YOU, types: { Permit: typedData.types.Permit } }
+  assert.equal(typedDataPath(entries, withoutDomain), 'b.json')
   // A type that nothing uses does not change the hash.
   const unused = {
     ...typedData,
@@ -433,6 +434,16 @@ test('typed data renders with its descriptor', async () => {
   if (none.kind !== 'typedData') return assert.fail(none.kind)
   assert.equal(reasonOf(none.display)?.code, 'NO_DESCRIPTOR')
   assert.equal(none.source, null)
+})
+
+test('typed data: a domain field outside the EIP712Domain type is not signed, so it picks no descriptor', async () => {
+  const nameOnly = { ...typedData, types: { ...typedData.types, EIP712Domain: [{ name: 'name', type: 'string' }] } }
+  const input = inputOf(request('eth_signTypedData_v4', [YOU, nameOnly]))
+  assert.deepEqual(input.kind === 'typedData' && input.typed.domain, { name: 'USDC' })
+  const result = await render(input, options())
+  if (result.kind !== 'typedData') return assert.fail(result.kind)
+  assert.equal(reasonOf(result.display)?.code, 'UNSUPPORTED_DOMAIN')
+  assert.equal(result.source, null)
 })
 
 test('formatAmount drops the trailing zeros', () => {

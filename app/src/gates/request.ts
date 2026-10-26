@@ -32,10 +32,30 @@ function chainNamedIn({ method, params }: SigningRequest): number | null {
       return parseChainId(first?.chainId)
     case 'eth_signTypedData_v3':
     case 'eth_signTypedData_v4':
-      return parseChainId((parseTypedData(list[1]) as { domain?: { chainId?: unknown } } | null)?.domain?.chainId)
+      return parseChainId(signedDomain(parseTypedData(list[1])).chainId)
     default:
       return null
   }
+}
+
+// The domain fields that a signature of typed data covers: those that
+// its EIP712Domain type lists. A wallet does not sign the other fields
+// of the domain object. Without the type, MetaMask signs no field.
+export function signedDomain(typed: unknown): Record<string, unknown> {
+  const { types, domain } = (typeof typed === 'object' && typed !== null ? typed : {}) as {
+    types?: { EIP712Domain?: unknown } | null
+    domain?: unknown
+  }
+  const members = types?.EIP712Domain
+  if (!Array.isArray(members) || typeof domain !== 'object' || domain === null) return {}
+  const signed: Record<string, unknown> = {}
+  for (const member of members) {
+    const name = (member as { name?: unknown } | null)?.name
+    if (typeof name === 'string' && Object.hasOwn(domain, name)) {
+      signed[name] = (domain as Record<string, unknown>)[name]
+    }
+  }
+  return signed
 }
 
 // A JSON-RPC quantity: a hex string such as "0x1a", as a number.
@@ -57,12 +77,17 @@ export function parseChainId(value: unknown): number | null {
 // form a wallet takes, for example a value without the 0x prefix. The
 // wallet reads such a field its own way, so Onay must not guess what it
 // means. Null if every field reads.
-export function requestProblem({ method, params }: SigningRequest): string | null {
-  const list = Array.isArray(params) ? params : []
-  switch (method) {
+export function requestProblem(request: SigningRequest): string | null {
+  const list = Array.isArray(request.params) ? request.params : []
+  switch (request.method) {
     case 'eth_sendTransaction':
-    case 'eth_signTransaction':
-      return callProblem(list[0], 'the transaction')
+    case 'eth_signTransaction': {
+      const authorizations = authorizationsOf(request)
+      return callProblem(list[0], 'the transaction') ?? (Array.isArray(authorizations) ? null : authorizations.problem)
+    }
+    case 'personal_sign':
+    case 'eth_sign':
+      return messageOf(request)?.problem ?? null
     case 'wallet_sendCalls': {
       const batch = list[0] as { from?: unknown; calls?: unknown } | undefined
       if (batch?.from != null && !isAddress(batch.from)) return 'the sender of the batch is not an address'
@@ -98,6 +123,59 @@ function callProblem(value: unknown, what: string): string | null {
   return null
 }
 
+// One entry of an EIP-7702 authorization list: the account sets its code
+// to that of `address` on the chain. Chain 0 means every chain.
+export type Authorization = { chainId: bigint; address: Hex; nonce: bigint }
+
+// The authorization list of a transaction, empty if it has none, or why
+// it does not read.
+export function authorizationsOf({ params }: SigningRequest): Authorization[] | { problem: string } {
+  const tx = (Array.isArray(params) ? params[0] : null) as { authorizationList?: unknown } | null
+  const list = tx?.authorizationList
+  if (list == null) return []
+  if (!Array.isArray(list)) return { problem: 'the authorization list is not a list' }
+  const authorizations: Authorization[] = []
+  for (const [index, value] of list.entries()) {
+    const entry = (value ?? {}) as { chainId?: unknown; address?: unknown; nonce?: unknown }
+    if (!isAddress(entry.address) || !isQuantity(entry.chainId) || !isQuantity(entry.nonce)) {
+      return { problem: `authorization ${index + 1} has no address, chain, and nonce in the form a wallet takes` }
+    }
+    authorizations.push({
+      chainId: BigInt(entry.chainId),
+      address: entry.address.toLowerCase() as Hex,
+      nonce: BigInt(entry.nonce),
+    })
+  }
+  return authorizations
+}
+
+// The message of personal_sign or eth_sign, and the account that signs.
+export type Message = { bytes: Uint8Array; signer: Hex | null; problem?: undefined } | { problem: string }
+
+// personal_sign takes [message, account], eth_sign [account, message].
+// A message in hex stands for the bytes it spells, as ERC-8213 says.
+// personal_sign takes any other string as UTF-8 text. Null for the
+// other methods.
+export function messageOf({ method, params }: SigningRequest): Message | null {
+  if (method !== 'personal_sign' && method !== 'eth_sign') return null
+  const list = Array.isArray(params) ? params : []
+  // Some wallets swap the two when only the first is an address.
+  if (method === 'personal_sign' && isAddress(list[0]) && !isAddress(list[1])) {
+    return { problem: 'the first parameter is an address, not the message, and wallets read this in different ways' }
+  }
+  const [message, signer] = method === 'personal_sign' ? [list[0], list[1]] : [list[1], list[0]]
+  if (signer != null && !isAddress(signer)) return { problem: 'the signer is not an address' }
+  if (typeof message !== 'string') return { problem: 'the message is not a string' }
+  const account = signer == null ? null : (signer.toLowerCase() as Hex)
+  if (isData(message)) {
+    const bytes = Uint8Array.from(message.slice(2).match(/../g) ?? [], (byte) => parseInt(byte, 16))
+    return { bytes, signer: account }
+  }
+  if (method === 'eth_sign' || /^0x/i.test(message))
+    return { problem: 'the message is not hex bytes with the 0x prefix' }
+  return { bytes: new TextEncoder().encode(message), signer: account }
+}
+
 function isData(value: unknown): value is Hex {
   return typeof value === 'string' && /^0x([0-9a-fA-F]{2})*$/.test(value)
 }
@@ -122,9 +200,7 @@ export function contractsOf({ method, params }: SigningRequest): Hex[] {
       break
     case 'eth_signTypedData_v3':
     case 'eth_signTypedData_v4':
-      found = [
-        (parseTypedData(list[1]) as { domain?: { verifyingContract?: unknown } } | null)?.domain?.verifyingContract,
-      ]
+      found = [signedDomain(parseTypedData(list[1])).verifyingContract]
       break
   }
   const addresses = found.filter(isAddress).map((address) => address.toLowerCase() as Hex)

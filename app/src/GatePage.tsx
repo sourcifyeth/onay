@@ -3,6 +3,7 @@ import type { SigningRequest } from './messages.ts'
 import { chainName } from './chains.ts'
 import { ChainDataStep } from './ChainDataStep.tsx'
 import { ClearSigningStep } from './ClearSigningStep.tsx'
+import { CompareStep } from './CompareStep.tsx'
 import { Cursor, LogLineView } from './Log.tsx'
 import { SimulationStep } from './SimulationStep.tsx'
 import { VerificationStep } from './VerificationStep.tsx'
@@ -200,6 +201,7 @@ export function GatePage({ request, onBack }: { request: SigningRequest; onBack:
           <ClearSigningStep request={request} verification={verification} />
         </>
       )}
+      {done && <CompareStep request={request} verification={verification} number={verification.chain ? 5 : 1} />}
     </div>
   )
 }

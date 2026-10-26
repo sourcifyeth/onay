@@ -18,7 +18,7 @@ import {
   type Warning,
 } from '@ethereum-sourcify/clear-signing'
 import { formatUnits, keccak256, toUtf8Bytes } from 'ethers'
-import { requestProblem } from '../gates/request.ts'
+import { requestProblem, signedDomain } from '../gates/request.ts'
 import type { Hex, SigningRequest } from '../messages.ts'
 import { decodeCalldata, type Decoded } from './decode.ts'
 
@@ -178,7 +178,10 @@ function parseTypedData(value: unknown): Omit<TypedData, 'account'> | null {
       if (typeof field?.name !== 'string' || typeof field.type !== 'string') return null
     }
   }
-  return { types: types as TypedData['types'], primaryType: record.primaryType, domain, message }
+  // Only the domain fields that the signature covers. A field outside
+  // the type must not pick a descriptor or show as signed.
+  const signed = signedDomain({ types, domain })
+  return { types: types as TypedData['types'], primaryType: record.primaryType, domain: signed, message }
 }
 
 // The verified ABIs that can decode a call to a contract: its own first,
