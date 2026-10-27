@@ -1,7 +1,7 @@
 // The real compiler for the tests that compile: the build of one version,
 // downloaded once into test/.cache.
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import type { Fetch } from '../src/gates/gate.ts'
 import { solcFor } from '../src/gates/solc.ts'
 
@@ -10,7 +10,9 @@ const CACHE = new URL('./.cache/', import.meta.url)
 export const VERSION = '0.8.24+commit.e11b9ed9'
 
 // binaries.soliditylang.org, through a file cache. The list is not
-// cached: a test that needs a newer build must see it.
+// cached: a test that needs a newer build must see it. The test files run
+// in parallel processes, so a build lands in the cache with a rename: a
+// reader sees the whole file or no file.
 const cachedFetch: Fetch = async (url, init) => {
   if (url.endsWith('/list.json')) return fetch(url, init)
   mkdirSync(CACHE, { recursive: true })
@@ -19,7 +21,11 @@ const cachedFetch: Fetch = async (url, init) => {
     return new Response(readFileSync(file))
   } catch {
     const response = await fetch(url, init)
-    if (response.ok) writeFileSync(file, new Uint8Array(await response.clone().arrayBuffer()))
+    if (response.ok) {
+      const partial = new URL(`${file.href}.${process.pid}`)
+      writeFileSync(partial, new Uint8Array(await response.clone().arrayBuffer()))
+      renameSync(partial, file)
+    }
     return response
   }
 }
