@@ -423,45 +423,27 @@ function SummaryState({ profile, running }: { profile: Profile | AccountProfile 
   return <span className={`text-xs font-medium ${TONES[tone]}${pulse}`}>· {text}</span>
 }
 
-// The title of a card: the name in bold, then the full address. The name
-// comes from Sourcify, else from Blockscout. An account has no name and
-// shows its kind instead.
-function CardTitle({
-  kind,
-  name,
-  address,
-  state,
-}: {
-  kind?: string
-  name: string | null
-  address: Hex
-  state: ReactNode
-}) {
+// The title of a card: the name in bold, and the state of the profile.
+// The name comes from Sourcify, else from Blockscout. Without a name,
+// the kind of the address is the title.
+function CardTitle({ kind, name, state }: { kind: string; name: string | null; state: ReactNode }) {
   return (
     <div className="flex flex-wrap items-baseline gap-x-2">
-      {kind && <span className="text-xs text-gray-500">{kind}</span>}
-      {name && <span className="text-base font-semibold text-gray-800">{name}</span>}
-      <span className="font-mono text-sm break-all text-gray-700">{address}</span>
+      <span className="text-base font-semibold text-gray-800">{name ?? kind}</span>
       {state}
     </div>
   )
 }
 
-// The line under the title: the name that Blockscout gives, when the
-// title does not show it already, and the search links.
-function AddressLine({ address, name, title }: { address: Hex; name?: Fact<string | null>; title?: string | null }) {
-  const claimed = name?.state === 'known' && name.value !== null && name.value !== title ? name : null
+// The first row: the full address, and the search links after it.
+function AddressRow({ address }: { address: Hex }) {
   return (
-    <div className="flex flex-wrap items-baseline gap-x-2 pb-2">
-      {claimed && (
-        <span className="text-xs text-gray-700">
-          <Marked proof={claimed.proof} source={claimed.source}>
-            {claimed.value}
-          </Marked>
-        </span>
-      )}
-      <SearchLinks address={address} />
-    </div>
+    <Row label="Address">
+      <span className="flex flex-wrap items-baseline gap-x-3">
+        <span className="font-mono text-[13px] break-all text-gray-700">{address}</span>
+        <SearchLinks address={address} />
+      </span>
+    </Row>
   )
 }
 
@@ -487,9 +469,7 @@ function ProfileCard({
   const running = context.status === 'running'
   const lines = context.lines.filter((line) => line.address === contract.address && line.topic !== 'status')
   const name = nameOf(contract, profile)
-  const summary = (
-    <CardTitle name={name} address={contract.address} state={<SummaryState profile={profile} running={running} />} />
-  )
+  const summary = <CardTitle kind="Contract" name={name} state={<SummaryState profile={profile} running={running} />} />
   return (
     <CollapsibleCard open inset summary={summary}>
       {!profile ? (
@@ -497,30 +477,22 @@ function ProfileCard({
           <Loading>looking up</Loading>
         </p>
       ) : (
-        <ProfileBody profile={profile} explorers={explorers} title={name} />
+        <ProfileBody profile={profile} explorers={explorers} />
       )}
       <CollapsibleLog lines={lines} />
     </CollapsibleCard>
   )
 }
 
-function ProfileBody({
-  profile,
-  explorers,
-  title,
-}: {
-  profile: Profile
-  explorers: ChainExplorers
-  title: string | null
-}) {
+function ProfileBody({ profile, explorers }: { profile: Profile; explorers: ChainExplorers }) {
   // The ages count from the time the card opened.
   const [now] = useState(() => Date.now())
   return (
-    <div className="pt-4 pb-2">
+    <div className="pt-4">
       <BlockNotice blocked={profile.blocked} goPlus={goPlusFlags(profile)} />
       <YoungNotice young={profile.young} />
-      <AddressLine address={profile.address} name={profile.name} title={title} />
       <div className="divide-y divide-gray-100">
+        <AddressRow address={profile.address} />
         <DeployedRow profile={profile} now={now} />
         <ActivityRows activity={profile} explorers={explorers} address={profile.address} now={now} />
         <Row label="Found on lists">
@@ -551,7 +523,6 @@ function AccountCard({
     <CardTitle
       kind={delegated ? 'EIP-7702 account' : read ? 'Account' : 'Address'}
       name={null}
-      address={contract.address}
       state={<SummaryState profile={account} running={context.status === 'running'} />}
     />
   )
@@ -564,8 +535,8 @@ function AccountCard({
       ) : (
         <>
           <BlockNotice blocked={account.blocked} goPlus={goPlusFlags(account)} />
-          <AddressLine address={account.address} />
           <div className="divide-y divide-gray-100">
+            <AddressRow address={account.address} />
             <Row label="Found on lists">
               <ListsView fact={account.lists} />
             </Row>
