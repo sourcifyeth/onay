@@ -280,7 +280,7 @@ function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
     )
   }
   return (
-    <span className="inline-flex flex-col items-start">
+    <span className="grid grid-cols-2 gap-x-6">
       {tokens.map((token) => {
         const amount = (value: bigint) =>
           `${amountText(value, token.decimals ?? 0)}${token.decimals === null ? ' units' : ''}`
@@ -302,10 +302,14 @@ function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
           </span>
         )
       })}
-      <span className="text-xs text-gray-500">
+      <span className="col-span-2 text-xs text-gray-500">
         {checked ? 'amounts checked on chain' : 'not each amount read from the chain'}
       </span>
-      {fact.value.more && <MaybeLink href={more}>and more on Blockscout</MaybeLink>}
+      {fact.value.more && (
+        <span className="col-span-2">
+          <MaybeLink href={more}>and more on Blockscout</MaybeLink>
+        </span>
+      )}
     </span>
   )
 }
