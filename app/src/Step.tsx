@@ -34,7 +34,7 @@ export function CollapsibleCard({
 }) {
   const [open, setOpen] = useState(initial)
   const side = inset ? 'px-7' : 'px-5'
-  const top = inset ? 'pt-5 pb-3' : 'py-3'
+  const top = inset ? 'py-5' : 'py-3'
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
       <button
