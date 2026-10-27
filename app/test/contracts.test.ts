@@ -10,6 +10,8 @@ import {
   runVerdict,
   MAX_CONTRACTS,
   pending,
+  progressOf,
+  progressOfSimulation,
   tally,
   update,
   verdictOf,
@@ -255,4 +257,76 @@ test('runVerdict: a simulation that was skipped or failed flags a transaction, n
   })
   const signature = { status: 'skipped', reason: 'a signature only · nothing runs on chain' } as const
   assert.deepEqual(runVerdict([verifiedContract(A)], signature, false), { status: 'passed', notes: [] })
+})
+
+test('progressOf: a gate waits until a contract runs, and runs while any contract waits', () => {
+  const [a, b] = initial([A, B])!
+  const read = { status: 'passed', value: code(a) } as const
+  assert.equal(progressOf([], 'helios'), 'waiting')
+  assert.equal(progressOf([a, b], 'helios'), 'waiting')
+  assert.equal(progressOf([{ ...a, helios: { status: 'running' } }, b], 'helios'), 'running')
+  assert.equal(progressOf([{ ...a, helios: read }, b], 'helios'), 'running')
+  assert.equal(
+    progressOf(
+      [
+        { ...a, helios: read },
+        { ...b, helios: read },
+      ],
+      'helios',
+    ),
+    'passed',
+  )
+})
+
+test('progressOf: the ends of a gate, and a failure that only warns', () => {
+  const [a, b] = initial([A, B])!
+  const read = { status: 'passed', value: code(a) } as const
+  const skipped = { status: 'skipped', reason: 'no code' } as const
+  const failed = { status: 'failed', reason: 'no proof' } as const
+  assert.equal(
+    progressOf(
+      [
+        { ...a, helios: skipped },
+        { ...b, helios: skipped },
+      ],
+      'helios',
+    ),
+    'skipped',
+  )
+  assert.equal(
+    progressOf(
+      [
+        { ...a, helios: read },
+        { ...b, helios: skipped },
+      ],
+      'helios',
+    ),
+    'passed',
+  )
+  assert.equal(
+    progressOf(
+      [
+        { ...a, helios: read },
+        { ...b, helios: failed },
+      ],
+      'helios',
+    ),
+    'failed',
+  )
+  // Sourcify has nothing for a contract on the way: a warning, not a failure.
+  const named = { ...a, helios: read, sourcify: passed }
+  const onTheWay = { ...b, foundBy: 'simulation', helios: read, sourcify: notVerified } as const
+  assert.equal(progressOf([named, onTheWay], 'sourcify'), 'flagged')
+  assert.equal(progressOf([named, { ...onTheWay, foundBy: 'request' }], 'sourcify'), 'failed')
+})
+
+test('progressOfSimulation: the status of the gate, and a revert warns', () => {
+  assert.equal(progressOfSimulation({ status: 'waiting' }), 'waiting')
+  assert.equal(progressOfSimulation({ status: 'running' }), 'running')
+  assert.equal(progressOfSimulation({ status: 'skipped', reason: 'a signature' }), 'skipped')
+  assert.equal(progressOfSimulation({ status: 'failed', reason: 'no state' }), 'failed')
+  const call = { error: null } as Simulation['calls'][number]
+  assert.equal(progressOfSimulation({ status: 'passed', value: { calls: [call] } as Simulation }), 'passed')
+  const reverting = { ...call, error: 'revert' } as Simulation['calls'][number]
+  assert.equal(progressOfSimulation({ status: 'passed', value: { calls: [reverting] } as Simulation }), 'flagged')
 })

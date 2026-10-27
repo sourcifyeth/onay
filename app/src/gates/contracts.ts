@@ -140,3 +140,26 @@ export function runVerdict(
   }
   return { status: notes.length > 0 ? 'flagged' : 'passed', notes }
 }
+
+// What the header of a gate shows in the log while the run goes on.
+// 'flagged' is a result that warns and does not fail the request.
+export type Progress = 'waiting' | 'running' | 'passed' | 'flagged' | 'failed' | 'skipped'
+
+// The progress of one gate over every contract. The gate runs while any
+// contract waits for it: the simulation adds contracts as it finds them.
+export function progressOf(contracts: Contract[], gate: 'helios' | 'sourcify'): Progress {
+  const states = contracts.map((contract) => contract[gate])
+  if (states.every(({ status }) => status === 'waiting')) return 'waiting'
+  if (states.some(({ status }) => status === 'waiting' || status === 'running')) return 'running'
+  const failed = contracts.filter((contract) => contract[gate].status === 'failed')
+  if (failed.some((contract) => verdictOf(contract) === 'failed')) return 'failed'
+  if (failed.length > 0) return 'flagged'
+  if (states.every(({ status }) => status === 'skipped')) return 'skipped'
+  return 'passed'
+}
+
+// The progress of the simulation. A revert is a result that warns.
+export function progressOfSimulation(simulation: GateState<Simulation>): Progress {
+  if (simulation.status === 'passed' && reverted(simulation.value)) return 'flagged'
+  return simulation.status
+}

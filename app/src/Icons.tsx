@@ -79,3 +79,25 @@ export function ThirdPartyIcon(props: IconProps) {
     />
   )
 }
+
+// An open ring that turns: a check is running on this machine.
+export function SpinnerIcon({ className = 'h-4 w-4', title }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={`animate-spin ${className}`}
+      role={title ? 'img' : undefined}
+      aria-hidden={title ? undefined : true}
+    >
+      {title && <title>{title}</title>}
+      <circle cx="12" cy="12" r="8.5" className="stroke-cerulean-blue-200" strokeWidth="3" fill="none" />
+      <path
+        d="M12 3.5A8.5 8.5 0 0 1 20.5 12"
+        className="stroke-cerulean-blue-500"
+        strokeWidth="3"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
+  )
+}
