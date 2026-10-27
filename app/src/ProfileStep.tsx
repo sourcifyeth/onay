@@ -367,24 +367,24 @@ function DeployerSection({
           {(value) => <span className="font-mono text-[13px] break-all text-gray-700">{value}</span>}
         </FactView>
         {address && (
-          <span>
-            (<FactView fact={deployer.kind}>{(kind) => KINDS[kind]}</FactView>)
-          </span>
+          <>
+            <span>
+              (<FactView fact={deployer.kind}>{(kind) => KINDS[kind]}</FactView>)
+            </span>
+            {explorers.etherscan && <MaybeLink href={addressLink(explorers.etherscan, address)}>Etherscan</MaybeLink>}
+            {explorers.blockscout && (
+              <MaybeLink href={addressLink(explorers.blockscout, address)}>Blockscout</MaybeLink>
+            )}
+          </>
         )}
       </p>
       {address && (
         <>
           {(deployer.name.state !== 'known' || deployer.name.value !== null) && (
-            <p className="text-sm text-gray-700">
+            <p className="pb-1 text-sm text-gray-700">
               <FactView fact={deployer.name}>{(name) => name}</FactView>
             </p>
           )}
-          <p className="flex gap-3 pb-1">
-            {explorers.etherscan && <MaybeLink href={addressLink(explorers.etherscan, address)}>Etherscan</MaybeLink>}
-            {explorers.blockscout && (
-              <MaybeLink href={addressLink(explorers.blockscout, address)}>Blockscout</MaybeLink>
-            )}
-          </p>
           <div className="divide-y divide-gray-200">
             <ActivityRows activity={deployer} explorers={explorers} address={address} now={now} />
             <Row label="Found on lists">
