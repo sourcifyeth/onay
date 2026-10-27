@@ -67,16 +67,22 @@ export function explorersOf(chain: ChainConfig): ChainExplorers {
 export const etherscanLink = (host: string, address: Hex) => `${host}/address/${address}#code`
 export const blockscoutLink = (host: string, address: Hex) => `${host}/address/${address}?tab=contract`
 export const sourcifyLink = (chainId: number, address: Hex) => `${SOURCIFY_REPO}/${chainId}/${address}`
+export const addressLink = (host: string, address: Hex) => `${host}/address/${address}`
 
 // The sites that the app opens. Keep it the same as ALLOWED in
 // src-tauri/src/browser.rs. A custom host gets no link.
-const LINK_HOSTS = [
-  SOURCIFY_REPO,
-  ...Object.values(EXPLORER_HOSTS).flatMap((hosts) => [hosts.etherscan, hosts.blockscout]),
-].map((host) => `${host}/`)
+export const LINK_PREFIXES = [
+  ...[SOURCIFY_REPO, ...Object.values(EXPLORER_HOSTS).flatMap((hosts) => [hosts.etherscan, hosts.blockscout])].map(
+    (host) => `${host}/`,
+  ),
+  'https://github.com/',
+  'https://www.google.com/search?',
+  'https://duckduckgo.com/?',
+  'https://x.com/search?',
+]
 
 export function linkable(url: string): boolean {
-  return LINK_HOSTS.some((host) => url.startsWith(host))
+  return LINK_PREFIXES.some((prefix) => url.startsWith(prefix))
 }
 
 // What an explorer says about the source code of a contract.

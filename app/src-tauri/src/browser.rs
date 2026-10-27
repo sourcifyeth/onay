@@ -4,10 +4,14 @@
 
 use std::process::Command;
 
-// The explorer hosts are the ones of EXPLORER_HOSTS in
-// src/context/explorers.ts. Keep both lists the same.
+// The same list as LINK_PREFIXES in src/context/explorers.ts. Keep both
+// lists the same.
+// The search links of the contract profile take a query only.
 const ALLOWED: &[&str] = &[
     "https://github.com/",
+    "https://www.google.com/search?",
+    "https://duckduckgo.com/?",
+    "https://x.com/search?",
     "https://4byte.sourcify.dev/",
     "https://repo.sourcify.dev/",
     "https://etherscan.io/",
@@ -119,6 +123,35 @@ mod tests {
         assert!(!allowed("https://eth.blockscout.com.evil.com/"));
         assert!(!allowed("https://api.etherscan.io/v2/api"));
         assert!(!allowed("https://evil.com/https://etherscan.io/"));
+    }
+
+    #[test]
+    fn allows_the_search_links_and_the_list_repositories() {
+        let address = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+        let quoted = format!("%22{address}%22");
+        assert!(allowed(&format!(
+            "https://www.google.com/search?q={quoted}"
+        )));
+        assert!(allowed(&format!("https://duckduckgo.com/?q={quoted}")));
+        assert!(allowed(&format!(
+            "https://github.com/search?q={address}&type=code"
+        )));
+        assert!(allowed(&format!("https://x.com/search?q={address}&f=live")));
+        for repository in [
+            "https://github.com/safe-global/safe-deployments",
+            "https://github.com/Uniswap/contracts",
+            "https://github.com/0xB10C/ofac-sanctioned-digital-currency-addresses",
+            "https://github.com/scamsniffer/scam-database",
+            "https://github.com/ethereum/clear-signing-erc7730-registry/tree/master/registry/uniswap",
+        ] {
+            assert!(allowed(repository), "{repository}");
+        }
+        assert!(!allowed("https://www.google.com/"));
+        assert!(!allowed("https://www.google.com/url?q=https://evil.com/"));
+        assert!(!allowed("https://duckduckgo.com/l/?uddg=https://evil.com/"));
+        assert!(!allowed("https://x.com/evil"));
+        assert!(!allowed("https://x.com.evil.com/search?q=1"));
+        assert!(!allowed("https://tokens.uniswap.org/"));
     }
 
     #[test]

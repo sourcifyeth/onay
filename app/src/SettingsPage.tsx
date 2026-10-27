@@ -1,5 +1,6 @@
 import { useState, useSyncExternalStore } from 'react'
 import { AttesterSettings } from './AttesterSettings.tsx'
+import { ProfileSettings } from './ProfileSettings.tsx'
 import { TokenListSettings } from './TokenListSettings.tsx'
 import { EXPLORER_FIELDS, isExplorerField } from './chainList.ts'
 import { chainStore, heliosKey, heliosStarted, saveChains, type ChainConfig } from './chains.ts'
@@ -389,6 +390,7 @@ export function SettingsPage({ snapshot, onBack }: { snapshot: Snapshot | null; 
       <AddChain chains={chains} onAdd={(chain) => saveChains([...chains, chain])} />
 
       <ExplorerSettings />
+      <ProfileSettings />
       <AttesterSettings />
       <TokenListSettings />
       {snapshot && <BrowserLink snapshot={snapshot} />}

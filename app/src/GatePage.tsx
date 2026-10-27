@@ -7,6 +7,7 @@ import { CompareStep } from './CompareStep.tsx'
 import { contextFor } from './context/store.ts'
 import { LocallyVerifiedIcon } from './Icons.tsx'
 import { Cursor, LogBox, LogLineView, ProgressIcon } from './Log.tsx'
+import { ProfileStep } from './ProfileStep.tsx'
 import { SimulationStep } from './SimulationStep.tsx'
 import { VerificationStep } from './VerificationStep.tsx'
 import { progressOf, progressOfSimulation, progressShown, type Progress } from './gates/contracts.ts'
@@ -240,6 +241,8 @@ function Review({ request, verification }: { request: SigningRequest; verificati
         return <SimulationStep key={step.id} step={step} verification={verification} />
       case 'verification':
         return <VerificationStep key={step.id} step={step} verification={verification} context={context} />
+      case 'profile':
+        return <ProfileStep key={step.id} step={step} verification={verification} context={context} />
       case 'clearSigning':
         return (
           clearSigning && (

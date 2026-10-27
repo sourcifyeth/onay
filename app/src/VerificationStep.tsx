@@ -230,7 +230,7 @@ function roleOf(contract: Contract, contracts: Contract[]): string {
 }
 
 // One line per contract: its verdict, role, address and name.
-function ContractSummary({ contract, contracts }: { contract: Contract; contracts: Contract[] }) {
+export function ContractSummary({ contract, contracts }: { contract: Contract; contracts: Contract[] }) {
   const [mark, color] = MARKS[verdictOf(contract)]
   const name = claimOf(contract.sourcify)?.name
   return (

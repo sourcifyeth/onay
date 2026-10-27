@@ -12,7 +12,7 @@ import type { Verification } from './run.ts'
 import { failureOf } from './sourcify.ts'
 import { short } from './words.ts'
 
-export type StepId = 'chain' | 'simulation' | 'verification' | 'clearSigning' | 'compare'
+export type StepId = 'chain' | 'simulation' | 'verification' | 'profile' | 'clearSigning' | 'compare'
 
 export type StepInfo = { id: StepId; number: number; title: string }
 
@@ -20,6 +20,7 @@ const STEPS: { id: StepId; title: string }[] = [
   { id: 'chain', title: 'Chain Data Verification' },
   { id: 'simulation', title: 'Transaction Simulation' },
   { id: 'verification', title: 'Source Code Verification' },
+  { id: 'profile', title: 'Contract Profile' },
   { id: 'clearSigning', title: 'Clear Signing' },
   { id: 'compare', title: 'Compare with your wallet' },
 ]
@@ -34,9 +35,10 @@ export function stepsOf({ chain }: Pick<Verification, 'chain'>): StepInfo[] {
 export type StepStatus = 'running' | 'passed' | 'flagged' | 'failed' | 'skipped'
 
 // 'request' is no step: Onay could not check the request, so the run
-// stopped before the first step.
+// stopped before the first step. The profile has no verdict: nothing it
+// finds changes the result.
 export type StepVerdict = {
-  step: Exclude<StepId, 'compare'> | 'request'
+  step: Exclude<StepId, 'compare' | 'profile'> | 'request'
   status: StepStatus
   reason: string | null
 }

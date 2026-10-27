@@ -1,0 +1,542 @@
+// Step 4 of the review: the profile of each address that the request
+// names. Who deployed a contract and when, what it holds, and the lists
+// that know it. Each value names its source. Nothing here changes the
+// status of the request.
+
+import { useState, type ReactNode } from 'react'
+import { ageText, dateText, provenanceText, searchLinks, summaryState, type Tone } from './context/card.ts'
+import { addressLink, explorersOf, linkable, type ChainExplorers } from './context/explorers.ts'
+import type { GoPlusResult } from './context/goplus.ts'
+import { missingText, type ListAnswer } from './context/lists.ts'
+import type {
+  AccountProfile,
+  Activity,
+  Blocked,
+  DeployerProfile,
+  Fact,
+  GoPlusFact,
+  Holdings,
+  Profile,
+} from './context/profile.ts'
+import { accountsToCheck, amountText, contractsToProfile, type Context } from './context/run.ts'
+import { ExternalLink } from './ExternalLink.tsx'
+import type { Contract } from './gates/contracts.ts'
+import type { Verification } from './gates/verification.ts'
+import type { StepInfo } from './gates/verdict.ts'
+import { formatEther, short } from './gates/words.ts'
+import { LocallyVerifiedIcon, ThirdPartyIcon } from './Icons.tsx'
+import { CollapsibleLog } from './Log.tsx'
+import type { Hex } from './messages.ts'
+import { CollapsibleCard, Notice, Row, Step } from './Step.tsx'
+import { ContractSummary } from './VerificationStep.tsx'
+
+const ICON = 'ml-1.5 inline-block h-3.5 w-3.5 align-[-2px]'
+const LINK = 'text-xs text-cerulean-blue-600 hover:underline'
+
+const TONES: Record<Tone, string> = {
+  green: 'text-green-700',
+  coral: 'text-light-coral-700',
+  amber: 'text-amber-700',
+  gray: 'text-gray-400',
+}
+
+// The trust icon of a value and its source in words.
+function Mark({ proof, source }: { proof: boolean; source: string }) {
+  return (
+    <>
+      {proof ? (
+        <LocallyVerifiedIcon className={ICON} title="Read with a proof, checked on this machine" />
+      ) : (
+        <ThirdPartyIcon className={ICON} title={`A claim of ${source}, not checked here`} />
+      )}
+      <span className="text-xs text-gray-400"> · {source}</span>
+    </>
+  )
+}
+
+// A row value: "…" while it waits, the reason when it is not known, else
+// the value with its mark.
+function FactView<T>({ fact, children }: { fact: Fact<T>; children: (value: T) => ReactNode }) {
+  if (fact.state === 'pending') return <span className="text-gray-400">…</span>
+  if (fact.state === 'unknown') return <span className="text-gray-400">unknown · {fact.reason}</span>
+  return (
+    <span>
+      {children(fact.value)}
+      <Mark proof={fact.proof} source={fact.source} />
+    </span>
+  )
+}
+
+// A link only to a site that the app opens. Any other shows as text.
+function MaybeLink({ href, children }: { href: string | null; children: ReactNode }) {
+  if (href && linkable(href)) {
+    return (
+      <ExternalLink href={href} className={LINK}>
+        {children} ↗
+      </ExternalLink>
+    )
+  }
+  return <span className="text-xs text-gray-500">{children}</span>
+}
+
+function SearchLinks({ address }: { address: Hex }) {
+  return (
+    <span className="flex flex-wrap items-baseline gap-x-2 text-xs text-gray-400">
+      search:
+      {searchLinks(address).map((search) => (
+        <ExternalLink
+          key={search.name}
+          href={search.url}
+          title={`Search the web for this address on ${search.name}`}
+          className={LINK}
+        >
+          {search.name} ↗
+        </ExternalLink>
+      ))}
+    </span>
+  )
+}
+
+function BlockNotice({ blocked }: { blocked: Blocked[] }) {
+  if (blocked.length === 0) return null
+  return (
+    <Notice tone="coral" title="⚠ On a block list" className="mb-3">
+      {blocked.map((hit, index) => (
+        <span key={index}>
+          {index > 0 && ' · '}
+          {hit.of === 'deployer' && 'its deployer: '}
+          {hit.value}
+          <Mark proof={hit.proof} source={hit.source} />
+        </span>
+      ))}
+      <br />
+      Do not interact with it. Onay does not check these lists, so the result of the checks above stays as it is.
+    </Notice>
+  )
+}
+
+function YoungNotice({ young }: { young: Profile['young'] }) {
+  if (!young) return null
+  const parts = [
+    young.days !== null && (young.days === 0 ? 'deployed today' : `deployed ${young.days} days ago`),
+    young.transactions !== null && `${young.transactions.toLocaleString('en-US')} transactions`,
+  ].filter(Boolean)
+  return (
+    <Notice tone="amber" title="⚠ A young contract" className="mb-3">
+      {`This contract was ${parts.join(' and has ')}. A new contract with little use deserves more care. It is a hint, not a verdict: the rows below say where each value comes from.`}
+    </Notice>
+  )
+}
+
+function ListsView({ fact }: { fact: Fact<ListAnswer> }) {
+  if (fact.state !== 'known') return <FactView fact={fact}>{() => null}</FactView>
+  const { hits, missing } = fact.value
+  if (hits.length === 0 && missing.length === 0) return <span className="text-gray-400">not on any list</span>
+  return (
+    <span className="inline-flex flex-col items-end gap-1">
+      {hits.length > 0 && (
+        <span className="flex flex-wrap justify-end gap-1.5">
+          {hits.map((hit, index) => {
+            const tone =
+              hit.kind === 'block'
+                ? 'bg-light-coral-100 text-light-coral-700'
+                : 'bg-green-50 text-green-700 hover:bg-green-100'
+            const text = `${hit.kind === 'block' ? '⚠' : '✓'} ${hit.list} · ${hit.label}`
+            const pill = `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${tone}`
+            const icon = (
+              <ThirdPartyIcon className="h-3 w-3 shrink-0" title={`A claim of ${hit.list}, not checked here`} />
+            )
+            return hit.link && linkable(hit.link) ? (
+              <ExternalLink key={index} href={hit.link} className={pill}>
+                {icon}
+                {text} ↗
+              </ExternalLink>
+            ) : (
+              <span key={index} className={pill}>
+                {icon}
+                {text}
+              </span>
+            )
+          })}
+        </span>
+      )}
+      {missing.length > 0 && (
+        <span className="text-xs text-gray-400">
+          {hits.length === 0 && 'on none of the loaded lists · '}
+          {missingText(missing)}
+        </span>
+      )}
+    </span>
+  )
+}
+
+function GoPlusView({ fact }: { fact: GoPlusFact }) {
+  if (fact.state === 'off') return <span className="text-gray-400">off · settings</span>
+  if (fact.state !== 'known') return <FactView fact={fact}>{() => null}</FactView>
+  const result: GoPlusResult = fact.value
+  const named = result.sources.filter((source) => source !== 'GoPlus')
+  const source = named.length > 0 ? `GoPlus, according to ${named.join(', ')}` : 'GoPlus'
+  return (
+    <span>
+      {result.flags.length === 0 ? (
+        'no flags'
+      ) : (
+        <span className="text-light-coral-700">{result.flags.map((flag) => flag.text).join(', ')}</span>
+      )}
+      <Mark proof={fact.proof} source={source} />
+    </span>
+  )
+}
+
+function SecurityRow({ blockscout, goPlus }: { blockscout?: Fact<'ok' | 'scam'>; goPlus: GoPlusFact }) {
+  return (
+    <Row label="Security providers">
+      <span className="flex flex-col items-end">
+        {blockscout && (
+          <span>
+            Blockscout:{' '}
+            <FactView fact={blockscout}>
+              {(value) =>
+                value === 'scam' ? <span className="text-light-coral-700">marked as scam</span> : 'no scam mark'
+              }
+            </FactView>
+          </span>
+        )}
+        <span>
+          GoPlus: <GoPlusView fact={goPlus} />
+        </span>
+      </span>
+    </Row>
+  )
+}
+
+function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
+  if (fact.state !== 'known') return <FactView fact={fact}>{() => null}</FactView>
+  const { tokens, checked } = fact.value
+  if (tokens.length === 0 && !fact.value.more) {
+    return (
+      <span>
+        none
+        <Mark proof={fact.proof} source={fact.source} />
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex flex-col items-end">
+      {tokens.map((token) => {
+        const amount = (value: bigint) =>
+          token.decimals === null ? `${value.toString()} units` : amountText(value, token.decimals)
+        const symbol = token.symbol.value ?? short(token.token)
+        return (
+          <span key={token.token}>
+            {amount(token.amount.value)} <span title={token.token}>{symbol}</span>
+            <Mark proof={token.amount.proof} source={token.amount.source} />
+            {token.claimed !== null && (
+              <span className="text-xs text-amber-700"> · Blockscout says {amount(token.claimed)}</span>
+            )}
+            {token.symbol.source !== token.amount.source && (
+              <span className="text-xs text-gray-400"> · symbol from {token.symbol.source}</span>
+            )}
+          </span>
+        )
+      })}
+      <span className="text-xs text-gray-500">
+        {checked ? 'amounts checked on chain' : 'not each amount read from the chain'} · tokens named by {fact.source}
+        <ThirdPartyIcon className={ICON} title={`A claim of ${fact.source}, not checked here`} />
+      </span>
+      {fact.value.more && <MaybeLink href={more}>and more on Blockscout</MaybeLink>}
+    </span>
+  )
+}
+
+// The rows of activity that a contract and its deployer share.
+function ActivityRows({
+  activity,
+  explorers,
+  address,
+}: {
+  activity: Activity
+  explorers: ChainExplorers
+  address: Hex
+}) {
+  const more = explorers.blockscout ? `${addressLink(explorers.blockscout, address)}?tab=tokens` : null
+  return (
+    <>
+      <Row label="Transactions">
+        <FactView fact={activity.transactions}>{(count) => count.toLocaleString('en-US')}</FactView>
+      </Row>
+      <Row label="ETH holdings">
+        <FactView fact={activity.eth}>{(wei) => `${formatEther(wei)} ETH`}</FactView>
+      </Row>
+      <Row label="Token holdings">
+        <Tokens fact={activity.tokens} more={more} />
+      </Row>
+    </>
+  )
+}
+
+const KINDS = {
+  contract: 'a contract, such as a factory',
+  account: 'an account',
+  delegated: 'an account with a delegate',
+}
+
+function DeployerSection({
+  deployer,
+  explorers,
+  now,
+}: {
+  deployer: DeployerProfile
+  explorers: ChainExplorers
+  now: number
+}) {
+  const address = deployer.address.state === 'known' ? deployer.address.value : null
+  return (
+    <div className="py-1.5">
+      <p className="text-sm text-gray-500">Deployer</p>
+      <div className="mt-1 border-l-2 border-cerulean-blue-200 pl-3">
+        <p className="text-sm">
+          <FactView fact={deployer.address}>
+            {(value) => <span className="font-mono text-[13px] break-all text-gray-700">{value}</span>}
+          </FactView>
+        </p>
+        {address && (
+          <>
+            <p className="flex flex-wrap items-baseline gap-x-3 text-sm text-gray-700">
+              {deployer.name.state !== 'known' || deployer.name.value !== null ? (
+                <FactView fact={deployer.name}>{(name) => name}</FactView>
+              ) : null}
+              <FactView fact={deployer.kind}>{(kind) => KINDS[kind]}</FactView>
+            </p>
+            <p className="flex gap-3 pb-1">
+              {explorers.etherscan && <MaybeLink href={addressLink(explorers.etherscan, address)}>Etherscan</MaybeLink>}
+              {explorers.blockscout && (
+                <MaybeLink href={addressLink(explorers.blockscout, address)}>Blockscout</MaybeLink>
+              )}
+            </p>
+            <div className="divide-y divide-gray-100">
+              <Row label="First transaction">
+                <FactView fact={deployer.firstTransaction}>
+                  {(first) => (first ? `${dateText(first.time)} · ${ageText(first.time, now)}` : 'none')}
+                </FactView>
+              </Row>
+              <ActivityRows activity={deployer} explorers={explorers} address={address} />
+              <Row label="Found on lists">
+                <ListsView fact={deployer.lists} />
+              </Row>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function DeployedRow({ profile, now }: { profile: Profile; now: number }) {
+  const { deployment, deployedAt } = profile
+  return (
+    <Row label="Deployed">
+      <span className="inline-flex flex-col items-end">
+        <FactView fact={deployedAt}>{(at) => `${dateText(at)} · ${ageText(at, now)}`}</FactView>
+        {deployment.state === 'known' && (
+          <span className="text-xs text-gray-500">
+            {deployment.value.block !== null
+              ? `block ${deployment.value.block.toLocaleString('en-US')}`
+              : `transaction ${short(deployment.value.transactionHash)}`}
+            <Mark proof={deployment.proof} source={deployment.source} />
+          </span>
+        )}
+      </span>
+    </Row>
+  )
+}
+
+function Provenance({ sources, explorer }: { sources: string[]; explorer: string | null }) {
+  const { checked, claims } = provenanceText(sources)
+  const named = claims.map((source) => (source === 'Blockscout' && explorer ? `Blockscout at ${explorer}` : source))
+  if (checked.length + named.length === 0) return null
+  return (
+    <p className="mt-3 border-t border-gray-100 pt-3 text-xs leading-relaxed text-gray-500">
+      {checked.length > 0 && (
+        <span>
+          <LocallyVerifiedIcon className="mr-1 inline-block h-3 w-3 align-[-1.5px]" title="Checked on this machine" />
+          read from the chain through Helios, with a proof
+        </span>
+      )}
+      {checked.length > 0 && named.length > 0 && ' · '}
+      {named.length > 0 && (
+        <span>
+          <ThirdPartyIcon className="mr-1 inline-block h-3 w-3 align-[-1.5px]" title="From a third party" />
+          claims of {named.join(', ')}, not checked here
+        </span>
+      )}
+    </p>
+  )
+}
+
+function SummaryState({ profile, running }: { profile: Profile | AccountProfile | undefined; running: boolean }) {
+  const { text, tone } = profile ? summaryState(profile, running) : { text: 'looking up', tone: 'gray' as const }
+  return <span className={`text-xs font-medium ${TONES[tone]}`}>· {text}</span>
+}
+
+function AddressLine({ address, name }: { address: Hex; name?: Fact<string | null> }) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 pb-2">
+      <span className="font-mono text-[13px] break-all text-gray-700">{address}</span>
+      {name && name.state === 'known' && name.value !== null && (
+        <span className="text-xs text-gray-700">
+          {name.value}
+          <Mark proof={name.proof} source={name.source} />
+        </span>
+      )}
+      <SearchLinks address={address} />
+    </div>
+  )
+}
+
+function ProfileCard({
+  contract,
+  contracts,
+  profile,
+  context,
+  explorers,
+}: {
+  contract: Contract
+  contracts: Contract[]
+  profile: Profile | undefined
+  context: Context
+  explorers: ChainExplorers
+}) {
+  const running = context.status === 'running'
+  const lines = context.lines.filter((line) => line.address === contract.address)
+  const summary = (
+    <div className="flex flex-wrap items-baseline gap-x-2">
+      <ContractSummary contract={contract} contracts={contracts} />
+      <SummaryState profile={profile} running={running} />
+    </div>
+  )
+  return (
+    <CollapsibleCard open summary={summary}>
+      {!profile ? <p className="text-sm text-gray-400">…</p> : <ProfileBody profile={profile} explorers={explorers} />}
+      <CollapsibleLog lines={lines} />
+    </CollapsibleCard>
+  )
+}
+
+function ProfileBody({ profile, explorers }: { profile: Profile; explorers: ChainExplorers }) {
+  // The ages count from the time the card opened.
+  const [now] = useState(() => Date.now())
+  return (
+    <>
+      <BlockNotice blocked={profile.blocked} />
+      <YoungNotice young={profile.young} />
+      <AddressLine address={profile.address} name={profile.name} />
+      <div className="divide-y divide-gray-100">
+        <DeployedRow profile={profile} now={now} />
+        <DeployerSection deployer={profile.deployer} explorers={explorers} now={now} />
+        <ActivityRows activity={profile} explorers={explorers} address={profile.address} />
+        <Row label="Found on lists">
+          <ListsView fact={profile.lists} />
+        </Row>
+        <SecurityRow blockscout={profile.security.blockscout} goPlus={profile.security.goPlus} />
+      </div>
+      <Provenance sources={profile.sources} explorer={profile.explorer} />
+    </>
+  )
+}
+
+// An address without code of its own: only the lists and GoPlus know it.
+function AccountCard({
+  contract,
+  account,
+  context,
+}: {
+  contract: Contract
+  account: AccountProfile | undefined
+  context: Context
+}) {
+  const lines = context.lines.filter((line) => line.address === contract.address)
+  const delegated = contract.helios.status === 'passed' && contract.helios.value.code !== '0x'
+  const summary = (
+    <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+      <span className="text-xs text-gray-500">{delegated ? 'EIP-7702 account' : 'Account'}</span>
+      <span className="font-mono text-[13px] text-gray-700" title={contract.address}>
+        {short(contract.address)}
+      </span>
+      <SummaryState profile={account} running={context.status === 'running'} />
+    </p>
+  )
+  return (
+    <CollapsibleCard open summary={summary}>
+      {!account ? (
+        <p className="text-sm text-gray-400">…</p>
+      ) : (
+        <>
+          <BlockNotice blocked={account.blocked} />
+          <AddressLine address={account.address} />
+          <div className="divide-y divide-gray-100">
+            <Row label="Found on lists">
+              <ListsView fact={account.lists} />
+            </Row>
+            <SecurityRow goPlus={account.goPlus} />
+          </div>
+          <Provenance sources={account.sources} explorer={null} />
+        </>
+      )}
+      <CollapsibleLog lines={lines} />
+    </CollapsibleCard>
+  )
+}
+
+export function ProfileStep({
+  step,
+  verification,
+  context,
+}: {
+  step: StepInfo
+  verification: Verification
+  context: Context
+}) {
+  const profiled = new Set(contractsToProfile(verification))
+  const accounts = new Set(accountsToCheck(verification))
+  const named = verification.contracts.filter(
+    (contract) => profiled.has(contract.address) || accounts.has(contract.address),
+  )
+  const explorers: ChainExplorers = verification.chain
+    ? explorersOf(verification.chain)
+    : { etherscan: null, blockscout: null, blockscoutApi: null }
+  return (
+    <Step
+      step={step}
+      explainer="Facts about the contract's history and what it holds help you judge it. A contract that was deployed a few days ago and has few transactions deserves more care. Every address the request names is also checked against the block lists. These facts come from explorers and lists; they do not change the result of the checks."
+    >
+      {named.length === 0 ? (
+        <p className="rounded-xl border border-gray-200 bg-white px-5 py-4 text-sm text-gray-600 shadow-sm">
+          The request names no contract and no account, so there is no profile.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {named.map((contract) =>
+            profiled.has(contract.address) ? (
+              <ProfileCard
+                key={contract.address}
+                contract={contract}
+                contracts={verification.contracts}
+                profile={context.profiles[contract.address]}
+                context={context}
+                explorers={explorers}
+              />
+            ) : (
+              <AccountCard
+                key={contract.address}
+                contract={contract}
+                account={context.accounts[contract.address]}
+                context={context}
+              />
+            ),
+          )}
+        </div>
+      )}
+    </Step>
+  )
+}

@@ -103,15 +103,16 @@ const of = (verdicts: StepVerdict[], step: StepVerdict['step']) => {
   return found && { status: found.status, reason: found.reason }
 }
 
-test('stepsOf: with a chain, five steps in their order; without one, only the comparison', () => {
+test('stepsOf: with a chain, six steps in their order; without one, only the comparison', () => {
   assert.deepEqual(
     stepsOf({ chain: HELIOS }).map(({ id, number }) => [number, id]),
     [
       [1, 'chain'],
       [2, 'simulation'],
       [3, 'verification'],
-      [4, 'clearSigning'],
-      [5, 'compare'],
+      [4, 'profile'],
+      [5, 'clearSigning'],
+      [6, 'compare'],
     ],
   )
   assert.deepEqual(stepsOf({ chain: null }), [{ id: 'compare', title: 'Compare with your wallet', number: 1 }])
