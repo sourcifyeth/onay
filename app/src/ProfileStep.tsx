@@ -1,6 +1,7 @@
 // Step 4 of the review: the profile of each address that the request
 // names. Who deployed a contract and when, what it holds, and the lists
-// that know it. Each value names its source. Nothing here changes the
+// that know it. The mark of each value names its source in a tooltip.
+// Nothing here changes the
 // status of the request.
 
 import { useState, type ReactNode } from 'react'
@@ -64,15 +65,10 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 
 // The trust icon of a value and its source in words.
 function Mark({ proof, source }: { proof: boolean; source: string }) {
-  return (
-    <>
-      {proof ? (
-        <LocallyVerifiedIcon className={ICON} title="Read with a proof, checked on this machine" />
-      ) : (
-        <ThirdPartyIcon className={ICON} title={`A claim of ${source}, not checked here`} />
-      )}
-      <span className="text-xs text-gray-400"> · {source}</span>
-    </>
+  return proof ? (
+    <LocallyVerifiedIcon className={ICON} title={`Read through ${source} with a proof, checked on this machine`} />
+  ) : (
+    <ThirdPartyIcon className={ICON} title={`A claim of ${source}, not checked here`} />
   )
 }
 
@@ -273,9 +269,13 @@ function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
         const amount = (value: bigint) =>
           `${amountText(value, token.decimals ?? 0)}${token.decimals === null ? ' units' : ''}`
         const symbol = token.symbol.value ?? short(token.token)
+        const title =
+          token.symbol.source !== token.amount.source
+            ? `${token.token} · symbol from ${token.symbol.source}`
+            : token.token
         return (
           <span key={token.token}>
-            {amount(token.amount.value)} <span title={token.token}>{symbol}</span>
+            {amount(token.amount.value)} <span title={title}>{symbol}</span>
             <Mark proof={token.amount.proof} source={token.amount.source} />
             {token.claimed !== null && (
               <span className="text-xs text-amber-700">
@@ -284,15 +284,12 @@ function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
                 <ThirdPartyIcon className={ICON} title="A claim of Blockscout, not checked here" />
               </span>
             )}
-            {token.symbol.source !== token.amount.source && (
-              <span className="text-xs text-gray-400"> · symbol from {token.symbol.source}</span>
-            )}
           </span>
         )
       })}
       <span className="text-xs text-gray-500">
-        {checked ? 'amounts checked on chain' : 'not each amount read from the chain'} · tokens named by {fact.source}
-        <ThirdPartyIcon className={ICON} title={`A claim of ${fact.source}, not checked here`} />
+        {checked ? 'amounts checked on chain' : 'not each amount read from the chain'}
+        <ThirdPartyIcon className={ICON} title={`Tokens named by ${fact.source}, a claim not checked here`} />
       </span>
       {fact.value.more && <MaybeLink href={more}>and more on Blockscout</MaybeLink>}
     </span>
@@ -410,16 +407,16 @@ function Provenance({ sources, explorer }: { sources: string[]; explorer: string
   return (
     <p className="mt-3 border-t border-gray-100 pt-3 text-xs leading-relaxed text-gray-500">
       {checked.length > 0 && (
-        <span>
+        <span title="Read from the chain through Helios, with a proof">
           <LocallyVerifiedIcon className="mr-1 inline-block h-3 w-3 align-[-1.5px]" title="Checked on this machine" />
-          read from the chain through Helios, with a proof
+          checked on this machine
         </span>
       )}
       {checked.length > 0 && named.length > 0 && ' · '}
       {named.length > 0 && (
-        <span>
+        <span title={`Claims of ${named.join(', ')}`}>
           <ThirdPartyIcon className="mr-1 inline-block h-3 w-3 align-[-1.5px]" title="From a third party" />
-          claims of {named.join(', ')}, not checked here
+          third-party claims, not checked here
         </span>
       )}
     </p>
