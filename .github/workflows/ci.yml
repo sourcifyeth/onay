@@ -35,6 +35,8 @@ jobs:
       - run: pnpm -r build
       - run: pnpm -r lint
       - run: pnpm -r test
+      # the scripts of the repo root
+      - run: pnpm test
 
   rust:
     name: Rust on ${{ matrix.os }} (app, relay)
