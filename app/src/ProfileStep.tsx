@@ -56,7 +56,7 @@ const TONES: Record<Tone, string> = {
 // reads badly with the short values of a profile.
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-baseline gap-4 py-1.5">
+    <div className="flex items-baseline gap-4 py-2">
       <span className="w-32 shrink-0 text-sm text-gray-500">{label}</span>
       <span className="min-w-0 text-sm [overflow-wrap:anywhere] text-gray-800">{children}</span>
     </div>
@@ -343,9 +343,9 @@ function ActivityRows({
 }
 
 const KINDS = {
-  contract: 'a contract, such as a factory',
-  account: 'an account',
-  delegated: 'an account with a delegate',
+  contract: 'contract',
+  account: 'EOA',
+  delegated: 'EOA with a delegate',
 }
 
 function DeployerSection({
@@ -358,39 +358,42 @@ function DeployerSection({
   now: number
 }) {
   const address = deployer.address.state === 'known' ? deployer.address.value : null
+  // The deployer is another address: its own box, under the contract.
   return (
-    <div className="py-1.5">
-      <p className="text-sm text-gray-500">Deployer</p>
-      <div className="mt-1 border-l-2 border-cerulean-blue-200 pl-3">
-        <p className="text-sm">
-          <FactView fact={deployer.address}>
-            {(value) => <span className="font-mono text-[13px] break-all text-gray-700">{value}</span>}
-          </FactView>
-        </p>
+    <section className="mt-5 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+      <h4 className="text-sm font-semibold text-gray-800">Deployer Address</h4>
+      <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-sm text-gray-700">
+        <FactView fact={deployer.address}>
+          {(value) => <span className="font-mono text-[13px] break-all text-gray-700">{value}</span>}
+        </FactView>
         {address && (
-          <>
-            <p className="flex flex-wrap items-baseline gap-x-3 text-sm text-gray-700">
-              {deployer.name.state !== 'known' || deployer.name.value !== null ? (
-                <FactView fact={deployer.name}>{(name) => name}</FactView>
-              ) : null}
-              <FactView fact={deployer.kind}>{(kind) => KINDS[kind]}</FactView>
-            </p>
-            <p className="flex gap-3 pb-1">
-              {explorers.etherscan && <MaybeLink href={addressLink(explorers.etherscan, address)}>Etherscan</MaybeLink>}
-              {explorers.blockscout && (
-                <MaybeLink href={addressLink(explorers.blockscout, address)}>Blockscout</MaybeLink>
-              )}
-            </p>
-            <div className="divide-y divide-gray-100">
-              <ActivityRows activity={deployer} explorers={explorers} address={address} now={now} />
-              <Row label="Found on lists">
-                <ListsView fact={deployer.lists} />
-              </Row>
-            </div>
-          </>
+          <span>
+            (<FactView fact={deployer.kind}>{(kind) => KINDS[kind]}</FactView>)
+          </span>
         )}
-      </div>
-    </div>
+      </p>
+      {address && (
+        <>
+          {(deployer.name.state !== 'known' || deployer.name.value !== null) && (
+            <p className="text-sm text-gray-700">
+              <FactView fact={deployer.name}>{(name) => name}</FactView>
+            </p>
+          )}
+          <p className="flex gap-3 pb-1">
+            {explorers.etherscan && <MaybeLink href={addressLink(explorers.etherscan, address)}>Etherscan</MaybeLink>}
+            {explorers.blockscout && (
+              <MaybeLink href={addressLink(explorers.blockscout, address)}>Blockscout</MaybeLink>
+            )}
+          </p>
+          <div className="divide-y divide-gray-200">
+            <ActivityRows activity={deployer} explorers={explorers} address={address} now={now} />
+            <Row label="Found on lists">
+              <ListsView fact={deployer.lists} />
+            </Row>
+          </div>
+        </>
+      )}
+    </section>
   )
 }
 
@@ -513,20 +516,20 @@ function ProfileBody({
   // The ages count from the time the card opened.
   const [now] = useState(() => Date.now())
   return (
-    <>
+    <div className="px-2 pt-1 pb-2">
       <BlockNotice blocked={profile.blocked} goPlus={goPlusFlags(profile)} />
       <YoungNotice young={profile.young} />
       <AddressLine address={profile.address} name={profile.name} title={title} />
       <div className="divide-y divide-gray-100">
         <DeployedRow profile={profile} now={now} />
-        <DeployerSection deployer={profile.deployer} explorers={explorers} now={now} />
         <ActivityRows activity={profile} explorers={explorers} address={profile.address} now={now} />
         <Row label="Found on lists">
           <ListsView fact={profile.lists} />
         </Row>
         <SecurityRow blockscout={profile.security.blockscout} goPlus={profile.security.goPlus} />
       </div>
-    </>
+      <DeployerSection deployer={profile.deployer} explorers={explorers} now={now} />
+    </div>
   )
 }
 
