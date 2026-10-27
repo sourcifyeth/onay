@@ -55,6 +55,11 @@ function errorString(words: string): string | null {
 export const short = (hex: string) => `${hex.slice(0, 6)}…${hex.slice(-4)}`
 
 // Wei as ether, with up to six decimals.
+// A number with its noun: "1 slot", "2 slots".
+export function count(n: number, what: string): string {
+  return `${n.toLocaleString('en-US')} ${what}${n === 1 ? '' : 's'}`
+}
+
 export function formatEther(wei: bigint): string {
   if (wei > 0n && wei < 10n ** 12n) return '<0.000001'
   const whole = wei / 10n ** 18n

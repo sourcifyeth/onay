@@ -528,7 +528,7 @@ function RawWords({ data }: { data: Hex }) {
 }
 
 const ABI_SOURCE =
-  'The ABI (Application Binary Interface) comes from the source code verified in step 2: fetched from sourcify.dev, compiled on this machine, and matched to the code on the chain.'
+  'The ABI (Application Binary Interface) comes from the source code verified in step 3: fetched from sourcify.dev, compiled on this machine, and matched to the code on the chain.'
 
 // The calldata as the verified ABI decodes it, with the reason why no
 // descriptor rendered it.

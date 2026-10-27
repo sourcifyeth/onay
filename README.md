@@ -89,6 +89,24 @@ Run these before you push. Continuous integration (CI) runs the same commands.
 | `cargo fmt --all --check`                   | `app/`    | Rust formatting.                                                                                                                                             |
 | `cargo deny check`                          | `app/`    | Advisories, licenses, and sources of the Rust dependencies. Install once with `cargo install --locked cargo-deny`.                                           |
 
+### End-to-end tests
+
+`app/e2e/` drives the real app window over WebDriver: for each transaction in `app/e2e/transactions/` it feeds the request to the app, waits for the review, and reads the four steps as a user would, checking that each shows its expected text and no failure. The run reads Ethereum mainnet, Sourcify, and the ERC-7730 registry, so it needs the network and takes minutes. It is not part of `pnpm -r test`; the `E2E` workflow runs it on a schedule and on request.
+
+Linux only ([tauri-driver](https://v2.tauri.app/develop/tests/webdriver/) has no macOS driver). Once:
+
+```
+sudo apt install webkit2gtk-driver xvfb
+cargo install tauri-driver --locked --version 2.1.0
+```
+
+Then:
+
+```
+pnpm --filter app build:e2e              # the app with its files in a test directory, in app/target/debug/onay
+xvfb-run -a pnpm --filter app test:e2e   # on a virtual display; without xvfb-run the window opens on your desktop
+```
+
 ## Production
 
 Nothing is published yet. These commands produce the same artifacts a release will ship. Signing, notarization, and the release pipeline are tracked in [issue 15](https://github.com/sourcifyeth/onay/issues/15).

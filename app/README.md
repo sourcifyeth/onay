@@ -8,6 +8,8 @@ A Tauri desktop app: a Rust program that shows a web page in its window. The Rus
 pnpm tauri dev         # build the relay, start the page with hot reload, open the window
 pnpm build             # type-check and build the page only
 pnpm test              # type-check and run the tests of the page's pure modules
+pnpm build:e2e         # the app with its files in ONAY_E2E_DIR, for the end-to-end tests
+pnpm test:e2e          # drive that build over WebDriver through the transactions in e2e/
 pnpm bundle            # the package with the relay inside, in target/release/bundle/
 cargo build            # both binaries
 cargo test             # all Rust tests
@@ -17,6 +19,8 @@ cargo deny check       # advisories, licenses, sources, bans
 ```
 
 The Rust tests cover the channel against the shared vectors, the key store, the peer rules, the whole link with a fake extension over a socket pair, and the relay binary against a fake app. The page tests in `test/` cover the pure gate modules: what a request names and what it runs, how a gate reports, the contract set and its verdicts, the Sourcify lookup, the compiler list and its hash check, the creation transaction, the state of the simulation on a fake chain, and the forms of a pasted request. Two tests run the real compiler: one with the real lib-sourcify on a small contract, one with the real EVM on three contracts that call each other. Both take the compiler build from `test/.cache/`, downloaded on the first run. The Clear Signing tests cover the trusted auditors, the plain decoding with the verified ABI, the data provider over a fake chain, the token lists, and the rendering with the real clear-signing library over a registry in memory.
+
+The end-to-end tests in `e2e/` run the whole app: `tauri-driver` starts the window, and the test feeds each transaction of `e2e/transactions/` through `add_request`, the command of the paste card, then reads the review from the page: the four steps, the other two tabs of the last one, and the verdict on the request list. Each transaction is one JSON file that states the facts its review must show, typed as `Transaction` in `e2e/expect.ts`, which also turns them into the text that each section must show. `e2e/page.ts` holds the scripts that run in the window and the check of a review; `e2e/webdriver.ts` is the client of the WebDriver protocol, written here so that the package stays without dependencies. The pure parts have their unit tests in `test/e2e.test.ts`. The setup is in the root README.
 
 The package settings live in `src-tauri/tauri.bundle.conf.json`, apart from the main Tauri config, so that `tauri dev` works without a packaged relay. `src-tauri/packaging/postinstall.sh` is the install script of the Linux packages.
 

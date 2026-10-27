@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import type { Hex } from '../src/messages.ts'
-import { formatEther, revertText } from '../src/gates/words.ts'
+import { count, formatEther, revertText } from '../src/gates/words.ts'
 
 test('revertText: the message of Error, the code of Panic, the selector of a custom error', () => {
   const error = `0x08c379a0${'00'.repeat(31)}20${'00'.repeat(31)}04${Buffer.from('nope').toString('hex')}${'00'.repeat(28)}`
@@ -35,4 +35,10 @@ test('formatEther: up to six decimals', () => {
   assert.equal(formatEther(1_500_000_000_000_000_000n), '1.5')
   assert.equal(formatEther(1n), '<0.000001')
   assert.equal(formatEther(123_456_789_000_000n), '0.000123')
+})
+
+test('count: the noun takes an s except for one', () => {
+  assert.equal(count(1, 'storage slot'), '1 storage slot')
+  assert.equal(count(0, 'account'), '0 accounts')
+  assert.equal(count(1234, 'contract'), '1,234 contracts')
 })
