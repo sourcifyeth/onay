@@ -17,12 +17,14 @@ function request(method: string, params: unknown): SigningRequest {
   return {
     connection: 1,
     id: '1',
+    source: 'browser',
     origin: 'https://dapp.example',
     method,
     params,
     chainId: 1,
     receivedAt: 0,
     outcome: null,
+    signed: false,
   }
 }
 

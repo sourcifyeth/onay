@@ -1,12 +1,15 @@
 import { useState } from 'react'
 
-const PLACEHOLDER = `{
-  "chainId": 1,
-  "to": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
-  "data": "0x38ed1739…",
-  "value": "0x0",
-  "from": "0x… (optional)"
-}`
+const PLACEHOLDER = `0x02f8…  a raw transaction (RLP, signed or unsigned)
+{ "chainId": 1, "to": "0x…", "data": "0x…" }  a transaction
+{ "method": "eth_signTypedData_v4", "params": ["0x…", { "types": … }] }  typed data, with the account that signs`
+
+// Mock: a raw transaction "decodes" to this sample.
+const RAW_SAMPLE: PastedTx = {
+  chainId: 1,
+  to: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
+  data: '0x38ed1739',
+}
 
 export interface PastedTx {
   chainId: number
@@ -17,11 +20,18 @@ export interface PastedTx {
 }
 
 function parsePastedTx(raw: string): { tx?: PastedTx; error?: string } {
+  if (/^0x[0-9a-fA-F\s]+$/.test(raw.trim())) return { tx: RAW_SAMPLE }
   let obj: Record<string, unknown>
   try {
     obj = JSON.parse(raw)
   } catch {
-    return { error: 'Not valid JSON.' }
+    return { error: 'Not a raw transaction or JSON.' }
+  }
+  if (typeof obj.method === 'string') {
+    if (!Array.isArray(obj.params)) return { error: 'The params of a JSON-RPC request must be an array.' }
+    if (obj.method === 'eth_sendRawTransaction') return { tx: RAW_SAMPLE }
+    if (obj.method !== 'eth_sendTransaction') return { error: 'The mock checks transactions only.' }
+    obj = (obj.params[0] ?? {}) as Record<string, unknown>
   }
   if (typeof obj.chainId !== 'number') return { error: 'Missing "chainId" (number).' }
   if (typeof obj.to !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(obj.to))
@@ -47,12 +57,10 @@ export function PasteCard({ onVerify }: { onVerify: (tx: PastedTx) => void }) {
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <h2 className="pb-1 text-xs font-mono uppercase tracking-widest text-gray-500">Verify a transaction</h2>
+      <h2 className="pb-1 text-xs font-mono uppercase tracking-widest text-gray-500">Check a request yourself</h2>
       <p className="pb-3 text-sm text-gray-500">
-        Paste the transaction as JSON. Required: <span className="font-mono text-xs">chainId</span>,{' '}
-        <span className="font-mono text-xs">to</span>, <span className="font-mono text-xs">data</span>. Optional:{' '}
-        <span className="font-mono text-xs">value</span>, <span className="font-mono text-xs">from</span> (makes the
-        simulation sender-accurate).
+        Paste a raw transaction, or a transaction or a JSON-RPC request as JSON. Typed data goes in a JSON-RPC request,
+        with the account that signs it.
       </p>
       <textarea
         value={raw}

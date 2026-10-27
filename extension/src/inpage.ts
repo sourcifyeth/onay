@@ -17,7 +17,7 @@
   // A reported request. `sent` is set while the report waits for the chain.
   type Report = { id: string; sent: Promise<void> | null }
 
-  // Must match the list in background.ts.
+  // Must match the lists in background.ts and app/src/paste.ts.
   const SIGNING_METHODS = new Set([
     'eth_sendTransaction',
     'eth_signTransaction',

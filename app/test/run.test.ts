@@ -30,12 +30,14 @@ function request(method: string, params: unknown, chainId: number | null = 1): S
   return {
     connection: 1,
     id: '1',
+    source: 'browser',
     origin: 'https://dapp.example',
     method,
     params,
     chainId,
     receivedAt: 0,
     outcome: null,
+    signed: false,
   }
 }
 
@@ -311,6 +313,24 @@ test('a message names no chain: the run passes with nothing to check', async () 
   const v = await ended(request('personal_sign', ['0x68656c6c6f', FROM], null), setup({ codes: {}, sources: {} }).deps)
   assert.equal(v.status, 'passed')
   assert.equal(v.simulation.status, 'skipped')
+})
+
+test('a pasted request logs its own lines as paste, with no origin', async () => {
+  const pasted = { ...request('personal_sign', ['0x68656c6c6f', FROM], null), source: 'paste' as const, origin: '' }
+  const v = await ended(pasted, setup({ codes: {}, sources: {} }).deps)
+  assert.deepEqual(
+    v.lines.filter((line) => line.source === 'paste').map((line) => line.text),
+    ['request received · personal_sign'],
+  )
+  assert.ok(!v.lines.some((line) => line.source === 'browser'))
+})
+
+test('a pasted transaction with a field that does not read logs the reason as paste', async () => {
+  const bad = request('eth_sendTransaction', [{ from: FROM, to: A, value: 1000 }])
+  const v = await ended({ ...bad, source: 'paste', origin: '' }, setup({ codes: {}, sources: {} }).deps)
+  assert.equal(v.status, 'failed')
+  assert.match(v.lines.filter((line) => line.source === 'paste').at(-1)?.text ?? '', /could not be read/)
+  assert.ok(!v.lines.some((line) => line.source === 'browser'))
 })
 
 const delegated: Hex = `0xef0100${C.slice(2)}`

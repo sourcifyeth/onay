@@ -22,7 +22,8 @@ export function chainOf(request: SigningRequest): RequestChain {
   return { chainId: null, reason: 'the request names no chain' }
 }
 
-function chainNamedIn({ method, params }: SigningRequest): number | null {
+// The chain that the params of a request name, if any.
+export function chainNamedIn({ method, params }: Pick<SigningRequest, 'method' | 'params'>): number | null {
   const list = Array.isArray(params) ? params : []
   const first = list[0] as { chainId?: unknown } | undefined
   switch (method) {
@@ -77,17 +78,17 @@ export function parseChainId(value: unknown): number | null {
 // form a wallet takes, for example a value without the 0x prefix. The
 // wallet reads such a field its own way, so Onay must not guess what it
 // means. Null if every field reads.
-export function requestProblem(request: SigningRequest): string | null {
-  const list = Array.isArray(request.params) ? request.params : []
-  switch (request.method) {
+export function requestProblem({ method, params }: Pick<SigningRequest, 'method' | 'params'>): string | null {
+  const list = Array.isArray(params) ? params : []
+  switch (method) {
     case 'eth_sendTransaction':
     case 'eth_signTransaction': {
-      const authorizations = authorizationsOf(request)
+      const authorizations = authorizationsOf({ params })
       return callProblem(list[0], 'the transaction') ?? (Array.isArray(authorizations) ? null : authorizations.problem)
     }
     case 'personal_sign':
     case 'eth_sign':
-      return messageOf(request)?.problem ?? null
+      return messageOf({ method, params })?.problem ?? null
     case 'wallet_sendCalls': {
       const batch = list[0] as { from?: unknown; calls?: unknown } | undefined
       if (batch?.from != null && !isAddress(batch.from)) return 'the sender of the batch is not an address'
@@ -129,7 +130,7 @@ export type Authorization = { chainId: bigint; address: Hex; nonce: bigint }
 
 // The authorization list of a transaction, empty if it has none, or why
 // it does not read.
-export function authorizationsOf({ params }: SigningRequest): Authorization[] | { problem: string } {
+export function authorizationsOf({ params }: Pick<SigningRequest, 'params'>): Authorization[] | { problem: string } {
   const tx = (Array.isArray(params) ? params[0] : null) as { authorizationList?: unknown } | null
   const list = tx?.authorizationList
   if (list == null) return []
@@ -156,7 +157,7 @@ export type Message = { bytes: Uint8Array; signer: Hex | null; problem?: undefin
 // A message in hex stands for the bytes it spells, as ERC-8213 says.
 // personal_sign takes any other string as UTF-8 text. Null for the
 // other methods.
-export function messageOf({ method, params }: SigningRequest): Message | null {
+export function messageOf({ method, params }: Pick<SigningRequest, 'method' | 'params'>): Message | null {
   if (method !== 'personal_sign' && method !== 'eth_sign') return null
   const list = Array.isArray(params) ? params : []
   // Some wallets swap the two when only the first is an address.
@@ -280,6 +281,6 @@ function parseTypedData(data: unknown): unknown {
   }
 }
 
-function isAddress(value: unknown): value is Hex {
+export function isAddress(value: unknown): value is Hex {
   return typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value)
 }

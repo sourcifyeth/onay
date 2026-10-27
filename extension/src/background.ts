@@ -10,7 +10,7 @@ import { openStore } from './store.ts'
 
 // Must match HOST_NAME in app/ipc/src/lib.rs.
 const HOST_NAME = 'dev.sourcify.onay'
-// Must match the list in inpage.ts.
+// Must match the lists in inpage.ts and app/src/paste.ts.
 const SIGNING_METHODS = new Set([
   'eth_sendTransaction',
   'eth_signTransaction',
