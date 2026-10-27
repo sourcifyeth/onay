@@ -145,9 +145,9 @@ The `Release` workflow then checks that the tag is on `main` and equals the app 
 
 A tag push is a release, so a tag ruleset in the repository settings (Rules, Rulesets, target all tags, rule "Restrict creations", with the repository admins in the bypass list) limits who creates version tags to the maintainers.
 
-The workflow has no manual trigger: a run from a branch would reach the signing secrets with a workflow file nobody reviewed. The first tag after a change to the workflow is its test.
+The signing secrets live in the `release` environment of the repository, whose deployment policy admits only tags matching `[0-9]*.[0-9]*.[0-9]*`. A workflow on a branch cannot use the environment, so no branch can reach the secrets, whatever its workflow files say. The workflow has no manual trigger for the same reason. The first tag after a change to the workflow is its test.
 
-The macOS build signs and notarizes when these six repository secrets exist, and makes an ad-hoc build when none of them does. Some of them set, and some not, fails the build:
+The macOS build signs and notarizes when these six secrets exist in the `release` environment, and makes an ad-hoc build when none of them does. Some of them set, and some not, fails the build:
 
 - `APPLE_CERTIFICATE`: the Developer ID Application certificate with its private key, as a base64 `.p12` (`openssl base64 -A -in certificate.p12`). Only the Account Holder of the Apple Developer account can create this certificate. `APPLE_CERTIFICATE_PASSWORD` is the password of the `.p12`.
 - `APPLE_SIGNING_IDENTITY`: the name of the certificate, such as `Developer ID Application: Sourcify (TEAMID)`.
