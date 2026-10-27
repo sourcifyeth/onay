@@ -461,6 +461,10 @@ export function buildProfile(reads: ProfileReads): Profile {
     blocked.push({ value: 'marked as scam', proof: false, source: 'Blockscout', of: 'address' })
   }
   blocked.push(...blockedOf(deployerProfile.lists, 'deployer'))
+  const deployerAddress = reads.deployer.blockscout.address
+  if (deployer.state === 'known' && deployerAddress?.ok && deployerAddress.value.scam) {
+    blocked.push({ value: 'marked as scam', proof: false, source: 'Blockscout', of: 'deployer' })
+  }
   const profile: Omit<Profile, 'sources'> = {
     address: reads.address,
     chainId: reads.chainId,

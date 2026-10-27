@@ -6,12 +6,8 @@ use std::process::Command;
 
 // The same list as LINK_PREFIXES in src/context/explorers.ts. Keep both
 // lists the same.
-// The search links of the contract profile take a query only.
 const ALLOWED: &[&str] = &[
     "https://github.com/",
-    "https://www.google.com/search?",
-    "https://duckduckgo.com/?",
-    "https://x.com/search?",
     "https://4byte.sourcify.dev/",
     "https://repo.sourcify.dev/",
     "https://etherscan.io/",
@@ -30,11 +26,42 @@ const ALLOWED: &[&str] = &[
     "https://explorer.linea.build/",
 ];
 
+// The search links of the contract profile: the start and the end
+// around one address. A free query can redirect, as "!ducky" or "btnI"
+// do, so only these shapes open. The same list as SEARCH_SHAPES in
+// src/context/explorers.ts.
+const SEARCHES: &[(&str, &str)] = &[
+    ("https://www.google.com/search?q=%22", "%22"),
+    ("https://duckduckgo.com/?q=%22", "%22"),
+    ("https://github.com/search?q=", "&type=code"),
+    ("https://x.com/search?q=", "&f=live"),
+];
+
+fn is_address(text: &str) -> bool {
+    text.len() == 42
+        && text.starts_with("0x")
+        && text.bytes().skip(2).all(|c| c.is_ascii_hexdigit())
+}
+
+/// Some(verdict) for a URL on the page of a search engine, None for
+/// any other URL.
+fn search(url: &str) -> Option<bool> {
+    let page = url.split(['?', '#']).next().unwrap_or(url);
+    SEARCHES
+        .iter()
+        .find(|(start, _)| start.split('?').next() == Some(page))
+        .map(|(start, end)| {
+            url.strip_prefix(start)
+                .and_then(|rest| rest.strip_suffix(end))
+                .is_some_and(is_address)
+        })
+}
+
 /// True if the URL starts with an allowed site and has only the
 /// characters a URL is made of. The path of a link can come from the
 /// registry index, which is third-party data.
 pub fn allowed(url: &str) -> bool {
-    ALLOWED.iter().any(|site| url.starts_with(site))
+    search(url).unwrap_or_else(|| ALLOWED.iter().any(|site| url.starts_with(site)))
         && url
             .bytes()
             .all(|c| c.is_ascii_alphanumeric() || b"-._~:/?#[]@!$&'()*+,;=%".contains(&c))
@@ -152,6 +179,34 @@ mod tests {
         assert!(!allowed("https://x.com/evil"));
         assert!(!allowed("https://x.com.evil.com/search?q=1"));
         assert!(!allowed("https://tokens.uniswap.org/"));
+    }
+
+    #[test]
+    fn allows_a_search_link_only_in_its_one_shape() {
+        let address = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+        let quoted = format!("%22{address}%22");
+        for url in [
+            format!("https://www.google.com/search?q={quoted}&btnI=1"),
+            format!("https://www.google.com/search?btnI=1&q={quoted}"),
+            "https://www.google.com/search?q=evil.com&btnI=I".to_string(),
+            format!("https://duckduckgo.com/?q=!ducky+{quoted}"),
+            format!("https://duckduckgo.com/?q=%5C{quoted}"),
+            "https://duckduckgo.com/?q=%5Csite:evil.com".to_string(),
+            format!("https://duckduckgo.com/?q={quoted}&kp=1"),
+            format!("https://duckduckgo.com/?q={address}"),
+            format!("https://github.com/search?q={address}&type=code&x=1"),
+            format!("https://github.com/search?type=code&q={address}"),
+            "https://github.com/search?q=evil&type=code".to_string(),
+            format!("https://x.com/search?q={address}&f=live&x=1"),
+            format!("https://x.com/search?q={address}0&f=live"),
+            format!("https://x.com/search#q={address}&f=live"),
+            format!("https://www.google.com/search?q=%22{}%22", &address[..41]),
+        ] {
+            assert!(!allowed(&url), "{url}");
+        }
+        assert!(allowed(
+            "https://github.com/search?q=0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48&type=code"
+        ));
     }
 
     #[test]

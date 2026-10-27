@@ -298,12 +298,12 @@ function ExplorerSettings() {
           etherscan.io/apis ↗
         </ExternalLink>
         . Without a key, Onay does not ask Etherscan and the row in the review says so. The key is saved in the app's
-        local storage, a plain file that other programs of your user can read; a free key is fine there. Each lookup
-        tells Etherscan which contract you check, as the Sourcify lookup does today. Powered by Etherscan.io APIs.
+        local storage, a plain file that other programs of your user can read; a free key is fine there. The lookups
+        tell Etherscan which contract you check and who deployed it. Powered by Etherscan.io APIs.
       </p>
       <p className="pb-3 text-xs leading-relaxed text-gray-500">
-        Blockscout needs no key. Set the URL of your own instance in the chain card to use it. Each lookup tells the
-        instance which contract you check.
+        Blockscout needs no key. Set the URL of your own instance in the chain card to use it. The lookups tell the
+        instance which contract you check and who deployed it.
       </p>
       <div className="flex items-end gap-3">
         <label className="block min-w-0 flex-1">
@@ -361,7 +361,8 @@ export function SettingsPage({ snapshot, onBack }: { snapshot: Snapshot | null; 
         Helios is a light client: it never trusts these endpoints, it checks them. Each piece of chain state is checked
         against a cryptographic proof, so a lying RPC (Remote Procedure Call) endpoint gets caught instead of believed.
         The consensus RPC serves the beacon chain light client updates, and Helios follows the sync committee signatures
-        from there.
+        from there. The contract profile also asks the execution endpoint about the deployer's account and up to 10
+        token balances of the contract and of its deployer.
       </p>
       {chains
         .filter((chain) => chain.mode === 'helios')

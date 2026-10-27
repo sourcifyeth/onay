@@ -329,7 +329,7 @@ function ContractVerification({
     ...verification.lines.filter(
       (line) => line.address === contract.address && (line.source === 'sourcify' || line.source === 'solc'),
     ),
-    ...context.lines.filter((line) => line.address === contract.address && line.source === 'explorer'),
+    ...context.lines.filter((line) => line.address === contract.address && line.topic === 'status'),
   ]
   return (
     <CollapsibleCard open={open} summary={<ContractSummary contract={contract} contracts={verification.contracts} />}>

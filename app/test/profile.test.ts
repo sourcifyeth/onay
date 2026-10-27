@@ -326,6 +326,7 @@ test('the deployer: the name of an allow list first, then the one of Blockscout'
           value: {
             hits: [{ list: 'Safe deployments', kind: 'allow', label: 'SafeProxyFactory v1.4.1', link: null }],
             missing: [],
+            asked: [],
           },
         },
       },
@@ -358,6 +359,7 @@ test('block-list hits and a scam mark of Blockscout; neither touches the rest', 
             { list: 'Safe deployments', kind: 'allow', label: 'Safe v1.4.1', link: null },
           ],
           missing: [],
+          asked: [],
         },
       },
       goPlus: { ok: true, value: { flags: [{ id: 'sanctioned', text: 'sanctioned' }], sources: ['SlowMist'] } },
@@ -379,8 +381,8 @@ test('a block-list hit on the deployer is in the profile and names the deployer'
   const profile = buildProfile(
     reads({
       sourcify: { deployment, creation: creation(true), read: true },
-      hits: { ok: true, value: { hits: [], missing: [] } },
-      deployer: { ...emptyHolder(), hits: { ok: true, value: { hits: [ofac], missing: [] } } },
+      hits: { ok: true, value: { hits: [], missing: [], asked: [] } },
+      deployer: { ...emptyHolder(), hits: { ok: true, value: { hits: [ofac], missing: [], asked: [] } } },
     }),
   )
   assert.deepEqual(profile.blocked, [
@@ -390,10 +392,20 @@ test('a block-list hit on the deployer is in the profile and names the deployer'
   assert.ok(profile.sources.includes('OFAC sanctions'))
 })
 
+test('a scam mark of Blockscout on the deployer is in blocked and names the deployer', () => {
+  const profile = buildProfile(
+    reads({
+      sourcify: { deployment, creation: creation(true), read: true },
+      deployer: { ...emptyHolder(), blockscout: { address: blockscoutAddress({ scam: true }) } },
+    }),
+  )
+  assert.deepEqual(profile.blocked, [{ value: 'marked as scam', proof: false, source: 'Blockscout', of: 'deployer' }])
+})
+
 test('a list without data is missing, not a list that does not know the address', () => {
   const missing = [{ list: 'OFAC sanctions', reason: 'HTTP 503' }]
-  const profile = buildProfile(reads({ hits: { ok: true, value: { hits: [], missing } } }))
-  assert.deepEqual(known(profile.lists).value, { hits: [], missing })
+  const profile = buildProfile(reads({ hits: { ok: true, value: { hits: [], missing, asked: [] } } }))
+  assert.deepEqual(known(profile.lists).value, { hits: [], missing, asked: [] })
   assert.deepEqual(profile.blocked, [])
 })
 
@@ -421,14 +433,14 @@ test('an account: the lists and GoPlus only', () => {
   const account = buildAccount({
     address: DEPLOYER,
     chainId: 1,
-    hits: { ok: true, value: { hits: [ofac], missing: [] } },
+    hits: { ok: true, value: { hits: [ofac], missing: [], asked: [] } },
     goPlus: 'off',
     done: true,
   })
   assert.deepEqual(account, {
     address: DEPLOYER,
     chainId: 1,
-    lists: { state: 'known', value: { hits: [ofac], missing: [] }, proof: false, source: 'address lists' },
+    lists: { state: 'known', value: { hits: [ofac], missing: [], asked: [] }, proof: false, source: 'address lists' },
     blocked: [{ value: 'sanctioned · ETH', proof: false, source: 'OFAC sanctions', of: 'address' }],
     goPlus: { state: 'off' },
     sources: ['OFAC sanctions'],

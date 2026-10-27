@@ -4,9 +4,20 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
-import { ageText, agoText, dateText, provenanceText, searchLinks, summaryState } from '../src/context/card.ts'
-import { linkable, LINK_PREFIXES } from '../src/context/explorers.ts'
+import {
+  ageText,
+  agoText,
+  dateText,
+  goPlusFlags,
+  goPlusSource,
+  provenanceText,
+  searchLinks,
+  summaryState,
+  youngText,
+} from '../src/context/card.ts'
+import { linkable, LINK_PREFIXES, SEARCH_SHAPES } from '../src/context/explorers.ts'
 import { ERC7730_REPOSITORY, LIST_SOURCES } from '../src/context/lists.ts'
+import type { ListAnswer } from '../src/context/lists.ts'
 import type { AccountProfile, Profile } from '../src/context/profile.ts'
 import type { Hex } from '../src/messages.ts'
 
@@ -41,6 +52,11 @@ test('each link of the card is linkable and in the allowlist of open_url in Rust
   const rust = readFileSync(new URL('../src-tauri/src/browser.rs', import.meta.url), 'utf8')
   const allowed = [...rust.matchAll(/^ {4}"(https:\/\/[^"]+)",$/gm)].map((match) => match[1])
   assert.deepEqual([...allowed].sort(), [...LINK_PREFIXES, 'https://4byte.sourcify.dev/'].sort())
+  const searches = [...rust.matchAll(/^ {4}\("(https:\/\/[^"]+)", "([^"]+)"\),$/gm)].map((match) => [
+    match[1],
+    match[2],
+  ])
+  assert.deepEqual(searches, SEARCH_SHAPES)
   const links = [
     ...searchLinks(ADDRESS).map((link) => link.url),
     ...LIST_SOURCES.map((source) => source.repository),
@@ -51,12 +67,30 @@ test('each link of the card is linkable and in the allowlist of open_url in Rust
   assert.ok(!linkable('https://www.google.com/url?q=https://evil.com'))
 })
 
+test('linkable takes a search link only in its one shape, as open_url in Rust', () => {
+  const quoted = `%22${ADDRESS}%22`
+  for (const url of [
+    `https://www.google.com/search?q=${quoted}&btnI=1`,
+    `https://www.google.com/search?btnI=1&q=${quoted}`,
+    `https://duckduckgo.com/?q=!ducky+${quoted}`,
+    'https://duckduckgo.com/?q=%5Csite:evil.com',
+    `https://duckduckgo.com/?q=${quoted}&kp=1`,
+    `https://github.com/search?q=${ADDRESS}&type=code&x=1`,
+    'https://github.com/search?q=evil&type=code',
+    `https://x.com/search?q=${ADDRESS}&f=live&x=1`,
+    `https://x.com/search#q=${ADDRESS}&f=live`,
+  ]) {
+    assert.ok(!linkable(url), url)
+  }
+})
+
 const known = <T>(value: T) => ({ state: 'known' as const, value, proof: false, source: 'x' })
+const answer = (change: Partial<ListAnswer> = {}): ListAnswer => ({ hits: [], missing: [], asked: [], ...change })
 
 const account = (change: Partial<AccountProfile> = {}): AccountProfile => ({
   address: ADDRESS,
   chainId: 1,
-  lists: known({ hits: [], missing: [] }),
+  lists: known(answer()),
   blocked: [],
   goPlus: { state: 'off' },
   sources: [],
@@ -90,7 +124,7 @@ test('summaryState says young, lists, looking up, or no explorer', () => {
     tone: 'amber',
   })
   const hit = { list: 'Safe deployments', kind: 'allow' as const, label: 'Safe v1.4.1', link: null }
-  assert.deepEqual(summaryState(profile({ lists: known({ hits: [hit, hit], missing: [] }) }), false), {
+  assert.deepEqual(summaryState(profile({ lists: known(answer({ hits: [hit, hit] })) }), false), {
     text: 'on 2 lists',
     tone: 'green',
   })
@@ -98,10 +132,46 @@ test('summaryState says young, lists, looking up, or no explorer', () => {
   assert.deepEqual(summaryState(profile({ explorer: null }), false), { text: 'no explorer data', tone: 'gray' })
   assert.deepEqual(summaryState(account(), false), { text: 'not on any list', tone: 'gray' })
   const missing = [{ list: 'OFAC sanctions', reason: 'not fetched yet' }]
-  assert.deepEqual(summaryState(account({ lists: known({ hits: [], missing }) }), false), {
+  assert.deepEqual(summaryState(account({ lists: known(answer({ missing })) }), false), {
     text: 'on no loaded list',
     tone: 'gray',
   })
+})
+
+test('summaryState says lists unknown when the lists gave no answer', () => {
+  const failed = { state: 'unknown' as const, reason: 'HTTP 503' }
+  assert.deepEqual(summaryState(account({ lists: failed }), false), { text: 'lists unknown', tone: 'gray' })
+  assert.deepEqual(summaryState(profile({ lists: failed, explorer: null }), false), {
+    text: 'lists unknown',
+    tone: 'gray',
+  })
+  assert.deepEqual(summaryState(account({ lists: failed }), true), { text: 'looking up', tone: 'gray' })
+})
+
+test('summaryState and goPlusFlags show the flags of GoPlus after a block-list hit', () => {
+  const flagged = known({ flags: [{ id: 'phishing_activities', text: 'phishing' }], sources: ['SlowMist'] })
+  const flaggedAccount = account({ goPlus: flagged })
+  assert.deepEqual(summaryState(flaggedAccount, false), { text: 'flagged by GoPlus', tone: 'coral' })
+  assert.equal(goPlusFlags(flaggedAccount), flagged.value)
+  const flaggedProfile = profile({ security: { blockscout: known('ok' as const), goPlus: flagged } })
+  assert.deepEqual(summaryState(flaggedProfile, false), { text: 'flagged by GoPlus', tone: 'coral' })
+  const blocked = [{ value: 'sanctioned · ETH', proof: false, source: 'OFAC sanctions', of: 'address' as const }]
+  assert.deepEqual(summaryState(account({ goPlus: flagged, blocked }), false).text, 'on a block list')
+  assert.equal(goPlusFlags(account({ goPlus: known({ flags: [], sources: ['GoPlus'] }) })), null)
+  assert.equal(goPlusFlags(account()), null)
+  assert.equal(goPlusSource(flagged.value), 'GoPlus, according to SlowMist')
+  assert.equal(goPlusSource({ flags: [], sources: ['GoPlus'] }), 'GoPlus')
+})
+
+test('youngText builds the sentence for each case', () => {
+  assert.equal(
+    youngText({ days: 3, transactions: 12 }),
+    'This contract was deployed 3 days ago and has 12 transactions.',
+  )
+  assert.equal(youngText({ days: 0, transactions: null }), 'This contract was deployed today.')
+  assert.equal(youngText({ days: 1, transactions: null }), 'This contract was deployed 1 day ago.')
+  assert.equal(youngText({ days: null, transactions: 12 }), 'This contract has only 12 transactions.')
+  assert.equal(youngText({ days: null, transactions: 1 }), 'This contract has only 1 transaction.')
 })
 
 test('provenanceText parts the checked sources from the claims', () => {

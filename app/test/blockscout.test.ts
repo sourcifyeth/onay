@@ -196,9 +196,14 @@ test('each lookup: 404 of Blockscout is an unknown address, other errors give a 
   assert.deepEqual(await blockscoutAddress(API, USDT, notFound), {
     ok: true,
     value: { creator: null, creationTransaction: null, name: null, scam: false, isContract: null },
+    notFound: true,
   })
-  assert.deepEqual(await blockscoutTokens(API, USDT, notFound), { ok: true, value: { tokens: [], more: false } })
-  assert.deepEqual(await blockscoutFirstTransaction(API, USDT, notFound), { ok: true, value: null })
+  assert.deepEqual(await blockscoutTokens(API, USDT, notFound), {
+    ok: true,
+    value: { tokens: [], more: false },
+    notFound: true,
+  })
+  assert.deepEqual(await blockscoutFirstTransaction(API, USDT, notFound), { ok: true, value: null, notFound: true })
   // No count is not a count of 0.
   assert.deepEqual(await blockscoutCounters(API, USDT, notFound), {
     ok: false,

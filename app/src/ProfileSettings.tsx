@@ -100,8 +100,8 @@ export function ProfileSettings() {
               GoPlus
             </p>
             <p className="text-xs leading-relaxed text-gray-500">
-              GoPlus is a closed service that answers without a key. Each lookup tells it which address you check. Its
-              answer shows with the yellow mark.
+              GoPlus is a closed service that answers without a key. The lookups tell it each address that the request
+              names. Its answer shows with the yellow mark.
             </p>
           </div>
         </div>

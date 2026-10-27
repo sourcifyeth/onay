@@ -323,7 +323,8 @@ export type MissingList = { list: string; reason: string }
 
 // The answer of all lists for one address. `hits` empty and `missing`
 // empty: every enabled list answered, and none knows the address.
-export type ListAnswer = { hits: Hit[]; missing: MissingList[] }
+// `asked` names the lists that answered.
+export type ListAnswer = { hits: Hit[]; missing: MissingList[]; asked: string[] }
 
 const matches = (entry: { chainId: number | null; address: string }, chainId: number, address: Hex) =>
   (entry.chainId === null || entry.chainId === chainId) && entry.address.toLowerCase() === address.toLowerCase()
@@ -362,6 +363,15 @@ export function missingFor(states: ListState[], chainId: number): MissingList[] 
   return missing
 }
 
+// The names of the enabled sources with data for the chain.
+export function askedFor(states: ListState[], chainId: number): string[] {
+  const missing = new Set(missingFor(states, chainId).map((item) => item.list))
+  return states
+    .filter((state) => state.enabled)
+    .map((state) => sourceOf(state.id).name)
+    .filter((name) => !missing.has(name))
+}
+
 export const ERC7730_NAME = 'ERC-7730 registry'
 export const ERC7730_REPOSITORY = 'https://github.com/ethereum/clear-signing-erc7730-registry'
 
@@ -396,6 +406,10 @@ export function tokenListHits(entries: ListEntry[], chainId: number, address: He
     link: entries.find((entry) => entry.list?.name === name)?.url ?? null,
   }))
 }
+
+// The names of the token lists of the user that have a list.
+export const askedTokenLists = (entries: ListEntry[]): string[] =>
+  entries.flatMap((entry) => (entry.list ? [entry.list.name] : []))
 
 // The token lists of the user that have no list yet.
 export function missingTokenLists(entries: ListEntry[]): MissingList[] {

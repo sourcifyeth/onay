@@ -174,7 +174,11 @@ async function part<T>(
   }
 }
 
-const found = <T>(value: T): Lookup<T> => ({ ok: true, value })
+// The answer for an address that Blockscout does not know. The address
+// can be too new for the index, so the session does not keep it.
+const found = <T>(value: T): Lookup<T> & { notFound: true } => ({ ok: true, value, notFound: true })
+
+export const isNotFound = (claim: Lookup<unknown>): boolean => 'notFound' in claim
 
 export const blockscoutAddress = (api: string, address: Hex, fetch: Fetch) =>
   part(addressUrl(api, address), fetch, parseAddress, found(UNKNOWN_ADDRESS))

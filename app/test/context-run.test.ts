@@ -11,7 +11,15 @@ import type { ChainRead } from '../src/gates/helios.ts'
 import type { Verification } from '../src/gates/run.ts'
 import type { Hex } from '../src/messages.ts'
 import { RATE_LIMITED, type ExplorerStatus } from '../src/context/explorers.ts'
-import { ETHERSCAN_GAP, IN_FLIGHT, startContext, type Context, type Deps } from '../src/context/run.ts'
+import {
+  changeAction,
+  CLAIMS_TTL,
+  ETHERSCAN_GAP,
+  IN_FLIGHT,
+  startContext,
+  type Context,
+  type Deps,
+} from '../src/context/run.ts'
 import type { ListState } from '../src/context/lists.ts'
 import type { ContextSettings } from '../src/context/settings.ts'
 
@@ -563,6 +571,35 @@ test('the session cache: a second run asks Blockscout nothing again for the prof
   assert.equal(context.profiles[A]?.transactions.state, 'known')
 })
 
+test('the session cache: Blockscout claims older than the TTL are asked again', async () => {
+  const net = world()
+  const { deps } = profileDeps(net.fetch)
+  let date = NOW
+  deps.date = () => date
+  const parts = () => net.calls.filter((url) => url.includes('/api/v2/addresses/')).length
+  await ended(startContext(verification([contract(A)]), deps))
+  const first = parts()
+  date = NOW + CLAIMS_TTL - 1
+  await ended(startContext(verification([contract(A)]), deps))
+  assert.equal(parts(), first)
+  date = NOW + CLAIMS_TTL
+  await ended(startContext(verification([contract(A)]), deps))
+  assert.equal(parts(), 2 * first)
+})
+
+test('the session cache: an address that Blockscout does not know is asked again', async () => {
+  const net = world((url) =>
+    url.includes(A) ? { status: 404, body: { message: 'Not found' } } : blockscoutAnswer(url),
+  )
+  const { deps } = profileDeps(net.fetch)
+  const asked = () => net.calls.filter((url) => url.includes(`/api/v2/addresses/${A}`)).length
+  await ended(startContext(verification([contract(A)]), deps))
+  const first = asked()
+  assert.equal(first, 4)
+  await ended(startContext(verification([contract(A)]), deps))
+  assert.equal(asked(), 2 * first)
+})
+
 test('Etherscan: no profile request without a key; with one, the creation when Blockscout names none', async () => {
   const noCreation = world((url) => blockscoutAnswer(url, false))
   const { deps } = profileDeps(noCreation.fetch)
@@ -649,6 +686,7 @@ test('a list with an error and no entries, and a registry that failed: missing, 
       { list: 'OFAC sanctions', reason: 'sanctioned_addresses_ETH.json · HTTP 503' },
       { list: 'ERC-7730 registry', reason: 'the index did not load' },
     ],
+    asked: [],
   })
   assert.ok(
     context.lines.some(
@@ -715,6 +753,7 @@ test('a named account not on a list, with a list missing: the missing list is na
   assert.deepEqual(lists?.state === 'known' && lists.value, {
     hits: [],
     missing: [{ list: 'OFAC sanctions', reason: 'HTTP 503' }],
+    asked: ['ERC-7730 registry'],
   })
   assert.ok(context.lines.some((line) => line.text === 'not on any list · OFAC sanctions not loaded: HTTP 503'))
 })
@@ -729,6 +768,53 @@ test('an account with a delegate: one account entry; the delegate gets no profil
   assert.deepEqual(context.profiles, {})
   // The delegate has code: its source code status is looked up.
   assert.ok(context.explorers[B])
+})
+
+test('a named address that the chain gate did not read: the lists still check it', async () => {
+  const net = world()
+  const { deps } = profileDeps(net.fetch, { goPlus: true })
+  deps.lists = async () => [ofacWith(A)]
+  const unread: Contract = { ...contract(A), helios: { status: 'failed', reason: 'the endpoint did not answer' } }
+  const context = await ended(startContext(verification([unread]), deps))
+  assert.deepEqual(context.profiles, {})
+  assert.deepEqual(context.explorers, {})
+  assert.equal(context.accounts[A]?.blocked.length, 1)
+  assert.deepEqual(net.calls, [`https://api.gopluslabs.io/api/v1/address_security/${A}?chain_id=1`])
+})
+
+test('the lines of the source code status carry the status topic, the profile lines do not', async () => {
+  const net = world()
+  const { deps } = profileDeps(net.fetch)
+  const context = await ended(startContext(verification([contract(A), called(C)]), deps))
+  const status = context.lines.filter((line) => line.topic === 'status')
+  assert.deepEqual(
+    status.map((line) => [line.address, line.text]),
+    [
+      [A, 'Etherscan · no API key · not asked'],
+      [C, 'Etherscan · no API key · not asked'],
+      [A, 'Blockscout · eth.blockscout.com · verified · Token'],
+      [C, 'Blockscout · eth.blockscout.com · verified · Token'],
+    ],
+  )
+  const profile = context.lines.filter((line) => line.address === A && line.topic === undefined)
+  assert.ok(
+    profile.some(
+      (line) => line.source === 'explorer' && line.text.startsWith('Blockscout · eth.blockscout.com · address'),
+    ),
+  )
+  assert.ok(profile.every((line) => !line.text.includes('verified · Token')))
+})
+
+test('changeAction: a run again only for new lists, and later for a store that nobody watches', () => {
+  const read = {}
+  assert.equal(changeAction({ kind: 'settings' }, true), 'rerun')
+  assert.equal(changeAction({ kind: 'settings' }, false), 'later')
+  // The run waits for the lists and reads the new ones.
+  assert.equal(changeAction({ kind: 'lists', read: null, now: {} }, true), 'none')
+  // The run read these lists already.
+  assert.equal(changeAction({ kind: 'lists', read, now: read }, true), 'none')
+  assert.equal(changeAction({ kind: 'lists', read, now: {} }, true), 'rerun')
+  assert.equal(changeAction({ kind: 'lists', read, now: {} }, false), 'later')
 })
 
 test('a request that waits in the Blockscout queue starts no timer before it goes out', async () => {

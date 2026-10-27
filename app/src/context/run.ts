@@ -14,7 +14,7 @@ import type { TimedLine, Verification } from '../gates/run.ts'
 import { delegateOf } from '../gates/simulation.ts'
 import { claimOf } from '../gates/sourcify.ts'
 import type { Hex } from '../messages.ts'
-import { MAX_TOKENS, readBlockscoutClaims, type BlockscoutClaims, type ClaimPart } from './blockscout.ts'
+import { isNotFound, MAX_TOKENS, readBlockscoutClaims, type BlockscoutClaims, type ClaimPart } from './blockscout.ts'
 import { balance, blockTime, codeKind, tokenBalance, type ChainAccess, type ChainValue } from './chain.ts'
 import * as etherscan from './etherscan.ts'
 import {
@@ -36,6 +36,8 @@ import {
 } from './explorers.ts'
 import { addressSecurity, goPlusText, type GoPlusResult } from './goplus.ts'
 import {
+  askedFor,
+  askedTokenLists,
   ERC7730_NAME,
   erc7730Hits,
   hitsFor,
@@ -93,6 +95,19 @@ export type ContextStore = {
   getSnapshot(): Context
 }
 
+// A change of the settings, or of the lists. `read` is the snapshot of
+// the lists that the current run read, null before it read one.
+export type Change = { kind: 'settings' } | { kind: 'lists'; read: object | null; now: object }
+
+// What a kept store does on a change: run again now, run again when it
+// gets a listener, or nothing. A run that did not read the lists yet
+// reads the new ones, and a run that read the same lists needs no new
+// run.
+export function changeAction(change: Change, watched: boolean): 'rerun' | 'later' | 'none' {
+  if (change.kind === 'lists' && (change.read === null || change.read === change.now)) return 'none'
+  return watched ? 'rerun' : 'later'
+}
+
 export type Deps = {
   fetch: Fetch
   settings(): ContextSettings
@@ -104,8 +119,9 @@ export type Deps = {
   // The answers of this session that say verified or not verified, so
   // that a second request for the same contract asks no explorer again.
   cache: Map<string, ExplorerStatus>
-  // The parts of the Blockscout claims of this session that answered.
-  claims: Map<string, Partial<BlockscoutClaims>>
+  // The parts of the Blockscout claims of this session that answered,
+  // and when the first of them came, in `date()` time.
+  claims: Map<string, { at: number; parts: Partial<BlockscoutClaims> }>
   chainReaderFor(chain: ChainConfig): ChainAccess
   creationReaderFor(chain: ChainConfig, log: Log): CreationReader
   // The address lists, once the fetches that run now ended.
@@ -113,6 +129,9 @@ export type Deps = {
   registryIndex(): Promise<RegistryIndex>
   tokenLists(): ListEntry[]
 }
+
+// The Blockscout claims of the session are asked again after this time.
+export const CLAIMS_TTL = 10 * 60 * 1000
 
 // Each explorer gets at most this many requests at a time.
 export const IN_FLIGHT = 2
@@ -210,16 +229,14 @@ export function contractsToProfile(verification: Verification): Hex[] {
     .map((contract) => contract.address)
 }
 
-// The addresses that the request names without code of their own. The
-// delegate of an account is not one: it has code.
+// The addresses that the request names and that get no profile: an
+// account, an account with a delegate, or an address whose code the
+// chain gate did not read. The lists and GoPlus need no code.
 export function accountsToCheck(verification: Verification): Hex[] {
+  const profiled = new Set(contractsToProfile(verification))
   return verification.contracts
     .filter(
-      (contract) =>
-        contract.foundBy === 'request' &&
-        !contract.implementationOf &&
-        contract.helios.status === 'passed' &&
-        (contract.helios.value.code === '0x' || delegateOf(contract.helios.value.code) !== null),
+      (contract) => contract.foundBy === 'request' && !contract.implementationOf && !profiled.has(contract.address),
     )
     .map((contract) => contract.address)
 }
@@ -237,9 +254,11 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
     for (const listener of listeners) listener()
   }
   const logFor =
-    (address: Hex): Log =>
+    (address: Hex, topic?: 'status'): Log =>
     (line) =>
-      set({ lines: [...snapshot.lines, { ...line, at: base + deps.now() - started, address }] })
+      set({
+        lines: [...snapshot.lines, { ...line, at: base + deps.now() - started, address, ...(topic ? { topic } : {}) }],
+      })
 
   const run = async () => {
     const { chain } = verification
@@ -275,7 +294,7 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
     set({ explorers: Object.fromEntries(addresses.map((address) => [address, rowsOf(address)])) })
     if (addresses.length > 0 && !hosts.etherscan && !hosts.blockscoutApi) {
       for (const address of addresses) {
-        logFor(address)({ source: 'explorer', text: `no explorer covers chain ${chain.id}` })
+        logFor(address, 'status')({ source: 'explorer', text: `no explorer covers chain ${chain.id}` })
       }
     }
 
@@ -291,7 +310,7 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
       const apiHost = new URL(api).host
       return Promise.all(
         addresses.map(async (address) => {
-          const log = logFor(address)
+          const log = logFor(address, 'status')
           const name = `${EXPLORER_NAMES[explorer]} · ${apiHost}`
           const key = `${explorer}:${api}:${chain.id}:${address}`
           const cached = deps.cache.get(key)
@@ -324,7 +343,7 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
     if (hosts.etherscan) {
       if (etherscanKey === '') {
         for (const address of addresses) {
-          logFor(address)({ source: 'explorer', text: 'Etherscan · no API key · not asked' })
+          logFor(address, 'status')({ source: 'explorer', text: 'Etherscan · no API key · not asked' })
           report(address, 'etherscan', { kind: 'no key' })
         }
       } else {
@@ -381,6 +400,7 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
           ...(registry.ok ? [] : [{ list: ERC7730_NAME, reason: registry.reason }]),
           ...missingTokenLists(tokenLists),
         ],
+        asked: [...askedFor(loaded, chain.id), ...(registry.ok ? [ERC7730_NAME] : []), ...askedTokenLists(tokenLists)],
       }
     }
     const readLists = async (target: Hex, log: Log, prefix: string): Promise<Lookup<ListAnswer>> => {
@@ -477,13 +497,18 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
           return publish()
         }
         const key = `${blockscoutApi}:${chain.id}:${target}`
-        const known = deps.claims.get(key) ?? {}
+        const kept = deps.claims.get(key)
+        const fresh = kept && deps.date() - kept.at < CLAIMS_TTL ? kept : undefined
+        if (!fresh) deps.claims.delete(key)
         await readBlockscoutClaims(blockscoutApi, target, deps.fetch, log, {
-          known,
+          known: fresh?.parts ?? {},
           report: (part: ClaimPart, claim: Lookup<unknown>) => {
             ;(holder.blockscout as Record<ClaimPart, Lookup<unknown>>)[part] = claim
             // Only a part that answered is kept for the session.
-            if (claim.ok) deps.claims.set(key, { ...deps.claims.get(key), [part]: claim })
+            if (claim.ok && !isNotFound(claim)) {
+              const entry = deps.claims.get(key)
+              deps.claims.set(key, { at: entry?.at ?? deps.date(), parts: { ...entry?.parts, [part]: claim } })
+            }
             publish()
           },
           prefix,

@@ -3,7 +3,8 @@
 // the tests run them.
 
 import type { Hex } from '../messages.ts'
-import type { AccountProfile, Profile } from './profile.ts'
+import type { GoPlusResult } from './goplus.ts'
+import type { AccountProfile, GoPlusFact, Profile, Young } from './profile.ts'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -42,25 +43,50 @@ export function searchLinks(address: Hex): { name: string; url: string }[] {
 
 export type Tone = 'green' | 'coral' | 'amber' | 'gray'
 
+const plural = (count: number, word: string) => `${count.toLocaleString('en-US')} ${word}${count === 1 ? '' : 's'}`
+
+const deployedText = (days: number) => `deployed ${days === 0 ? 'today' : `${plural(days, 'day')} ago`}`
+
+// The sentence of the young notice.
+export function youngText({ days, transactions }: Young): string {
+  if (days !== null && transactions !== null) {
+    return `This contract was ${deployedText(days)} and has ${plural(transactions, 'transaction')}.`
+  }
+  if (days !== null) return `This contract was ${deployedText(days)}.`
+  return `This contract has only ${plural(transactions ?? 0, 'transaction')}.`
+}
+
+const goPlusOf = (profile: Profile | AccountProfile): GoPlusFact =>
+  'security' in profile ? profile.security.goPlus : profile.goPlus
+
+// The answer of GoPlus when it set a flag, else null.
+export function goPlusFlags(profile: Profile | AccountProfile): GoPlusResult | null {
+  const fact = goPlusOf(profile)
+  return fact.state === 'known' && fact.value.flags.length > 0 ? fact.value : null
+}
+
+// GoPlus in words, with the sources that it names.
+export function goPlusSource(result: GoPlusResult): string {
+  const named = result.sources.filter((source) => source !== 'GoPlus')
+  return named.length > 0 ? `GoPlus, according to ${named.join(', ')}` : 'GoPlus'
+}
+
 // The short state on the summary line of a card. A block-list hit comes
 // first, so that it shows when the card is folded.
 export function summaryState(profile: Profile | AccountProfile, running: boolean): { text: string; tone: Tone } {
   if (profile.blocked.length > 0) return { text: 'on a block list', tone: 'coral' }
+  if (goPlusFlags(profile)) return { text: 'flagged by GoPlus', tone: 'coral' }
   if ('young' in profile && profile.young) {
     const { days, transactions } = profile.young
-    const text =
-      days !== null
-        ? `deployed ${days === 0 ? 'today' : `${days} ${days === 1 ? 'day' : 'days'} ago`}`
-        : `${transactions} ${transactions === 1 ? 'transaction' : 'transactions'}`
+    const text = days !== null ? deployedText(days) : plural(transactions ?? 0, 'transaction')
     return { text, tone: 'amber' }
   }
   const lists = profile.lists.state === 'known' ? profile.lists.value.hits.length : 0
   if (lists > 0) return { text: `on ${lists} ${lists === 1 ? 'list' : 'lists'}`, tone: 'green' }
   if (running) return { text: 'looking up', tone: 'gray' }
+  if (profile.lists.state !== 'known') return { text: 'lists unknown', tone: 'gray' }
   if ('explorer' in profile && profile.explorer === null) return { text: 'no explorer data', tone: 'gray' }
-  if (profile.lists.state === 'known' && profile.lists.value.missing.length > 0) {
-    return { text: 'on no loaded list', tone: 'gray' }
-  }
+  if (profile.lists.value.missing.length > 0) return { text: 'on no loaded list', tone: 'gray' }
   return { text: 'not on any list', tone: 'gray' }
 }
 

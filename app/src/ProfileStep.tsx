@@ -4,7 +4,17 @@
 // status of the request.
 
 import { useState, type ReactNode } from 'react'
-import { ageText, dateText, provenanceText, searchLinks, summaryState, type Tone } from './context/card.ts'
+import {
+  ageText,
+  dateText,
+  goPlusFlags,
+  goPlusSource,
+  provenanceText,
+  searchLinks,
+  summaryState,
+  youngText,
+  type Tone,
+} from './context/card.ts'
 import { addressLink, explorersOf, linkable, type ChainExplorers } from './context/explorers.ts'
 import type { GoPlusResult } from './context/goplus.ts'
 import { missingText, type ListAnswer } from './context/lists.ts'
@@ -23,7 +33,7 @@ import { ExternalLink } from './ExternalLink.tsx'
 import type { Contract } from './gates/contracts.ts'
 import type { Verification } from './gates/verification.ts'
 import type { StepInfo } from './gates/verdict.ts'
-import { formatEther, short } from './gates/words.ts'
+import { short } from './gates/words.ts'
 import { LocallyVerifiedIcon, ThirdPartyIcon } from './Icons.tsx'
 import { CollapsibleLog } from './Log.tsx'
 import type { Hex } from './messages.ts'
@@ -97,10 +107,10 @@ function SearchLinks({ address }: { address: Hex }) {
   )
 }
 
-function BlockNotice({ blocked }: { blocked: Blocked[] }) {
-  if (blocked.length === 0) return null
+function BlockNotice({ blocked, goPlus }: { blocked: Blocked[]; goPlus: GoPlusResult | null }) {
+  if (blocked.length === 0 && !goPlus) return null
   return (
-    <Notice tone="coral" title="⚠ On a block list" className="mb-3">
+    <Notice tone="coral" title={blocked.length > 0 ? '⚠ On a block list' : '⚠ Flagged by GoPlus'} className="mb-3">
       {blocked.map((hit, index) => (
         <span key={index}>
           {index > 0 && ' · '}
@@ -109,29 +119,44 @@ function BlockNotice({ blocked }: { blocked: Blocked[] }) {
           <Mark proof={hit.proof} source={hit.source} />
         </span>
       ))}
+      {goPlus && (
+        <span>
+          {blocked.length > 0 && ' · '}
+          {goPlus.flags.map((flag) => flag.text).join(', ')}
+          <Mark proof={false} source={goPlusSource(goPlus)} />
+        </span>
+      )}
       <br />
-      Do not interact with it. Onay does not check these lists, so the result of the checks above stays as it is.
+      {blocked.length > 0 ? 'Do not interact with it.' : 'Check the address before you sign.'} Onay does not check these
+      claims, so the result of the checks above stays as it is.
     </Notice>
   )
 }
 
 function YoungNotice({ young }: { young: Profile['young'] }) {
   if (!young) return null
-  const parts = [
-    young.days !== null && (young.days === 0 ? 'deployed today' : `deployed ${young.days} days ago`),
-    young.transactions !== null && `${young.transactions.toLocaleString('en-US')} transactions`,
-  ].filter(Boolean)
   return (
     <Notice tone="amber" title="⚠ A young contract" className="mb-3">
-      {`This contract was ${parts.join(' and has ')}. A new contract with little use deserves more care. It is a hint, not a verdict: the rows below say where each value comes from.`}
+      {youngText(young)} A new contract with little use deserves more care. It is a hint, not a verdict: the rows below
+      say where each value comes from.
     </Notice>
   )
 }
 
 function ListsView({ fact }: { fact: Fact<ListAnswer> }) {
   if (fact.state !== 'known') return <FactView fact={fact}>{() => null}</FactView>
-  const { hits, missing } = fact.value
-  if (hits.length === 0 && missing.length === 0) return <span className="text-gray-400">not on any list</span>
+  const { hits, missing, asked } = fact.value
+  // The lists that answered, as the source of "not on".
+  const none =
+    asked.length > 0 ? (
+      <>
+        {missing.length > 0 ? 'on none of the loaded lists' : 'not on any list'}
+        <Mark proof={false} source={asked.join(', ')} />
+      </>
+    ) : (
+      'no list answered'
+    )
+  if (hits.length === 0 && missing.length === 0) return <span className="text-gray-400">{none}</span>
   return (
     <span className="inline-flex flex-col items-end gap-1">
       {hits.length > 0 && (
@@ -162,7 +187,12 @@ function ListsView({ fact }: { fact: Fact<ListAnswer> }) {
       )}
       {missing.length > 0 && (
         <span className="text-xs text-gray-400">
-          {hits.length === 0 && 'on none of the loaded lists · '}
+          {hits.length === 0 && (
+            <>
+              {none}
+              {' · '}
+            </>
+          )}
           {missingText(missing)}
         </span>
       )}
@@ -174,8 +204,7 @@ function GoPlusView({ fact }: { fact: GoPlusFact }) {
   if (fact.state === 'off') return <span className="text-gray-400">off · settings</span>
   if (fact.state !== 'known') return <FactView fact={fact}>{() => null}</FactView>
   const result: GoPlusResult = fact.value
-  const named = result.sources.filter((source) => source !== 'GoPlus')
-  const source = named.length > 0 ? `GoPlus, according to ${named.join(', ')}` : 'GoPlus'
+  const source = goPlusSource(result)
   return (
     <span>
       {result.flags.length === 0 ? (
@@ -225,14 +254,18 @@ function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
     <span className="inline-flex flex-col items-end">
       {tokens.map((token) => {
         const amount = (value: bigint) =>
-          token.decimals === null ? `${value.toString()} units` : amountText(value, token.decimals)
+          `${amountText(value, token.decimals ?? 0)}${token.decimals === null ? ' units' : ''}`
         const symbol = token.symbol.value ?? short(token.token)
         return (
           <span key={token.token}>
             {amount(token.amount.value)} <span title={token.token}>{symbol}</span>
             <Mark proof={token.amount.proof} source={token.amount.source} />
             {token.claimed !== null && (
-              <span className="text-xs text-amber-700"> · Blockscout says {amount(token.claimed)}</span>
+              <span className="text-xs text-amber-700">
+                {' '}
+                · Blockscout says {amount(token.claimed)}
+                <ThirdPartyIcon className={ICON} title="A claim of Blockscout, not checked here" />
+              </span>
             )}
             {token.symbol.source !== token.amount.source && (
               <span className="text-xs text-gray-400"> · symbol from {token.symbol.source}</span>
@@ -254,10 +287,12 @@ function ActivityRows({
   activity,
   explorers,
   address,
+  now,
 }: {
   activity: Activity
   explorers: ChainExplorers
   address: Hex
+  now: number
 }) {
   const more = explorers.blockscout ? `${addressLink(explorers.blockscout, address)}?tab=tokens` : null
   return (
@@ -265,8 +300,13 @@ function ActivityRows({
       <Row label="Transactions">
         <FactView fact={activity.transactions}>{(count) => count.toLocaleString('en-US')}</FactView>
       </Row>
+      <Row label="First transaction">
+        <FactView fact={activity.firstTransaction}>
+          {(first) => (first ? `${dateText(first.time)} · ${ageText(first.time, now)}` : 'none')}
+        </FactView>
+      </Row>
       <Row label="ETH holdings">
-        <FactView fact={activity.eth}>{(wei) => `${formatEther(wei)} ETH`}</FactView>
+        <FactView fact={activity.eth}>{(wei) => `${amountText(wei, 18)} ETH`}</FactView>
       </Row>
       <Row label="Token holdings">
         <Tokens fact={activity.tokens} more={more} />
@@ -315,12 +355,7 @@ function DeployerSection({
               )}
             </p>
             <div className="divide-y divide-gray-100">
-              <Row label="First transaction">
-                <FactView fact={deployer.firstTransaction}>
-                  {(first) => (first ? `${dateText(first.time)} · ${ageText(first.time, now)}` : 'none')}
-                </FactView>
-              </Row>
-              <ActivityRows activity={deployer} explorers={explorers} address={address} />
+              <ActivityRows activity={deployer} explorers={explorers} address={address} now={now} />
               <Row label="Found on lists">
                 <ListsView fact={deployer.lists} />
               </Row>
@@ -408,7 +443,7 @@ function ProfileCard({
   explorers: ChainExplorers
 }) {
   const running = context.status === 'running'
-  const lines = context.lines.filter((line) => line.address === contract.address)
+  const lines = context.lines.filter((line) => line.address === contract.address && line.topic !== 'status')
   const summary = (
     <div className="flex flex-wrap items-baseline gap-x-2">
       <ContractSummary contract={contract} contracts={contracts} />
@@ -428,13 +463,13 @@ function ProfileBody({ profile, explorers }: { profile: Profile; explorers: Chai
   const [now] = useState(() => Date.now())
   return (
     <>
-      <BlockNotice blocked={profile.blocked} />
+      <BlockNotice blocked={profile.blocked} goPlus={goPlusFlags(profile)} />
       <YoungNotice young={profile.young} />
       <AddressLine address={profile.address} name={profile.name} />
       <div className="divide-y divide-gray-100">
         <DeployedRow profile={profile} now={now} />
         <DeployerSection deployer={profile.deployer} explorers={explorers} now={now} />
-        <ActivityRows activity={profile} explorers={explorers} address={profile.address} />
+        <ActivityRows activity={profile} explorers={explorers} address={profile.address} now={now} />
         <Row label="Found on lists">
           <ListsView fact={profile.lists} />
         </Row>
@@ -456,10 +491,12 @@ function AccountCard({
   context: Context
 }) {
   const lines = context.lines.filter((line) => line.address === contract.address)
+  // Without a read of the chain gate, the code of the address is not known.
+  const read = contract.helios.status === 'passed'
   const delegated = contract.helios.status === 'passed' && contract.helios.value.code !== '0x'
   const summary = (
     <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-      <span className="text-xs text-gray-500">{delegated ? 'EIP-7702 account' : 'Account'}</span>
+      <span className="text-xs text-gray-500">{delegated ? 'EIP-7702 account' : read ? 'Account' : 'Address'}</span>
       <span className="font-mono text-[13px] text-gray-700" title={contract.address}>
         {short(contract.address)}
       </span>
@@ -472,7 +509,7 @@ function AccountCard({
         <p className="text-sm text-gray-400">…</p>
       ) : (
         <>
-          <BlockNotice blocked={account.blocked} />
+          <BlockNotice blocked={account.blocked} goPlus={goPlusFlags(account)} />
           <AddressLine address={account.address} />
           <div className="divide-y divide-gray-100">
             <Row label="Found on lists">

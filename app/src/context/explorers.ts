@@ -76,12 +76,27 @@ export const LINK_PREFIXES = [
     (host) => `${host}/`,
   ),
   'https://github.com/',
-  'https://www.google.com/search?',
-  'https://duckduckgo.com/?',
-  'https://x.com/search?',
 ]
 
+// The search links: the start and the end around one address. A free
+// query can redirect, so only these shapes open. Keep it the same as
+// SEARCHES in src-tauri/src/browser.rs.
+export const SEARCH_SHAPES: [string, string][] = [
+  ['https://www.google.com/search?q=%22', '%22'],
+  ['https://duckduckgo.com/?q=%22', '%22'],
+  ['https://github.com/search?q=', '&type=code'],
+  ['https://x.com/search?q=', '&f=live'],
+]
+
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/
+
 export function linkable(url: string): boolean {
+  const page = url.split(/[?#]/)[0]
+  const shape = SEARCH_SHAPES.find(([start]) => start.split('?')[0] === page)
+  if (shape) {
+    const [start, end] = shape
+    return url.startsWith(start) && url.endsWith(end) && ADDRESS.test(url.slice(start.length, url.length - end.length))
+  }
   return LINK_PREFIXES.some((prefix) => url.startsWith(prefix))
 }
 

@@ -99,7 +99,7 @@ export function Row({ label, children }: { label: string; children: ReactNode })
   return (
     <div className="flex items-baseline justify-between gap-4 py-1.5">
       <span className="shrink-0 text-sm text-gray-500">{label}</span>
-      <span className="min-w-0 text-right text-sm text-gray-800">{children}</span>
+      <span className="min-w-0 text-right text-sm [overflow-wrap:anywhere] text-gray-800">{children}</span>
     </div>
   )
 }
