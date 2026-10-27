@@ -119,7 +119,7 @@ test('summaryState says young, lists, looking up, or no explorer', () => {
     tone: 'amber',
   })
   assert.deepEqual(summaryState(profile({ young: { days: null, transactions: 1 } }), false), {
-    text: 'fewer than 100 transactions',
+    text: '1 transaction',
     tone: 'amber',
   })
   const hit = { list: 'Safe deployments', kind: 'allow' as const, label: 'Safe v1.4.1', link: null }
@@ -165,10 +165,10 @@ test('summaryState and goPlusFlags show the flags of GoPlus after a block-list h
 test('youngText builds the sentence for each case', () => {
   assert.equal(
     youngText({ days: 3, transactions: 12 }),
-    'This contract was deployed 3 days ago and has fewer than 100 transactions.',
+    'This contract was deployed 3 days ago and has 12 transactions.',
   )
   assert.equal(youngText({ days: 0, transactions: null }), 'This contract was deployed today.')
   assert.equal(youngText({ days: 1, transactions: null }), 'This contract was deployed 1 day ago.')
-  assert.equal(youngText({ days: null, transactions: 12 }), 'This contract has fewer than 100 transactions.')
-  assert.equal(youngText({ days: null, transactions: 1 }), 'This contract has fewer than 100 transactions.')
+  assert.equal(youngText({ days: null, transactions: 12 }), 'This contract has only 12 transactions.')
+  assert.equal(youngText({ days: null, transactions: 1 }), 'This contract has only 1 transaction.')
 })

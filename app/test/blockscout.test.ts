@@ -301,7 +301,5 @@ test('readBlockscoutClaims: each part fails on its own, a known part is not aske
       'Blockscout · eth.blockscout.com · address · name TetherToken · creator 0x3692…7d57 · creation transaction 0x2f1c…9190 · from this session',
     ),
   )
-  assert.ok(
-    texts.includes('Blockscout · eth.blockscout.com · transactions · fewer than 100 · first 2017-11-28 · 0x2f1c…9190'),
-  )
+  assert.ok(texts.includes('Blockscout · eth.blockscout.com · transactions · 1 · first 2017-11-28 · 0x2f1c…9190'))
 })

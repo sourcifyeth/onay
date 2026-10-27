@@ -169,11 +169,9 @@ export function parseTransactions(body: unknown): ParsedPage {
   return { page: { first: { hash, block: asCount(first?.block_number), time }, seen, more: next !== null }, next }
 }
 
-// The count in words: "fewer than 100" when the pages ended, else a
-// floor.
+// The count in words: exact when the pages ended, else a floor.
 export function pageText(page: TransactionPage): string {
-  if (page.seen < FEW_TRANSACTIONS && !page.more) return `fewer than ${FEW_TRANSACTIONS}`
-  return `${page.seen} or more`
+  return page.seen < FEW_TRANSACTIONS && !page.more ? String(page.seen) : `${page.seen} or more`
 }
 
 // One part: the request, then the parser. HTTP 404 with the text of

@@ -4,14 +4,7 @@
 
 import type { Hex } from '../messages.ts'
 import type { GoPlusResult } from './goplus.ts'
-import {
-  FEW_TRANSACTIONS,
-  type AccountProfile,
-  type GoPlusFact,
-  type Profile,
-  type TransactionBound,
-  type Young,
-} from './profile.ts'
+import type { AccountProfile, GoPlusFact, Profile, TransactionBound, Young } from './profile.ts'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -54,20 +47,18 @@ const plural = (count: number, word: string) => `${count.toLocaleString('en-US')
 
 const deployedText = (days: number) => `deployed ${days === 0 ? 'today' : `${plural(days, 'day')} ago`}`
 
-const FEW_TEXT = `fewer than ${FEW_TRANSACTIONS} transactions`
-
 // The sentence of the young notice.
 export function youngText({ days, transactions }: Young): string {
   if (days !== null && transactions !== null) {
-    return `This contract was ${deployedText(days)} and has ${FEW_TEXT}.`
+    return `This contract was ${deployedText(days)} and has ${plural(transactions, 'transaction')}.`
   }
   if (days !== null) return `This contract was ${deployedText(days)}.`
-  return `This contract has ${FEW_TEXT}.`
+  return `This contract has only ${plural(transactions ?? 0, 'transaction')}.`
 }
 
-// The count of transactions in words: exact pages say "fewer than 100".
+// The count of transactions in words: exact under the limit, else a floor.
 export const transactionsText = ({ count, atLeast }: TransactionBound) =>
-  atLeast ? `${count.toLocaleString('en-US')} or more` : `fewer than ${FEW_TRANSACTIONS}`
+  `${count.toLocaleString('en-US')}${atLeast ? ' or more' : ''}`
 
 const goPlusOf = (profile: Profile | AccountProfile): GoPlusFact =>
   'security' in profile ? profile.security.goPlus : profile.goPlus
@@ -90,8 +81,8 @@ export function summaryState(profile: Profile | AccountProfile, running: boolean
   if (profile.blocked.length > 0) return { text: 'on a block list', tone: 'coral' }
   if (goPlusFlags(profile)) return { text: 'flagged by GoPlus', tone: 'coral' }
   if ('young' in profile && profile.young) {
-    const { days } = profile.young
-    const text = days !== null ? deployedText(days) : FEW_TEXT
+    const { days, transactions } = profile.young
+    const text = days !== null ? deployedText(days) : plural(transactions ?? 0, 'transaction')
     return { text, tone: 'amber' }
   }
   const lists = profile.lists.state === 'known' ? profile.lists.value.hits.length : 0
