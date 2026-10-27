@@ -3,6 +3,8 @@ import { AttesterSettings } from './AttesterSettings.tsx'
 import { TokenListSettings } from './TokenListSettings.tsx'
 import { chainStore, heliosStarted, saveChains, type ChainConfig } from './chains.ts'
 import { errorText } from './gates/gate.ts'
+import type { Snapshot } from './messages.ts'
+import { CollapsibleCard } from './Step.tsx'
 
 const isUrl = (value: string) => /^https?:\/\/\S+$/.test(value)
 
@@ -166,7 +168,63 @@ function AddChain({ chains, onAdd }: { chains: ChainConfig[]; onAdd: (chain: Cha
   )
 }
 
-export function SettingsPage({ onBack }: { onBack: () => void }) {
+// The parts of the link to the browser extension, for diagnosis.
+function BrowserLink({ snapshot }: { snapshot: Snapshot }) {
+  const paired = snapshot.connections.filter((c) => c.pairingCode === null).length
+  return (
+    <>
+      <h3 className="flex items-center gap-1.5 pt-4 font-mono text-xs tracking-widest text-gray-500 uppercase">
+        <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
+        Browser link
+      </h3>
+      <CollapsibleCard
+        summary={
+          <div className="flex items-baseline justify-between gap-4">
+            <p className="font-medium text-gray-800">Socket, relay, and connections</p>
+            <p className="font-mono text-xs text-gray-400">{paired === 0 ? 'not connected' : `${paired} connected`}</p>
+          </div>
+        }
+      >
+        <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 font-mono text-xs break-all text-gray-800">
+          <dt className="text-gray-500">socket</dt>
+          <dd>{snapshot.socket}</dd>
+          <dt className="text-gray-500">relay</dt>
+          <dd>{snapshot.relay ?? 'not found'}</dd>
+          <dt className="text-gray-500">host manifests</dt>
+          <dd>
+            {snapshot.manifests.length === 0 && 'no supported browser found'}
+            {snapshot.manifests.map((m) => (
+              <div key={m.path}>
+                {m.path} {m.error ? `(failed: ${m.error})` : '(written)'}
+              </div>
+            ))}
+          </dd>
+          <dt className="text-gray-500">connections</dt>
+          <dd>
+            {snapshot.connections.length === 0 && 'none'}
+            {snapshot.connections.map((c) => (
+              <div key={c.id}>
+                {c.browser} ({c.pairingCode ? 'waits for pairing' : 'paired'})
+              </div>
+            ))}
+          </dd>
+          {snapshot.rejected.length > 0 && (
+            <>
+              <dt className="text-gray-500">refused</dt>
+              <dd>
+                {snapshot.rejected.map((reason, i) => (
+                  <div key={i}>{reason}</div>
+                ))}
+              </dd>
+            </>
+          )}
+        </dl>
+      </CollapsibleCard>
+    </>
+  )
+}
+
+export function SettingsPage({ snapshot, onBack }: { snapshot: Snapshot | null; onBack: () => void }) {
   const chains = useSyncExternalStore(chainStore.subscribe, chainStore.getSnapshot)
   const update = (next: ChainConfig) => saveChains(chains.map((chain) => (chain.id === next.id ? next : chain)))
   const remove = (id: number) => saveChains(chains.filter((chain) => chain.id !== id))
@@ -218,6 +276,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
 
       <AttesterSettings />
       <TokenListSettings />
+      {snapshot && <BrowserLink snapshot={snapshot} />}
     </div>
   )
 }

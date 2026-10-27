@@ -47,7 +47,7 @@ This builds the relay, starts the web user interface with hot reload, compiles t
 - It writes the native messaging host manifest for each installed browser, for example `~/.config/google-chrome/NativeMessagingHosts/dev.sourcify.onay.json`. The manifest points to the relay in `app/target/debug/`.
 - It opens a Unix socket at `$XDG_RUNTIME_DIR/onay/onay.sock` (Linux) or `$TMPDIR/onay/onay.sock` (macOS).
 
-The window lists both under "Browser link".
+The settings list both under "Browser link".
 
 ### 2. Load the extension
 
