@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { AddRequestArgs } from './messages.ts'
 import { errorText } from './gates/gate.ts'
+import { EXAMPLES } from './examples.ts'
 import { readPaste } from './paste.ts'
 
 const PLACEHOLDER = `0x02f8…  a raw transaction (RLP, signed or unsigned)
@@ -30,6 +31,22 @@ export function PasteCard() {
       <p className="mt-1 text-gray-600">
         Paste a raw transaction (RLP-encoded, signed or unsigned, as <code>cast mktx</code> gives it), or a transaction
         or a JSON-RPC request as JSON. Typed data goes in a JSON-RPC request, with the account that signs it.
+      </p>
+      <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+        Examples:
+        {EXAMPLES.map((example) => (
+          <button
+            key={example.label}
+            type="button"
+            onClick={() => {
+              setText(example.text)
+              setError(null)
+            }}
+            className="rounded-full border border-gray-300 px-2.5 py-0.5 text-gray-700 hover:border-cerulean-blue-400 hover:text-cerulean-blue-600"
+          >
+            {example.label}
+          </button>
+        ))}
       </p>
       <textarea
         value={text}
