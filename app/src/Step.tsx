@@ -34,11 +34,12 @@ export function CollapsibleCard({
 }) {
   const [open, setOpen] = useState(initial)
   const side = inset ? 'px-7' : 'px-5'
+  const top = inset ? 'pt-5 pb-3' : 'py-3'
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
       <button
         onClick={() => setOpen((v) => !v)}
-        className={`flex w-full items-center justify-between gap-4 ${side} py-3 text-left`}
+        className={`flex w-full items-center justify-between gap-4 ${side} ${top} text-left`}
       >
         <div className="min-w-0 flex-1">{summary}</div>
         <span className="shrink-0 text-gray-400">{open ? '▴' : '▾'}</span>

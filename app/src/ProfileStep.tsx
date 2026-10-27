@@ -516,7 +516,7 @@ function ProfileBody({
   // The ages count from the time the card opened.
   const [now] = useState(() => Date.now())
   return (
-    <div className="pt-1 pb-2">
+    <div className="pt-4 pb-2">
       <BlockNotice blocked={profile.blocked} goPlus={goPlusFlags(profile)} />
       <YoungNotice young={profile.young} />
       <AddressLine address={profile.address} name={profile.name} title={title} />
