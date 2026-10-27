@@ -71,6 +71,8 @@ jobs:
       # The Rust compile runs before the secrets exist: no build script or
       # proc macro of the dependency tree sees them. The features are the
       # ones `tauri build` uses, so it compiles only the app crate again.
+      # The app crate embeds the webview at compile time, so that is built first.
+      - run: pnpm --filter app build
       - name: Compile the app and the relay
         working-directory: app
         run: cargo build --release --locked --bins -p onay -p onay-relay --features tauri/custom-protocol
