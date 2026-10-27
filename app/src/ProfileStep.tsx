@@ -392,7 +392,7 @@ function DeployerSection({
           )}
           <div className="divide-y divide-gray-200">
             <ActivityRows activity={deployer} explorers={explorers} address={address} now={now} />
-            <Row label="Found on lists">
+            <Row label="Trusted lists">
               <ListsView fact={deployer.lists} />
             </Row>
           </div>
@@ -500,7 +500,7 @@ function ProfileBody({ profile, explorers }: { profile: Profile; explorers: Chai
         <AddressRow address={profile.address} />
         <DeployedRow profile={profile} now={now} />
         <ActivityRows activity={profile} explorers={explorers} address={profile.address} now={now} />
-        <Row label="Found on lists">
+        <Row label="Trusted lists">
           <ListsView fact={profile.lists} />
         </Row>
         <SecurityRow blockscout={profile.security.blockscout} goPlus={profile.security.goPlus} />
@@ -542,7 +542,7 @@ function AccountCard({
           <BlockNotice blocked={account.blocked} goPlus={goPlusFlags(account)} />
           <div className="divide-y divide-gray-100">
             <AddressRow address={account.address} />
-            <Row label="Found on lists">
+            <Row label="Trusted lists">
               <ListsView fact={account.lists} />
             </Row>
             <SecurityRow goPlus={account.goPlus} />
