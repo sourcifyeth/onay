@@ -25,7 +25,7 @@ import { ThirdPartyIcon } from './Icons.tsx'
 import type { Verification } from './gates/verification.ts'
 import { CollapsibleLog, Cursor } from './Log.tsx'
 import type { Hex, SigningRequest } from './messages.ts'
-import { Step } from './Step.tsx'
+import { Hint, ListRow, Step } from './Step.tsx'
 import { Tabs } from './Tabs.tsx'
 
 // The native currency of the chain, for the amounts of the request.
@@ -101,16 +101,6 @@ function Interpolated({ text, values }: { text: string; values: string[] }) {
   )
 }
 
-// A label on the left and a value on the right, as the wallets show it.
-function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-6 py-2.5">
-      <dt className="shrink-0 text-sm text-gray-500">{label}</dt>
-      <dd className="min-w-0 text-right">{children}</dd>
-    </div>
-  )
-}
-
 function Details({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
     <button onClick={onToggle} className="font-mono text-xs text-gray-400 transition-colors hover:text-gray-600">
@@ -138,53 +128,6 @@ function IntentToggle({ pill, open, onToggle }: { pill: ReactNode; open: boolean
 function FieldWarning({ warning }: { warning: Warning | undefined }) {
   if (!warning || warning.code === 'UNKNOWN_ADDRESS') return null
   return <p className="pt-0.5 text-right text-xs text-amber-700">⚠ {warning.message}</p>
-}
-
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch {
-    return false
-  }
-}
-
-// A value with a tooltip that shows what is behind it. A click copies
-// the tooltip's text.
-function Hint({
-  what,
-  text,
-  className,
-  children,
-}: {
-  what: string
-  text: string
-  className: string
-  children: ReactNode
-}) {
-  const [copied, setCopied] = useState(false)
-  const copy = async () => {
-    if (!(await copyText(text))) return
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-  return (
-    <span className="group/hint relative inline-block">
-      <button
-        onClick={copy}
-        className={`cursor-copy text-left underline decoration-gray-300 decoration-dotted underline-offset-4 ${className}`}
-      >
-        {children}
-      </button>
-      <span
-        role="tooltip"
-        className="pointer-events-none invisible absolute right-0 bottom-full z-20 mb-1.5 w-max max-w-[22rem] rounded-md bg-gray-800 px-2.5 py-1.5 text-left font-mono text-[11px] leading-relaxed break-all whitespace-normal text-white opacity-0 shadow-lg transition-opacity group-hover/hint:visible group-hover/hint:opacity-100"
-      >
-        <span className="block text-gray-400">{copied ? 'copied' : `${what} · click to copy`}</span>
-        {text}
-      </span>
-    </span>
-  )
 }
 
 function FieldValue({ field }: { field: DisplayField }) {
@@ -469,9 +412,9 @@ function DisplayPane({
       {fields && (
         <dl className="mt-2 divide-y divide-gray-100 border-t border-gray-100 px-4">
           {sentence && (
-            <Row label="Intent">
+            <ListRow label="Intent">
               <span className="text-sm font-semibold text-gray-900">{intent}</span>
-            </Row>
+            </ListRow>
           )}
           <FieldRows fields={display.fields} />
         </dl>
@@ -597,10 +540,10 @@ function Transfer({ call, currency }: { call: Call; currency: Currency }) {
     <div>
       <Interpolated text={`Send ${amount} to ${to}`} values={[amount, to]} />
       <dl className="mt-2 divide-y divide-gray-100">
-        <Row label="Amount">
+        <ListRow label="Amount">
           <span className="text-sm font-medium text-gray-800">{amount}</span>
-        </Row>
-        <Row label="To">
+        </ListRow>
+        <ListRow label="To">
           {call.to ? (
             <Hint what="address" text={call.to} className="font-mono text-[13px] font-medium break-all text-gray-800">
               {call.to}
@@ -608,7 +551,7 @@ function Transfer({ call, currency }: { call: Call; currency: Currency }) {
           ) : (
             <span className="text-sm font-medium text-gray-800">{to}</span>
           )}
-        </Row>
+        </ListRow>
       </dl>
       <p className="pt-3 font-mono text-[11px] leading-relaxed text-gray-400">
         plain value transfer · no calldata · rendered by Onay

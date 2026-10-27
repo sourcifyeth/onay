@@ -12,6 +12,7 @@ import {
   parseQuantity,
   requestProblem,
   signedDomain,
+  uncheckedPart,
 } from '../src/gates/request.ts'
 
 const A = '0xff75a951eeb963dd34a1712edc3c358f08e6b0aa'
@@ -59,6 +60,31 @@ test('contractsOf: the contract of each method', () => {
   assert.deepEqual(contractsOf(request('eth_signTypedData_v4', ['0xabc', typed])), [A])
   const object = { types: DOMAIN_TYPE, domain: { verifyingContract: B } }
   assert.deepEqual(contractsOf(request('eth_signTypedData_v3', ['0xabc', object])), [B])
+})
+
+test('signedDomain: a field named __proto__ stays a field and does not set the prototype', () => {
+  const typed = JSON.parse(
+    '{"types": {"EIP712Domain": [{"name": "__proto__", "type": "Fake"}], "Fake": [{"name": "x", "type": "uint256"}]},' +
+      `"domain": {"__proto__": {"chainId": 1, "verifyingContract": "${B}", "x": 1}}, "primaryType": "Fake", "message": {"x": 1}}`,
+  )
+  const signed = signedDomain(typed)
+  assert.equal(Object.getPrototypeOf(signed), Object.prototype)
+  assert.deepEqual(Object.keys(signed), ['__proto__'])
+  assert.equal(signed.chainId, undefined)
+  assert.equal(signed.verifyingContract, undefined)
+  assert.deepEqual(contractsOf(request('eth_signTypedData_v4', [A, typed])), [])
+  assert.equal(chainOf(request('eth_signTypedData_v4', [A, typed])).chainId, null)
+})
+
+test('uncheckedPart: a transaction that sets a delegate (EIP-7702)', () => {
+  const tx = { from: A, to: A }
+  assert.equal(uncheckedPart(request('eth_sendTransaction', [tx])), null)
+  assert.equal(uncheckedPart(request('eth_sendTransaction', [{ ...tx, authorizationList: [] }])), null)
+  const authorizationList = [{ address: B, chainId: '0x1', nonce: '0x0' }]
+  assert.match(
+    uncheckedPart(request('eth_signTransaction', [{ ...tx, authorizationList }])) ?? '',
+    /delegate .*EIP-7702/,
+  )
 })
 
 test('signedDomain: only the domain fields that the EIP712Domain type lists', () => {

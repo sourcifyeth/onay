@@ -3,35 +3,27 @@
 // another, and a value that differs gives it away. The ERC-8213 digest
 // stands for the data; the fields around it are what it does not cover.
 
-import { Fragment, useMemo, useSyncExternalStore, type ReactNode } from 'react'
+import { Fragment, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { hexlify } from 'ethers'
 import { chainById, chainName } from './chains.ts'
 import { formatAmount } from './clear-signing/render.ts'
 import { chainInfoOf, clearSigningFor } from './clear-signing/store.ts'
 import { fieldsOf, type CallFields, type Delegation, type Fields } from './compare/fields.ts'
-import { ExternalLink } from './ExternalLink.tsx'
 import type { Verification } from './gates/verification.ts'
 import { LocallyVerifiedIcon } from './Icons.tsx'
 import type { Hex, SigningRequest } from './messages.ts'
-import { Step } from './Step.tsx'
-
-const ERC_8213 = 'https://github.com/ethereum/ERCs/pull/1639'
+import { Hint, ListRow, Notice, Step } from './Step.tsx'
 
 type Currency = { symbol: string; decimals: number } | null
 
-function Row({ label, note, children }: { label: string; note?: ReactNode; children: ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-6 py-2.5">
-      <dt className="shrink-0 text-sm text-gray-500">{label}</dt>
-      <dd className="min-w-0 text-right">
-        {children}
-        {note && <p className="pt-0.5 text-xs text-gray-400">{note}</p>}
-      </dd>
-    </div>
-  )
-}
+const LIST = 'divide-y divide-gray-200/70'
 
 function Address({ value }: { value: string }) {
-  return <span className="font-mono text-[13px] font-medium break-all text-gray-800">{value}</span>
+  return (
+    <Hint what="address" text={value} full className="font-mono text-[13px] font-medium break-all text-gray-800">
+      {value}
+    </Hint>
+  )
 }
 
 function Chain({ chainId }: { chainId: number | null }) {
@@ -44,40 +36,22 @@ function Chain({ chainId }: { chainId: number | null }) {
 }
 
 // The digest in groups of four, for the eye. A line breaks only between
-// groups. A copy gives the plain string, as ERC-8213 has it.
+// groups. A click copies the plain string, as ERC-8213 has it.
 function DigestValue({ value }: { value: Hex }) {
   const groups = value.slice(2).match(/.{1,4}/g) ?? []
   return (
-    <p className="pt-1 font-mono text-xs leading-relaxed text-gray-800">
-      0x
-      {groups.map((group, index) => (
-        <Fragment key={index}>
-          <wbr />
-          <span className="ml-[0.5em]">{group}</span>
-        </Fragment>
-      ))}
+    <p className="pt-1">
+      <Hint what="digest" text={value} full className="font-mono text-xs leading-relaxed text-gray-800">
+        0x
+        {groups.map((group, index) => (
+          <Fragment key={index}>
+            <wbr />
+            <span className="ml-[0.5em]">{group}</span>
+          </Fragment>
+        ))}
+      </Hint>
     </p>
   )
-}
-
-// The labels that other wallets give each value, from their source code
-// on 2026-10-26: Trezor firmware 2.13.0 (core/src/apps/ethereum/helpers.py,
-// sign_typed_data.py), Keycard Shell 1.3.0 (app/ui/english.c), Ledger
-// app-ethereum 1.23.0 (src/nbgl/ui_approve_tx.c, ui_sign_message.c,
-// src/features/sign_message_eip712_common/common_712.c), and Safe{Wallet}
-// (apps/web/src/components/tx/ConfirmTxDetails/Receipt.tsx).
-const NAMES = {
-  calldata:
-    'ERC-8213 digest on Trezor Safe 5 and Safe 7, Datahash on Keycard Shell. The Transaction hash of a Ledger is another value: it also covers the nonce and the fees.',
-  typedData: 'Hash on Keycard Shell',
-  safeTx: 'safeTxHash in Safe',
-  domainHash: 'Domain hash on Ledger, in capital letters',
-  messageHash: 'Message hash on Ledger, in capital letters, and Confirm message hash on Trezor',
-  message: 'Message hash on Ledger, with its Transaction hash setting on',
-}
-
-function OtherNames({ names }: { names: string }) {
-  return <p className="pt-1 text-xs leading-relaxed text-gray-400">Other names: {names}</p>
 }
 
 // One ERC-8213 digest, as the mock shows it. `parts` are the hashes that
@@ -85,39 +59,30 @@ function OtherNames({ names }: { names: string }) {
 function DigestBox({
   label,
   value,
-  names,
   children,
   parts = [],
 }: {
   label: string
   value: Hex
-  names: string
   children: ReactNode
-  parts?: { label: string; value: Hex; names: string }[]
+  parts?: { label: string; value: Hex }[]
 }) {
   return (
     <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-4">
-      <p className="flex items-baseline justify-between font-mono text-xs text-gray-500">
-        <span>{label}</span>
-        <ExternalLink href={ERC_8213} className="text-gray-400 hover:text-cerulean-blue-600">
-          ERC-8213 ↗
-        </ExternalLink>
-      </p>
+      <p className="font-mono text-xs text-gray-500">{label}</p>
       <DigestValue value={value} />
       <p className="pt-2 text-xs leading-relaxed text-gray-500">{children}</p>
-      <OtherNames names={names} />
       {parts.map((part) => (
         <div key={part.label} className="pt-3">
           <p className="font-mono text-xs text-gray-500">{part.label}</p>
           <DigestValue value={part.value} />
-          <OtherNames names={part.names} />
         </div>
       ))}
     </div>
   )
 }
 
-function amountText(value: bigint | null, currency: Currency): string {
+function valueText(value: bigint | null, currency: Currency): string {
   if (value === null) return 'not a quantity'
   if (!currency) return `${value.toString()} in the smallest unit`
   return `${formatAmount(value, currency.decimals)} ${currency.symbol}`
@@ -146,6 +111,57 @@ function FunctionName({
   ) : null
 }
 
+// Many wallets show the calldata in full, so it opens here too.
+function CalldataRow({
+  call,
+  index,
+  request,
+  verification,
+}: {
+  call: CallFields
+  index: number
+  request: SigningRequest
+  verification: Verification
+}) {
+  const [open, setOpen] = useState(false)
+  if (call.length === 0) {
+    return (
+      <ListRow label="Calldata">
+        <span className="font-mono text-[13px] text-gray-800">none</span>
+      </ListRow>
+    )
+  }
+  return (
+    <ListRow label="Calldata">
+      <span className="font-mono text-[13px] text-gray-800">
+        {call.selector && verification.chain && (
+          <FunctionName request={request} verification={verification} index={index} />
+        )}
+        {call.selector && `${call.selector} · `}
+        {call.length} bytes
+      </span>
+      <button
+        onClick={() => setOpen((value) => !value)}
+        className="ml-2 font-mono text-xs text-gray-400 transition-colors hover:text-gray-600"
+      >
+        {open ? 'hide ▴' : 'show ▾'}
+      </button>
+      {open && (
+        <span className="block pt-1.5 text-left">
+          <Hint
+            what="calldata"
+            text={call.data}
+            full
+            className="block max-h-60 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-xs leading-relaxed break-all text-gray-800"
+          >
+            {call.data}
+          </Hint>
+        </span>
+      )}
+    </ListRow>
+  )
+}
+
 function CallRows({
   call,
   index,
@@ -161,31 +177,17 @@ function CallRows({
 }) {
   return (
     <>
-      <Row label="To">
+      <ListRow label="To">
         {call.to ? (
           <Address value={call.to} />
         ) : (
           <span className="text-sm text-gray-800">none · creates a contract</span>
         )}
-      </Row>
-      <Row label="Amount">
-        <span className="text-sm font-medium text-gray-800">{amountText(call.value, currency)}</span>
-      </Row>
-      <Row label="Calldata">
-        <span className="font-mono text-[13px] text-gray-800">
-          {call.length === 0 ? (
-            'none'
-          ) : (
-            <>
-              {call.selector && verification.chain && (
-                <FunctionName request={request} verification={verification} index={index} />
-              )}
-              {call.selector && `${call.selector} · `}
-              {call.length} bytes
-            </>
-          )}
-        </span>
-      </Row>
+      </ListRow>
+      <ListRow label="Value">
+        <span className="text-sm font-medium text-gray-800">{valueText(call.value, currency)}</span>
+      </ListRow>
+      <CalldataRow call={call} index={index} request={request} verification={verification} />
     </>
   )
 }
@@ -193,10 +195,16 @@ function CallRows({
 function CalldataDigest({ call }: { call: CallFields }) {
   if (!call.digest) return null
   return (
-    <DigestBox label="Calldata Digest" value={call.digest} names={NAMES.calldata}>
-      If your wallet shows this digest, it must be the same. It covers only the calldata, so also compare the fields
-      above.
+    <DigestBox label="ERC-8213 Calldata Digest" value={call.digest}>
+      If your wallet shows this digest, it must be the same. It covers only the calldata, so also compare the other
+      fields.
     </DigestBox>
+  )
+}
+
+function SignerRow({ signer }: { signer: string | null }) {
+  return (
+    <ListRow label="Signer">{signer ? <Address value={signer} /> : <span className="text-sm">not given</span>}</ListRow>
   )
 }
 
@@ -204,7 +212,7 @@ function DelegationRow({ delegation }: { delegation: Delegation }) {
   const every = delegation.chainId === 0n
   const name = chainById(Number(delegation.chainId))?.name
   return (
-    <Row
+    <ListRow
       label="Delegate to"
       note={
         every ? (
@@ -215,11 +223,13 @@ function DelegationRow({ delegation }: { delegation: Delegation }) {
       }
     >
       <Address value={delegation.address} />
-    </Row>
+    </ListRow>
   )
 }
 
-function Notice({
+// A short note in the list. `Notice` in Step.tsx is the large box of a
+// result.
+function Callout({
   tone,
   className = '',
   children,
@@ -248,37 +258,35 @@ function FieldsView({
     case 'transaction':
       return (
         <div>
-          <dl className="divide-y divide-gray-100">
-            <Row label="Network">
+          <dl className={LIST}>
+            <ListRow label="Network">
               <Chain chainId={chainId} />
-            </Row>
+            </ListRow>
             <CallRows call={fields.call} index={0} currency={currency} request={request} verification={verification} />
-            <Row label="From">
-              {fields.from ? <Address value={fields.from} /> : <span className="text-sm">not given</span>}
-            </Row>
+          </dl>
+          <CalldataDigest call={fields.call} />
+          <dl className={`${LIST} pt-1`}>
+            <SignerRow signer={fields.from} />
             {fields.delegations.map((delegation, index) => (
               <DelegationRow key={index} delegation={delegation} />
             ))}
           </dl>
-          <CalldataDigest call={fields.call} />
         </div>
       )
     case 'batch':
       return (
         <div>
-          <dl className="divide-y divide-gray-100">
-            <Row label="Network">
+          <dl className={LIST}>
+            <ListRow label="Network">
               <Chain chainId={chainId} />
-            </Row>
-            <Row label="From">
-              {fields.from ? <Address value={fields.from} /> : <span className="text-sm">not given</span>}
-            </Row>
+            </ListRow>
+            <SignerRow signer={fields.from} />
           </dl>
           <div className="flex flex-col gap-2 pt-2">
             {fields.calls.map((call, index) => (
-              <div key={index} className="rounded-lg border border-gray-200 p-3">
+              <div key={index} className="rounded-lg border border-gray-200 bg-white/70 p-3">
                 <p className="font-mono text-xs text-gray-400">call {index + 1}</p>
-                <dl className="divide-y divide-gray-100">
+                <dl className={LIST}>
                   <CallRows
                     call={call}
                     index={index}
@@ -290,12 +298,12 @@ function FieldsView({
                 <CalldataDigest call={call} />
               </div>
             ))}
-            <Notice tone="gray">
+            <Callout tone="gray">
               Your wallet can run the batch as one transaction whose calldata holds all the calls, for example through
               an EIP-7702 smart account or a Safe MultiSend. A device then shows the Calldata Digest of that
               transaction. The wallet builds it, so Onay cannot compute it. Compare each call where your wallet lists
               the calls.
-            </Notice>
+            </Callout>
           </div>
         </div>
       )
@@ -303,51 +311,49 @@ function FieldsView({
       const { domain, digests } = fields
       return (
         <div>
-          <dl className="divide-y divide-gray-100">
-            <Row label="Network">
+          <dl className={LIST}>
+            <ListRow label="Network">
               {domain.hasChain ? (
                 <Chain chainId={domain.chainId} />
               ) : (
                 <span className="text-sm text-amber-700">none · the signature holds on every chain</span>
               )}
-            </Row>
-            <Row label="Domain">
+            </ListRow>
+            <ListRow label="Domain">
               <span className="text-sm font-medium text-gray-800">
                 {domain.name ?? 'no name'}
                 {domain.version !== null && <span className="text-gray-500"> · version {domain.version}</span>}
               </span>
-            </Row>
-            <Row label="Verifying contract">
+            </ListRow>
+            <ListRow label="Verifying contract">
               {domain.verifyingContract ? (
                 <Address value={domain.verifyingContract} />
               ) : (
                 <span className="text-sm">none</span>
               )}
-            </Row>
-            <Row label="Primary type">
+            </ListRow>
+            <ListRow label="Primary type">
               <span className="font-mono text-[13px] text-gray-800">{fields.primaryType}</span>
-            </Row>
-            <Row label="Signer">
-              <Address value={fields.signer} />
-            </Row>
+            </ListRow>
+            <SignerRow signer={fields.signer} />
           </dl>
           {digests ? (
             <DigestBox
               label="EIP-712 Digest"
               value={digests.digest}
-              names={fields.primaryType === 'SafeTx' ? `${NAMES.typedData}, ${NAMES.safeTx}` : NAMES.typedData}
               parts={[
-                { label: 'Domain Hash', value: digests.domainHash, names: NAMES.domainHash },
-                { label: 'Message Hash', value: digests.messageHash, names: NAMES.messageHash },
+                { label: 'Domain Hash', value: digests.domainHash },
+                { label: 'Message Hash', value: digests.messageHash },
               ]}
             >
               If your wallet shows this digest, it must be the same. A match proves that your wallet signs the same
-              typed data. Some wallets show its two parts below in its place.
+              typed data. Some wallets show the two parts below instead. The Message Hash covers only the message: if
+              your wallet shows only the Message Hash, also compare the Network, Domain, and Verifying contract rows.
             </DigestBox>
           ) : (
-            <Notice tone="amber" className="mt-2">
+            <Callout tone="amber" className="mt-2">
               No digest: {fields.reason}.
-            </Notice>
+            </Callout>
           )}
         </div>
       )
@@ -356,47 +362,48 @@ function FieldsView({
       return (
         <div>
           <p className="pt-1 pb-1 text-sm text-gray-500">Message</p>
-          <MessageBlock>{fields.text ?? hexOf(fields.bytes)}</MessageBlock>
+          <MessageBlock>{fields.text ?? hexlify(fields.bytes)}</MessageBlock>
           {fields.hidden && (
             <>
               <p className="pt-2 pb-1 text-sm text-gray-500">As bytes</p>
-              <MessageBlock>{hexOf(fields.bytes)}</MessageBlock>
+              <MessageBlock>{hexlify(fields.bytes)}</MessageBlock>
             </>
           )}
           <div className="flex flex-col gap-2 pt-2">
-            {fields.text === null && <Notice tone="gray">The message is not text, so it shows as hex.</Notice>}
+            {fields.text === null && <Callout tone="gray">The message is not text, so it shows as hex.</Callout>}
             {fields.hidden && (
-              <Notice tone="amber">
+              <Callout tone="amber">
                 The message has characters that do not show, or that change how the text shows, such as a zero-width
-                space or a change of direction. Compare the bytes, not the text.
-              </Notice>
+                space or a change of direction.{' '}
+                {fields.digest
+                  ? 'Compare the ERC-191 Digest, or the bytes, not the text.'
+                  : 'Compare the bytes, not the text.'}
+              </Callout>
             )}
             {fields.nonAscii && !fields.hidden && (
-              <Notice tone="gray">
+              <Callout tone="gray">
                 The message has letters outside ASCII, which can look like other letters.
                 {fields.digest && ' The ERC-191 Digest tells them apart.'}
-              </Notice>
+              </Callout>
             )}
           </div>
-          <dl className="divide-y divide-gray-100 pt-1">
-            <Row label="Signer">
-              {fields.signer ? <Address value={fields.signer} /> : <span className="text-sm">not given</span>}
-            </Row>
+          <dl className={`${LIST} pt-1`}>
+            <SignerRow signer={fields.signer} />
           </dl>
           {fields.digest ? (
-            <DigestBox label="ERC-191 Digest" value={fields.digest} names={NAMES.message}>
+            <DigestBox label="ERC-191 Digest" value={fields.digest}>
               If your wallet shows this digest, it must be the same. A match proves that your wallet signs the same
               message.
             </DigestBox>
           ) : (
-            <Notice tone="amber" className="mt-2">
+            <Callout tone="amber" className="mt-2">
               No digest: {fields.reason}.
-            </Notice>
+            </Callout>
           )}
         </div>
       )
     case 'none':
-      return <Notice tone="amber">Nothing to compare: {fields.reason}.</Notice>
+      return <Callout tone="amber">Nothing to compare: {fields.reason}.</Callout>
   }
 }
 
@@ -408,13 +415,12 @@ function MessageBlock({ children }: { children: string }) {
   )
 }
 
-function hexOf(bytes: Uint8Array): string {
-  return `0x${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`
-}
-
 const EXPLAINER =
-  'A page can show Onay one request and your wallet another. Find each value here on the confirmation screen of your wallet: one that differs gives the page away. Under each digest, Onay names the wallets that show it with another label. MetaMask and Rabby show no digest. The case of hex letters does not matter.'
+  'A page can show Onay one request and your wallet another. Find each value here on the confirmation screen of your wallet: one that differs gives the page away. MetaMask and Rabby show no digest. The case of hex letters does not matter. A click on an address or a digest copies it.'
 
+// The other steps check the request that Onay got. Only this comparison
+// shows that the wallet signs the same request, so the card stands out.
+// After a failed review, it does not lead to a confirmation.
 export function CompareStep({
   request,
   verification,
@@ -425,14 +431,29 @@ export function CompareStep({
   number: number
 }) {
   const fields = useMemo(() => fieldsOf(request), [request])
+  const failed = verification.status === 'failed' || verification.status === 'reverts'
+  const card = failed ? 'border border-gray-200 bg-white' : 'border-2 border-cerulean-blue-300 bg-cerulean-blue-100/50'
   return (
     <Step number={number} title="Compare with your wallet" explainer={EXPLAINER}>
-      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <p className="pb-2 text-sm leading-relaxed text-gray-600">
-          Before you confirm in your wallet, check that it shows these values. Compare every character of each address
-          and digest: wallets can shorten an address, and a page can make a digest that starts and ends the same. If one
-          value differs, reject the request there.
-        </p>
+      <section className={`rounded-xl p-5 shadow-sm ${card}`}>
+        {failed ? (
+          <Notice tone="coral" title="Reject this request in your wallet" className="mb-3">
+            Onay found problems in this request. The values below only show what it asks for.
+          </Notice>
+        ) : (
+          <div className="pb-2">
+            <p className="text-sm font-semibold text-cerulean-blue-700">
+              Check that your wallet shows the same values.
+            </p>
+            <p className="pt-1 text-sm leading-relaxed text-gray-600">
+              {request.source === 'paste'
+                ? 'Onay reviewed the request that you pasted. Your wallet must sign the same one.'
+                : 'Onay reviewed the request that the page sent. The page can send your wallet another one.'}{' '}
+              Compare every character of each address and digest: wallets can shorten an address, and a page can make a
+              digest that starts and ends the same. If one value differs, reject the request in your wallet.
+            </p>
+          </div>
+        )}
         <FieldsView fields={fields} request={request} verification={verification} />
         <p className="flex items-start gap-1.5 pt-3 font-mono text-[11px] leading-relaxed text-gray-400">
           <LocallyVerifiedIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" title="Computed on this machine" />

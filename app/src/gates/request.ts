@@ -49,14 +49,16 @@ export function signedDomain(typed: unknown): Record<string, unknown> {
   }
   const members = types?.EIP712Domain
   if (!Array.isArray(members) || typeof domain !== 'object' || domain === null) return {}
-  const signed: Record<string, unknown> = {}
-  for (const member of members) {
-    const name = (member as { name?: unknown } | null)?.name
-    if (typeof name === 'string' && Object.hasOwn(domain, name)) {
-      signed[name] = (domain as Record<string, unknown>)[name]
-    }
-  }
-  return signed
+  // Object.fromEntries makes own fields, so a field named __proto__ does
+  // not set the prototype.
+  return Object.fromEntries(
+    members.flatMap((member) => {
+      const name = (member as { name?: unknown } | null)?.name
+      return typeof name === 'string' && Object.hasOwn(domain, name)
+        ? [[name, (domain as Record<string, unknown>)[name]]]
+        : []
+    }),
+  )
 }
 
 // A JSON-RPC quantity: a hex string such as "0x1a", as a number.
@@ -127,6 +129,16 @@ function callProblem(value: unknown, what: string): string | null {
 // One entry of an EIP-7702 authorization list: the account sets its code
 // to that of `address` on the chain. Chain 0 means every chain.
 export type Authorization = { chainId: bigint; address: Hex; nonce: bigint }
+
+// Why Onay does not check a request that reads, or null. A delegate
+// (EIP-7702) gets full control of the account. No gate checks it yet,
+// and the simulation runs without it.
+export function uncheckedPart({ method, params }: Pick<SigningRequest, 'method' | 'params'>): string | null {
+  if (method !== 'eth_sendTransaction' && method !== 'eth_signTransaction') return null
+  const authorizations = authorizationsOf({ params })
+  if (!Array.isArray(authorizations) || authorizations.length === 0) return null
+  return 'the transaction sets a delegate for the account (EIP-7702), and Onay does not check delegates yet'
+}
 
 // The authorization list of a transaction, empty if it has none, or why
 // it does not read.

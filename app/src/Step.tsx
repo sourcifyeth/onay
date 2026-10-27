@@ -1,5 +1,6 @@
 // The pieces of the review: a numbered step, a card that opens, a
-// notice, an info tip. Taken from the mock.
+// notice, an info tip, a row of a list, a value that copies. Taken from
+// the mock.
 
 import { useState, type ReactNode } from 'react'
 
@@ -108,5 +109,69 @@ export function Row({ label, children }: { label: string; children: ReactNode })
       <span className="shrink-0 text-sm text-gray-500">{label}</span>
       <span className="min-w-0 text-right text-sm text-gray-800">{children}</span>
     </div>
+  )
+}
+
+// One row of a `dl`: a label on the left and a value on the right, as
+// the wallets show it. The note shows under the value.
+export function ListRow({ label, note, children }: { label: ReactNode; note?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-6 py-2.5">
+      <dt className="shrink-0 text-sm text-gray-500">{label}</dt>
+      <dd className="min-w-0 text-right">
+        {children}
+        {note && <p className="pt-0.5 text-xs text-gray-400">{note}</p>}
+      </dd>
+    </div>
+  )
+}
+
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// A value with a tooltip that shows what is behind it. A click copies
+// the text. If the value shows the whole text (`full`), the tooltip does
+// not show it again.
+export function Hint({
+  what,
+  text,
+  full = false,
+  className,
+  children,
+}: {
+  what: string
+  text: string
+  full?: boolean
+  className: string
+  children: ReactNode
+}) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    if (!(await copyText(text))) return
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <span className="group/hint relative inline-block">
+      <button
+        onClick={copy}
+        className={`cursor-copy text-left underline decoration-gray-300 decoration-dotted underline-offset-4 ${className}`}
+      >
+        {children}
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none invisible absolute right-0 bottom-full z-20 mb-1.5 w-max max-w-[22rem] rounded-md bg-gray-800 px-2.5 py-1.5 text-left font-mono text-[11px] leading-relaxed break-all whitespace-normal text-white opacity-0 shadow-lg transition-opacity group-hover/hint:visible group-hover/hint:opacity-100"
+      >
+        <span className="block text-gray-400">{copied ? 'copied' : `${what} · click to copy`}</span>
+        {!full && text}
+      </span>
+    </span>
   )
 }

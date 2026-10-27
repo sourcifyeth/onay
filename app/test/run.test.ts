@@ -309,6 +309,15 @@ test('a message or an authorization list that does not read fails before any gat
   assert.deepEqual(heliosCalls, [])
 })
 
+test('a transaction that sets a delegate (EIP-7702) fails before any gate runs', async () => {
+  const { deps, heliosCalls } = setup({ codes: { [A]: '0x6001' }, sources: { [A]: 'verified' } })
+  const authorizationList = [{ address: C, chainId: '0x1', nonce: '0x0' }]
+  const v = await ended(request('eth_sendTransaction', [{ from: FROM, to: A, authorizationList }]), deps)
+  assert.equal(v.status, 'failed')
+  assert.deepEqual(heliosCalls, [])
+  assert.match(v.lines.map((line) => line.text).join('\n'), /sets a delegate .*EIP-7702/)
+})
+
 test('a message names no chain: the run passes with nothing to check', async () => {
   const v = await ended(request('personal_sign', ['0x68656c6c6f', FROM], null), setup({ codes: {}, sources: {} }).deps)
   assert.equal(v.status, 'passed')

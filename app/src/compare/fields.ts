@@ -32,10 +32,10 @@ export type DomainFields = {
   name: string | null
   version: string | null
   verifyingContract: string | null
-  // False if the signature covers no chain: it then holds on every
-  // chain.
+  // False if the EIP712Domain type lists no chainId: the signature then
+  // holds on every chain.
   hasChain: boolean
-  // Null if the chain is not a chain id that Onay reads.
+  // Null if the domain has no chain id that Onay reads.
   chainId: number | null
 }
 
@@ -141,6 +141,7 @@ export function fieldsOf(request: SigningRequest): Fields {
       return { kind: 'batch', from: checksum(input.from), calls: input.calls.map(callFields) }
     case 'typedData': {
       const { domain } = input.typed
+      const members: unknown = input.typed.types.EIP712Domain
       const contract = asText(domain.verifyingContract)
       const { digests, reason } = typedDataDigests(input.typed, request.method === 'eth_signTypedData_v3' ? 'v3' : 'v4')
       return {
@@ -151,7 +152,7 @@ export function fieldsOf(request: SigningRequest): Fields {
           version: asText(domain.version),
           verifyingContract:
             contract && /^0x[0-9a-fA-F]{40}$/.test(contract) ? getAddress(contract.toLowerCase()) : contract,
-          hasChain: domain.chainId !== undefined && domain.chainId !== null,
+          hasChain: Array.isArray(members) && members.some((member) => member?.name === 'chainId'),
           chainId: parseChainId(domain.chainId),
         },
         primaryType: input.typed.primaryType,

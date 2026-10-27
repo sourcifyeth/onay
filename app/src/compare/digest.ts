@@ -33,10 +33,11 @@ type Types = TypedData['types']
 class Unreadable extends Error {}
 
 // The digests of the typed data, or why there are none. Wallets read
-// loose data in different ways: MetaMask takes a bad address checksum,
-// a string for a bool, a missing field, and ethers refuses each. So the
-// data must be in the one form that all of them read alike. Otherwise
-// the digest here could differ from the one the wallet signs.
+// loose data in different ways: MetaMask takes a string for a bool or a
+// missing field, and ethers refuses each. So the data must be in the one
+// form that all of them read alike. Otherwise the digest here could
+// differ from the one the wallet signs. A bad address checksum is no
+// such case: the case of the letters is no part of the signed bytes.
 export function typedDataDigests(
   typed: TypedData,
   version: 'v3' | 'v4',

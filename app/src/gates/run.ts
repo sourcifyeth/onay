@@ -20,7 +20,7 @@ import {
 } from './contracts.ts'
 import { errorText, runGate, type Gate, type GateState, type Log, type LogLine } from './gate.ts'
 import { delegateOf, type Simulation, type SimulationInput } from './simulation.ts'
-import { callsOf, chainOf, contractsOf, requestProblem } from './request.ts'
+import { callsOf, chainOf, contractsOf, requestProblem, uncheckedPart } from './request.ts'
 import type { Verified } from './verify.ts'
 
 export type TimedLine = LogLine & {
@@ -150,6 +150,11 @@ export function startVerification(request: SigningRequest, deps: Deps): Verifica
       const reason = `the request could not be read · ${problem}`
       log({ source: request.source, text: reason, ok: false })
       return fail(reason)
+    }
+    const unchecked = uncheckedPart(request)
+    if (unchecked) {
+      log({ source: request.source, text: unchecked, ok: false })
+      return fail(unchecked)
     }
     if (resolved.chainId === null) {
       if (addresses.length === 0) return endWithoutContracts()

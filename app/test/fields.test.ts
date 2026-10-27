@@ -148,6 +148,15 @@ test('typed data without a chain, or that does not hash one way, says so', () =>
   assert.equal(unread.kind === 'typedData' && unread.digests, null)
 })
 
+test('typed data whose EIP712Domain type lists a chainId without a value: the chain is unknown, not absent', () => {
+  const { chainId: _, ...domain } = MAIL.domain
+  const fields = fieldsOf(request('eth_signTypedData_v4', [YOU, { ...MAIL, domain }]))
+  if (fields.kind !== 'typedData') return assert.fail(fields.kind)
+  assert.equal(fields.domain.hasChain, true)
+  assert.equal(fields.domain.chainId, null)
+  assert.equal(fields.reason, 'domain.chainId has no value')
+})
+
 test('typed data: a domain field that the EIP712Domain type does not list is not signed, so it does not show', () => {
   const nameOnly = { ...MAIL, types: { ...MAIL.types, EIP712Domain: MAIL.types.EIP712Domain.slice(0, 2) } }
   const extra = fieldsOf(request('eth_signTypedData_v4', [YOU, nameOnly]))
