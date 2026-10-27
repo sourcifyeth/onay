@@ -491,7 +491,7 @@ function ProfileCard({
     <CardTitle name={name} address={contract.address} state={<SummaryState profile={profile} running={running} />} />
   )
   return (
-    <CollapsibleCard open summary={summary}>
+    <CollapsibleCard open inset summary={summary}>
       {!profile ? (
         <p className="text-sm">
           <Loading>looking up</Loading>
@@ -516,7 +516,7 @@ function ProfileBody({
   // The ages count from the time the card opened.
   const [now] = useState(() => Date.now())
   return (
-    <div className="px-2 pt-1 pb-2">
+    <div className="pt-1 pb-2">
       <BlockNotice blocked={profile.blocked} goPlus={goPlusFlags(profile)} />
       <YoungNotice young={profile.young} />
       <AddressLine address={profile.address} name={profile.name} title={title} />
@@ -556,7 +556,7 @@ function AccountCard({
     />
   )
   return (
-    <CollapsibleCard open summary={summary}>
+    <CollapsibleCard open inset summary={summary}>
       {!account ? (
         <p className="text-sm">
           <Loading>looking up</Loading>
