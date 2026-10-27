@@ -12,6 +12,9 @@ import {
   hitsFor,
   isStale,
   LIST_SOURCES,
+  missingFor,
+  missingText,
+  missingTokenLists,
   newState,
   parseOfac,
   parseSafe,
@@ -265,6 +268,49 @@ test('isStale: after a day, or when the chains changed', () => {
   assert.equal(isStale(fetched, [10, 1], 1000 + REFRESH_AFTER - 1), false)
   assert.equal(isStale(fetched, [1, 10], 1000 + REFRESH_AFTER), true)
   assert.equal(isStale(fetched, [1], 2000), true)
+  // A source for every chain does not depend on the chains.
+  const ofac = { ...newState('ofac'), fetchedAt: 1000, chains: [1] }
+  assert.equal(isStale(ofac, [1, 10], 2000), false)
+})
+
+test('missingFor: an enabled source without data for the chain, and why', () => {
+  const entry = { chainId: null, address: SANCTIONED as Hex, label: 'sanctioned · ETH' }
+  const states: ListState[] = [
+    // A failed first fetch.
+    { ...newState('ofac'), error: 'sanctioned_addresses_ETH.json · HTTP 503' },
+    // A failed fetch that keeps the last good copy is not missing.
+    { ...newState('scamsniffer'), fetchedAt: 5, error: 'HTTP 500', entries: [entry] },
+    // Fetched for chain 1 only.
+    { ...newState('uniswap'), fetchedAt: 5, chains: [1] },
+    // Off: not asked.
+    { ...newState('safe'), enabled: false },
+  ]
+  assert.deepEqual(missingFor(states, 10), [
+    { list: 'OFAC sanctions', reason: 'sanctioned_addresses_ETH.json · HTTP 503' },
+    { list: 'Uniswap deployments', reason: 'not fetched for chain 10' },
+  ])
+  assert.deepEqual(missingFor(states, 1), [
+    { list: 'OFAC sanctions', reason: 'sanctioned_addresses_ETH.json · HTTP 503' },
+  ])
+  // An error after a good fetch with no entries.
+  const empty = { ...newState('scamsniffer'), fetchedAt: 5, error: 'HTTP 500' }
+  assert.deepEqual(missingFor([empty], 1), [{ list: 'ScamSniffer', reason: 'HTTP 500' }])
+  assert.deepEqual(missingFor([newState('ofac')], 1), [{ list: 'OFAC sanctions', reason: 'not fetched yet' }])
+  assert.equal(
+    missingText(missingFor([newState('ofac'), empty], 1)),
+    'OFAC sanctions not loaded: not fetched yet · ScamSniffer not loaded: HTTP 500',
+  )
+})
+
+test('missingTokenLists: a token list of the user without a list', () => {
+  const entries: ListEntry[] = [
+    { url: 'https://tokens.uniswap.org', list: null, held: null, fetchedAt: null, error: 'HTTP 500' },
+    { url: 'https://example.org/list.json', list: null, held: null, fetchedAt: null, error: null },
+  ]
+  assert.deepEqual(missingTokenLists(entries), [
+    { list: 'tokens.uniswap.org', reason: 'HTTP 500' },
+    { list: 'example.org', reason: 'not fetched yet' },
+  ])
 })
 
 test('parseStates: one state for each source; bad entries and fields are dropped', () => {
@@ -356,4 +402,23 @@ test('the store: a failed fetch keeps the last copy and the error; a disabled so
   const again = reloaded.getSnapshot()
   assert.equal(again.find((item) => item.id === 'scamsniffer')?.entries.length, 2)
   assert.equal(again.find((item) => item.id === 'safe')?.enabled, false)
+})
+
+test('the store: settled waits for the fetches that run now', async () => {
+  let release = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  const fetch: Fetch = async () => {
+    await held
+    return new Response(JSON.stringify(scamSniffer))
+  }
+  const store = createAddressListStore({ storage: () => throwing, fetch, now: () => 1000 })
+  await store.settled()
+  void store.refresh('scamsniffer', [1])
+  let done = false
+  const settled = store.settled().then(() => (done = true))
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(done, false)
+  release()
+  await settled
+  assert.equal(store.getSnapshot().find((item) => item.id === 'scamsniffer')?.entries.length, 2)
 })

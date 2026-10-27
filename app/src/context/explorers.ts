@@ -4,6 +4,7 @@
 // run it as it is.
 
 import type { ChainConfig } from '../chainList.ts'
+import { readCapped } from '../clear-signing/tokenLists.ts'
 import { errorText, type Fetch } from '../gates/gate.ts'
 import type { Hex } from '../messages.ts'
 
@@ -33,6 +34,8 @@ export const ETHERSCAN_API = 'https://api.etherscan.io/v2/api'
 export const SOURCIFY_REPO = 'https://repo.sourcify.dev'
 
 const TIMEOUT = 15_000
+// The cap of one answer of an explorer or of GoPlus.
+export const MAX_ANSWER = 2 * 1024 * 1024
 
 // The explorers of one chain. Null where no explorer covers the chain.
 export type ChainExplorers = { etherscan: string | null; blockscout: string | null; blockscoutApi: string | null }
@@ -161,22 +164,30 @@ export const notRead = (reason: string): Lookup<never> => ({ ok: false, reason }
 
 export type JsonAnswer = { ok: true; status: number; body: unknown } | { ok: false; reason: string; limited?: boolean }
 
+const timedOut = (error: unknown) =>
+  error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
+
 // Runs the request and gives the status and the body as JSON. The body
-// is undefined when it is not JSON. Never throws.
+// is undefined when it is not JSON. The timer starts with the request.
+// Never throws.
 export async function fetchJson(url: string, fetch: Fetch, timeout = TIMEOUT): Promise<JsonAnswer> {
   let response: Response
   try {
     response = await fetch(url, { signal: AbortSignal.timeout(timeout) })
   } catch (error) {
-    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
-      return { ok: false, reason: 'no answer in time' }
-    }
+    if (timedOut(error)) return { ok: false, reason: 'no answer in time' }
     return { ok: false, reason: `network error · ${errorText(error)}` }
   }
   if (response.status === 429) return { ok: false, reason: 'rate limited', limited: true }
+  let text: string
+  try {
+    text = await readCapped(response, MAX_ANSWER, 'the answer')
+  } catch (error) {
+    return { ok: false, reason: timedOut(error) ? 'no answer in time' : errorText(error) }
+  }
   let body: unknown = undefined
   try {
-    body = await response.json()
+    body = JSON.parse(text)
   } catch {
     // The caller reads the status.
   }

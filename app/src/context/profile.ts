@@ -14,7 +14,7 @@ import type { ChainValue, CodeKind } from './chain.ts'
 import type { EtherscanCreation } from './etherscan.ts'
 import type { Lookup } from './explorers.ts'
 import type { GoPlusResult } from './goplus.ts'
-import type { Hit } from './lists.ts'
+import type { ListAnswer } from './lists.ts'
 
 // A deployment under this age, or a contract with fewer transactions,
 // gets a hint in the review. It is not a verdict.
@@ -68,6 +68,7 @@ export type DeployerProfile = Activity & {
   kind: Fact<CodeKind>
   // A label from an allow list, or the name that Blockscout gives.
   name: Fact<string | null>
+  lists: Fact<ListAnswer>
 }
 
 export type Young = {
@@ -79,6 +80,23 @@ export type Young = {
 
 export type GoPlusFact = Fact<GoPlusResult> | { state: 'off' }
 
+// A block-list hit or a scam mark. `of` names the address that the list
+// knows: the address of the card, or its deployer.
+export type Blocked = Claimed<string> & { of: 'address' | 'deployer' }
+
+// The context of an address that the request names and that has no code
+// of its own: an account, or an account with a delegate (EIP-7702). Only
+// the lists and GoPlus, no deployer, activity or tokens. Not empty
+// `blocked`: the review shows a notice.
+export type AccountProfile = {
+  address: Hex
+  chainId: number
+  lists: Fact<ListAnswer>
+  blocked: Blocked[]
+  goPlus: GoPlusFact
+  sources: string[]
+}
+
 export type Profile = Activity & {
   address: Hex
   chainId: number
@@ -87,12 +105,14 @@ export type Profile = Activity & {
   // Milliseconds since 1970.
   deployedAt: Fact<number>
   deployer: DeployerProfile
-  // The allow and block lists that know the address. Each hit names its
-  // list.
-  lists: Fact<Hit[]>
-  // The block-list hits, and a scam mark of Blockscout. Not empty: the
-  // review shows a notice. The status of the request does not change.
-  blocked: Claimed<string>[]
+  // The allow and block lists that know the address, and the enabled
+  // lists that gave no answer. Each hit names its list. Say "not on any
+  // list" only when both are empty.
+  lists: Fact<ListAnswer>
+  // The block-list hits of the contract and of its deployer, and a scam
+  // mark of Blockscout. Not empty: the review shows a notice. The status
+  // of the request does not change.
+  blocked: Blocked[]
   security: { blockscout: Fact<'ok' | 'scam'>; goPlus: GoPlusFact }
   // Null when the contract is not young, or when nothing says so.
   young: Young | null
@@ -115,9 +135,18 @@ export type HolderReads = {
   tokenAmounts: Partial<Record<Hex, Lookup<ChainValue<bigint>>>>
 }
 
-export type ProfileReads = {
+// The reads of an address without code. Undefined means that the read
+// did not end yet.
+export type AccountReads = {
   address: Hex
   chainId: number
+  hits?: Lookup<ListAnswer>
+  goPlus?: Lookup<GoPlusResult> | 'off'
+  // True once the run ended: a read that did not end is unknown.
+  done: boolean
+}
+
+export type ProfileReads = AccountReads & {
   // Milliseconds since 1970.
   now: number
   rpc: string
@@ -136,12 +165,8 @@ export type ProfileReads = {
   // Sourcify gate did not read one.
   creationRead?: CreationRead
   blockTime?: Lookup<ChainValue<number>>
-  deployer: HolderReads & { kind?: Lookup<ChainValue<CodeKind>>; hits?: Hit[] }
-  hits?: Lookup<Hit[]>
-  goPlus?: Lookup<GoPlusResult> | 'off'
+  deployer: HolderReads & { kind?: Lookup<ChainValue<CodeKind>>; hits?: Lookup<ListAnswer> }
   tokenLists: ListEntry[]
-  // True once the run ended: a read that did not end is unknown.
-  done: boolean
 }
 
 export const emptyHolder = (): HolderReads => ({ blockscout: {}, tokenAmounts: {} })
@@ -235,10 +260,12 @@ function deploymentFacts(reads: ProfileReads): {
   if (claim === 'pending') return { deployment: PENDING, deployer: PENDING, deployedAt: PENDING }
   if (claim === null) {
     const etherscan = reads.etherscanCreation
-    const reason =
-      etherscan && !etherscan.ok
-        ? `no source names the creation transaction · Etherscan: ${etherscan.reason}`
-        : 'no source names the creation transaction'
+    const blockscout = reads.contract.blockscout.address
+    // A source that failed is named, not counted as a source without a
+    // claim.
+    let reason =
+      blockscout?.ok === false ? `Blockscout: ${blockscout.reason}` : 'no source names the creation transaction'
+    if (etherscan && !etherscan.ok) reason += ` · Etherscan: ${etherscan.reason}`
     // Etherscan may still answer.
     const fact = !reads.done && etherscan === undefined ? PENDING : unknown(reason)
     return { deployment: fact, deployer: fact, deployedAt: fact }
@@ -362,10 +389,10 @@ const unknownActivity = (fact: Fact<never>): Activity => ({
 function deployerOf(reads: ProfileReads, address: Fact<Hex>): DeployerProfile {
   if (address.state !== 'known') {
     const fact = address.state === 'pending' ? PENDING : unknown('the deployer is not known')
-    return { address, kind: fact, name: fact, ...unknownActivity(fact) }
+    return { address, kind: fact, name: fact, lists: fact, ...unknownActivity(fact) }
   }
   const { deployer } = reads
-  const label = deployer.hits?.find((hit) => hit.kind === 'allow')
+  const label = deployer.hits?.ok ? deployer.hits.value.hits.find((hit) => hit.kind === 'allow') : undefined
   let name: Fact<string | null>
   if (label) name = known(label.label, false, label.list)
   else name = fromLookup(deployer.blockscout.address, reads.done, (claim) => known(claim.name, false, 'Blockscout'))
@@ -375,8 +402,25 @@ function deployerOf(reads: ProfileReads, address: Fact<Hex>): DeployerProfile {
       known(kind.value, kind.proof, chainSource(kind.proof, reads.rpc)),
     ),
     name,
+    lists: listsFact(deployer.hits, reads.done),
     ...activityOf(deployer, reads),
   }
+}
+
+const listsFact = (hits: Lookup<ListAnswer> | undefined, done: boolean): Fact<ListAnswer> =>
+  fromLookup(hits, done, (answer) => known(answer, false, 'address lists'))
+
+function blockedOf(lists: Fact<ListAnswer>, of: Blocked['of']): Blocked[] {
+  if (lists.state !== 'known') return []
+  return lists.value.hits
+    .filter((hit) => hit.kind === 'block')
+    .map((hit) => ({ value: hit.label, proof: false, source: hit.list, of }))
+}
+
+function goPlusOf(reads: AccountReads): GoPlusFact {
+  return reads.goPlus === 'off'
+    ? { state: 'off' }
+    : fromLookup(reads.goPlus, reads.done, (result) => known(result, false, 'GoPlus'))
 }
 
 export function young(profile: Pick<Profile, 'deployedAt' | 'transactions'>, now: number): Young | null {
@@ -390,7 +434,7 @@ export function young(profile: Pick<Profile, 'deployedAt' | 'transactions'>, now
 }
 
 // The sources of the known values, in the order they first appear.
-function sourcesOf(profile: Omit<Profile, 'sources'>): string[] {
+function sourcesOf(profile: object, lists: Fact<ListAnswer>[]): string[] {
   const sources: string[] = []
   const add = (source: string) => {
     if (!sources.includes(source)) sources.push(source)
@@ -402,7 +446,7 @@ function sourcesOf(profile: Omit<Profile, 'sources'>): string[] {
     for (const child of Object.values(value)) visit(child)
   }
   visit(profile)
-  if (profile.lists.state === 'known') for (const hit of profile.lists.value) add(hit.list)
+  for (const fact of lists) if (fact.state === 'known') for (const hit of fact.value.hits) add(hit.list)
   return sources.filter((source) => source !== 'address lists')
 }
 
@@ -410,26 +454,20 @@ export function buildProfile(reads: ProfileReads): Profile {
   const { deployment, deployer, deployedAt } = deploymentFacts(reads)
   const activity = activityOf(reads.contract, reads)
   const blockscoutAddress = reads.contract.blockscout.address
-  const lists = fromLookup(reads.hits, reads.done, (hits) => known(hits, false, 'address lists'))
-  const blocked: Claimed<string>[] = []
-  if (lists.state === 'known') {
-    for (const hit of lists.value)
-      if (hit.kind === 'block') blocked.push({ value: hit.label, proof: false, source: hit.list })
-  }
+  const lists = listsFact(reads.hits, reads.done)
+  const deployerProfile = deployerOf(reads, deployer)
+  const blocked = blockedOf(lists, 'address')
   if (blockscoutAddress?.ok && blockscoutAddress.value.scam) {
-    blocked.push({ value: 'marked as scam', proof: false, source: 'Blockscout' })
+    blocked.push({ value: 'marked as scam', proof: false, source: 'Blockscout', of: 'address' })
   }
-  const goPlus: GoPlusFact =
-    reads.goPlus === 'off'
-      ? { state: 'off' }
-      : fromLookup(reads.goPlus, reads.done, (result) => known(result, false, 'GoPlus'))
+  blocked.push(...blockedOf(deployerProfile.lists, 'deployer'))
   const profile: Omit<Profile, 'sources'> = {
     address: reads.address,
     chainId: reads.chainId,
     name: fromLookup(blockscoutAddress, reads.done, (claim) => known(claim.name, false, 'Blockscout')),
     deployment,
     deployedAt,
-    deployer: deployerOf(reads, deployer),
+    deployer: deployerProfile,
     ...activity,
     lists,
     blocked,
@@ -437,11 +475,23 @@ export function buildProfile(reads: ProfileReads): Profile {
       blockscout: fromLookup(blockscoutAddress, reads.done, (claim) =>
         known(claim.scam ? ('scam' as const) : ('ok' as const), false, 'Blockscout'),
       ),
-      goPlus,
+      goPlus: goPlusOf(reads),
     },
     young: young({ deployedAt, transactions: activity.transactions }, reads.now),
     explorer: reads.explorer,
     rpc: reads.rpc,
   }
-  return { ...profile, sources: sourcesOf(profile) }
+  return { ...profile, sources: sourcesOf(profile, [lists, deployerProfile.lists]) }
+}
+
+export function buildAccount(reads: AccountReads): AccountProfile {
+  const lists = listsFact(reads.hits, reads.done)
+  const account: Omit<AccountProfile, 'sources'> = {
+    address: reads.address,
+    chainId: reads.chainId,
+    lists,
+    blocked: blockedOf(lists, 'address'),
+    goPlus: goPlusOf(reads),
+  }
+  return { ...account, sources: sourcesOf(account, [lists]) }
 }

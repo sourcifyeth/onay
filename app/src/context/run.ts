@@ -34,14 +34,27 @@ import {
   type ExplorerStatus,
   type Lookup,
 } from './explorers.ts'
-import { addressSecurity, goPlusText } from './goplus.ts'
-import { erc7730Hits, hitsFor, tokenListHits, type Hit, type ListState } from './lists.ts'
+import { addressSecurity, goPlusText, type GoPlusResult } from './goplus.ts'
 import {
+  ERC7730_NAME,
+  erc7730Hits,
+  hitsFor,
+  missingFor,
+  missingText,
+  missingTokenLists,
+  tokenListHits,
+  type ListAnswer,
+  type ListState,
+} from './lists.ts'
+import {
+  buildAccount,
   buildProfile,
   chooseCreation,
   creationOf,
   deploymentBlock,
   emptyHolder,
+  type AccountProfile,
+  type AccountReads,
   type HolderReads,
   type Profile,
   type ProfileReads,
@@ -69,6 +82,9 @@ export type Context = {
   // The profile of each named contract with code (issue 22). A row that
   // waits for a read is 'pending' until the run ends.
   profiles: Partial<Record<Hex, Profile>>
+  // The lists and GoPlus for each named address without code of its own
+  // (an account, or an account with a delegate). No key is in both maps.
+  accounts: Partial<Record<Hex, AccountProfile>>
   lines: TimedLine[]
 }
 
@@ -92,7 +108,8 @@ export type Deps = {
   claims: Map<string, Partial<BlockscoutClaims>>
   chainReaderFor(chain: ChainConfig): ChainAccess
   creationReaderFor(chain: ChainConfig, log: Log): CreationReader
-  lists(): ListState[]
+  // The address lists, once the fetches that run now ended.
+  lists(): Promise<ListState[]>
   registryIndex(): Promise<RegistryIndex>
   tokenLists(): ListEntry[]
 }
@@ -193,6 +210,20 @@ export function contractsToProfile(verification: Verification): Hex[] {
     .map((contract) => contract.address)
 }
 
+// The addresses that the request names without code of their own. The
+// delegate of an account is not one: it has code.
+export function accountsToCheck(verification: Verification): Hex[] {
+  return verification.contracts
+    .filter(
+      (contract) =>
+        contract.foundBy === 'request' &&
+        !contract.implementationOf &&
+        contract.helios.status === 'passed' &&
+        (contract.helios.value.code === '0x' || delegateOf(contract.helios.value.code) !== null),
+    )
+    .map((contract) => contract.address)
+}
+
 // A stopped run sends no further request.
 export function startContext(verification: Verification, deps: Deps, stop?: AbortSignal): ContextStore {
   const listeners = new Set<() => void>()
@@ -200,7 +231,7 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
   // The log of the card shows these lines with the lines of the
   // verification, so they count on from its last line.
   const base = Math.max(0, ...verification.lines.map((line) => line.at))
-  let snapshot: Context = { status: 'running', explorers: {}, profiles: {}, lines: [] }
+  let snapshot: Context = { status: 'running', explorers: {}, profiles: {}, accounts: {}, lines: [] }
   const set = (change: Partial<Context>) => {
     snapshot = { ...snapshot, ...change }
     for (const listener of listeners) listener()
@@ -215,7 +246,8 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
     // A request that failed before the chain gate has no contract with
     // code, so no lookup starts.
     const addresses = contractsToLookUp(verification)
-    if (!chain || addresses.length === 0) return set({ status: 'done' })
+    const accounts = accountsToCheck(verification)
+    if (!chain || addresses.length + accounts.length === 0) return set({ status: 'done' })
     const hosts = explorersOf(chain)
     const settings = deps.settings()
     const { etherscanKey } = settings
@@ -241,7 +273,7 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
       return rows
     }
     set({ explorers: Object.fromEntries(addresses.map((address) => [address, rowsOf(address)])) })
-    if (!hosts.etherscan && !hosts.blockscoutApi) {
+    if (addresses.length > 0 && !hosts.etherscan && !hosts.blockscoutApi) {
       for (const address of addresses) {
         logFor(address)({ source: 'explorer', text: `no explorer covers chain ${chain.id}` })
       }
@@ -309,28 +341,88 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
     // The profiles: they share the queue of each explorer with the
     // lookups above.
     const blockscoutApi = hosts.blockscout ? hosts.blockscoutApi : null
-    const queuedFetch: Fetch = async (url, init) => {
-      const response = await queues.blockscout.ask(
-        () => deps.fetch(url, init),
-        (answer) => answer.status === 429,
-      )
-      // Not asked: the answer reads as the rate limit.
-      return response ?? new Response(null, { status: 429 })
-    }
-    const askEtherscan = <T>(request: () => Promise<Lookup<T>>): Promise<Lookup<T>> =>
-      queues.etherscan
-        .ask(request, (answer) => !answer.ok && answer.limited === true)
-        .then((answer) => answer ?? { ok: false, reason: 'rate limited · not asked', limited: true })
+    // The whole request waits for its turn, so its timer starts only
+    // when it goes out.
+    const askIn =
+      (explorer: Explorer) =>
+      <T>(request: () => Promise<Lookup<T>>): Promise<Lookup<T>> =>
+        queues[explorer]
+          .ask(request, (answer) => !answer.ok && answer.limited === true)
+          .then((answer) => answer ?? { ok: false, reason: 'rate limited · not asked', limited: true })
+    const askEtherscan = askIn('etherscan')
+    const askBlockscout = askIn('blockscout')
     const access = deps.chainReaderFor(chain)
     const rpc = new URL(chain.executionRpc).host
     const block = verification.head?.block ?? null
     const proofText = (proof: boolean) => (proof ? 'proof checked' : `from ${rpc} · no proof`)
-    let index: Promise<RegistryIndex | null> | null = null
-    const registry = (log: Log) =>
-      (index ??= deps.registryIndex().catch((error: unknown) => {
-        log({ source: 'lists', text: `ERC-7730 registry · not read · ${errorText(error)}` })
-        return null
-      }))
+    const tokenLists = deps.tokenLists()
+
+    // The lists of one address. An enabled list without data for the
+    // chain, or a registry that failed, is in `missing`, not a list
+    // that does not know the address.
+    let states: Promise<ListState[]> | null = null
+    let index: Promise<Lookup<RegistryIndex>> | null = null
+    const listAnswer = async (target: Hex): Promise<ListAnswer> => {
+      const [loaded, registry] = await Promise.all([
+        (states ??= deps.lists()),
+        (index ??= deps.registryIndex().then(
+          (value): Lookup<RegistryIndex> => ({ ok: true, value }),
+          (error: unknown): Lookup<RegistryIndex> => ({ ok: false, reason: errorText(error) }),
+        )),
+      ])
+      return {
+        hits: [
+          ...hitsFor(loaded, chain.id, target),
+          ...(registry.ok ? erc7730Hits(registry.value, chain.id, target) : []),
+          ...tokenListHits(tokenLists, chain.id, target),
+        ],
+        missing: [
+          ...missingFor(loaded, chain.id),
+          ...(registry.ok ? [] : [{ list: ERC7730_NAME, reason: registry.reason }]),
+          ...missingTokenLists(tokenLists),
+        ],
+      }
+    }
+    const readLists = async (target: Hex, log: Log, prefix: string): Promise<Lookup<ListAnswer>> => {
+      let answer: Lookup<ListAnswer>
+      try {
+        answer = { ok: true, value: await listAnswer(target) }
+      } catch (error) {
+        answer = { ok: false, reason: errorText(error) }
+      }
+      if (!answer.ok) {
+        log({ source: 'lists', text: `${prefix}lists · not read · ${answer.reason}` })
+        return answer
+      }
+      const { hits, missing } = answer.value
+      for (const hit of hits) {
+        const text = `${prefix}${hit.kind === 'block' ? 'on a block list' : 'on an allow list'} · ${hit.list} · ${hit.label}`
+        log({ source: 'lists', text, ok: hit.kind === 'block' ? false : undefined, proof: false })
+      }
+      const gaps = missing.length > 0 ? missingText(missing) : null
+      if (hits.length === 0) {
+        log({ source: 'lists', text: `${prefix}not on any list${gaps ? ` · ${gaps}` : ''}`, proof: false })
+      } else if (gaps) log({ source: 'lists', text: `${prefix}${gaps}`, proof: false })
+      return answer
+    }
+
+    // Undefined when the run stopped.
+    const readGoPlus = async (target: Hex, log: Log): Promise<Lookup<GoPlusResult> | 'off' | undefined> => {
+      if (!settings.goPlus) {
+        log({ source: 'lists', text: 'GoPlus · off in the settings · not asked' })
+        return 'off'
+      }
+      if (stop?.aborted) return undefined
+      const answer = await addressSecurity(chain.id, target, deps.fetch)
+      const text = answer.ok ? goPlusText(answer.value) : `unknown · ${answer.reason}`
+      log({
+        source: 'lists',
+        text: `GoPlus · ${text}`,
+        ok: answer.ok && answer.value.flags.length > 0 ? false : undefined,
+        proof: false,
+      })
+      return answer
+    }
 
     const profileOf = async (address: Hex) => {
       const log = logFor(address)
@@ -348,7 +440,7 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
           ? { deployment: found.deployment ?? null, creation: passed?.creation ?? null, read: passed !== null }
           : null,
         deployer: emptyHolder(),
-        tokenLists: deps.tokenLists(),
+        tokenLists,
         done: false,
       }
       const publish = () => set({ profiles: { ...snapshot.profiles, [address]: buildProfile(reads) } })
@@ -386,20 +478,17 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
         }
         const key = `${blockscoutApi}:${chain.id}:${target}`
         const known = deps.claims.get(key) ?? {}
-        await readBlockscoutClaims(
-          blockscoutApi,
-          target,
-          queuedFetch,
-          log,
+        await readBlockscoutClaims(blockscoutApi, target, deps.fetch, log, {
           known,
-          (part: ClaimPart, claim: Lookup<unknown>) => {
+          report: (part: ClaimPart, claim: Lookup<unknown>) => {
             ;(holder.blockscout as Record<ClaimPart, Lookup<unknown>>)[part] = claim
             // Only a part that answered is kept for the session.
             if (claim.ok) deps.claims.set(key, { ...deps.claims.get(key), [part]: claim })
             publish()
           },
           prefix,
-        )
+          ask: askBlockscout,
+        })
       }
 
       const ethOf = async (holder: HolderReads, target: Hex, prefix: string) => {
@@ -447,45 +536,13 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
         publish()
       }
 
-      const hitsOf = async (target: Hex): Promise<Hit[]> => {
-        const loaded = await registry(log)
-        return [
-          ...hitsFor(deps.lists(), chain.id, target),
-          ...(loaded ? erc7730Hits(loaded, chain.id, target) : []),
-          ...tokenListHits(reads.tokenLists, chain.id, target),
-        ]
-      }
-      const logHits = (hits: Hit[], prefix: string) => {
-        if (hits.length === 0) log({ source: 'lists', text: `${prefix}not on any list`, proof: false })
-        for (const hit of hits) {
-          const text = `${prefix}${hit.kind === 'block' ? 'on a block list' : 'on an allow list'} · ${hit.list} · ${hit.label}`
-          log({ source: 'lists', text, ok: hit.kind === 'block' ? false : undefined, proof: false })
-        }
-      }
-
       const lists = async () => {
-        const hits = await hitsOf(address)
-        reads.hits = { ok: true, value: hits }
-        logHits(hits, '')
+        reads.hits = await readLists(address, log, '')
         publish()
       }
 
       const goPlus = async () => {
-        if (!settings.goPlus) {
-          reads.goPlus = 'off'
-          log({ source: 'lists', text: 'GoPlus · off in the settings · not asked' })
-          return publish()
-        }
-        if (stop?.aborted) return
-        const answer = await addressSecurity(chain.id, address, deps.fetch)
-        reads.goPlus = answer
-        const text = answer.ok ? goPlusText(answer.value) : `not read · ${answer.reason}`
-        log({
-          source: 'lists',
-          text: `GoPlus · ${text}`,
-          ok: answer.ok && answer.value.flags.length > 0 ? false : undefined,
-          proof: false,
-        })
+        reads.goPlus = await readGoPlus(address, log)
         publish()
       }
 
@@ -508,9 +565,7 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
             publish()
           })(),
           (async () => {
-            const hits = await hitsOf(target)
-            reads.deployer.hits = hits
-            logHits(hits, prefix)
+            reads.deployer.hits = await readLists(target, log, prefix)
             publish()
           })(),
         ])
@@ -568,12 +623,41 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
       }
     }
 
+    // The block lists and GoPlus also know accounts: most OFAC entries
+    // have no code.
+    const accountOf = async (address: Hex) => {
+      const log = logFor(address)
+      const reads: AccountReads = { address, chainId: chain.id, done: false }
+      const publish = () => set({ accounts: { ...snapshot.accounts, [address]: buildAccount(reads) } })
+      publish()
+      try {
+        await Promise.all([
+          readLists(address, log, '').then((answer) => {
+            reads.hits = answer
+            publish()
+          }),
+          readGoPlus(address, log).then((answer) => {
+            reads.goPlus = answer
+            publish()
+          }),
+        ])
+      } finally {
+        reads.done = true
+        publish()
+      }
+    }
+
     const profiles = contractsToProfile(verification).map((address) =>
       profileOf(address).catch((error: unknown) => {
         logFor(address)({ source: 'explorer', text: `profile · stopped · ${errorText(error)}` })
       }),
     )
-    await Promise.all([...lookups, ...profiles])
+    const checks = accounts.map((address) =>
+      accountOf(address).catch((error: unknown) => {
+        logFor(address)({ source: 'lists', text: `lists · stopped · ${errorText(error)}` })
+      }),
+    )
+    await Promise.all([...lookups, ...profiles, ...checks])
     set({ status: 'done' })
   }
   run().catch(() => set({ status: 'done' }))

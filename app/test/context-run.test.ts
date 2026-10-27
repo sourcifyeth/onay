@@ -12,6 +12,7 @@ import type { Verification } from '../src/gates/run.ts'
 import type { Hex } from '../src/messages.ts'
 import { RATE_LIMITED, type ExplorerStatus } from '../src/context/explorers.ts'
 import { ETHERSCAN_GAP, IN_FLIGHT, startContext, type Context, type Deps } from '../src/context/run.ts'
+import type { ListState } from '../src/context/lists.ts'
 import type { ContextSettings } from '../src/context/settings.ts'
 
 const A: Hex = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -106,7 +107,7 @@ function depsWith(fetch: Fetch, settings: Partial<ContextSettings> = {}, cache =
     claims: new Map(),
     chainReaderFor: (chain) => ({ read: noChain, fallback: noChain, proof: chain.mode === 'helios' }),
     creationReaderFor: () => async () => ({ creation: null, reason: 'no chain in this test', retry: false }),
-    lists: () => [],
+    lists: async () => [],
     registryIndex: async () => ({ calldataIndex: {}, typedDataIndex: {} }),
     tokenLists: () => [],
   }
@@ -206,6 +207,9 @@ test('no lookup for an address without code or with a delegate (EIP-7702)', asyn
   const context = await ended(startContext(verification([delegated, contract(C, '0x')]), deps))
   assert.deepEqual(net.calls, [])
   assert.deepEqual(context.explorers, {})
+  // Only the lists and GoPlus look at them.
+  assert.deepEqual(Object.keys(context.accounts).sort(), [A, C])
+  assert.deepEqual(context.profiles, {})
 })
 
 test('a custom chain without explorers has no rows, and says so in the log', async () => {
@@ -501,23 +505,23 @@ test('GoPlus: no request when the switch is off', async () => {
   assert.ok(context.lines.some((line) => line.text === 'GoPlus · off in the settings · not asked'))
 })
 
+const ofacWith = (address: Hex): ListState => ({
+  id: 'ofac',
+  enabled: true,
+  fetchedAt: 1,
+  chains: [],
+  error: null,
+  entries: [{ chainId: null, address, label: 'sanctioned · ETH' }],
+})
+
 test('a block-list hit: a notice on the profile, a log line, no other change', async () => {
   const net = world()
   const { deps } = profileDeps(net.fetch)
-  deps.lists = () => [
-    {
-      id: 'ofac',
-      enabled: true,
-      fetchedAt: 1,
-      chains: [],
-      error: null,
-      entries: [{ chainId: null, address: A, label: 'sanctioned · ETH' }],
-    },
-  ]
+  deps.lists = async () => [ofacWith(A)]
   const checked = verification([contract(A)])
   const context = await ended(startContext(checked, deps))
   assert.deepEqual(context.profiles[A]?.blocked, [
-    { value: 'sanctioned · ETH', proof: false, source: 'OFAC sanctions' },
+    { value: 'sanctioned · ETH', proof: false, source: 'OFAC sanctions', of: 'address' },
   ])
   assert.ok(
     context.lines.some(
@@ -591,8 +595,8 @@ test('a rate limit of Blockscout: the profile parts after it are not asked', asy
   assert.equal(blockscout[0], `https://eth.blockscout.com/api/v2/smart-contracts/${A}`)
   assert.ok(blockscout.length <= 1 + IN_FLIGHT, blockscout.join(' '))
   const profile = context.profiles[A]!
-  assert.deepEqual(profile.tokens, { state: 'unknown', reason: 'rate limited' })
-  assert.deepEqual(profile.firstTransaction, { state: 'unknown', reason: 'rate limited' })
+  assert.deepEqual(profile.tokens, { state: 'unknown', reason: 'rate limited · not asked' })
+  assert.deepEqual(profile.firstTransaction, { state: 'unknown', reason: 'rate limited · not asked' })
   // The chain reads do not depend on the explorer.
   assert.equal(profile.eth.state, 'known')
 })
@@ -626,4 +630,128 @@ test('a profile row that waits shows pending until the run ends', async () => {
   }
   const context = await stop
   assert.notEqual(context.profiles[A]?.transactions.state, 'pending')
+})
+
+test('a list with an error and no entries, and a registry that failed: missing, not "not on any list"', async () => {
+  const net = world()
+  const { deps } = profileDeps(net.fetch)
+  deps.lists = async () => [
+    { ...ofacWith(B), fetchedAt: null, entries: [], error: 'sanctioned_addresses_ETH.json · HTTP 503' },
+  ]
+  deps.registryIndex = async () => {
+    throw new Error('the index did not load')
+  }
+  const context = await ended(startContext(verification([contract(A)]), deps))
+  const lists = context.profiles[A]?.lists
+  assert.deepEqual(lists?.state === 'known' && lists.value, {
+    hits: [],
+    missing: [
+      { list: 'OFAC sanctions', reason: 'sanctioned_addresses_ETH.json · HTTP 503' },
+      { list: 'ERC-7730 registry', reason: 'the index did not load' },
+    ],
+  })
+  assert.ok(
+    context.lines.some(
+      (line) =>
+        line.address === A &&
+        line.text ===
+          'not on any list · OFAC sanctions not loaded: sanctioned_addresses_ETH.json · HTTP 503 · ERC-7730 registry not loaded: the index did not load',
+    ),
+  )
+})
+
+test('the run waits for the lists: the row is pending until they come', async () => {
+  const net = world()
+  const { deps } = profileDeps(net.fetch)
+  let release = (_states: ListState[]) => {}
+  deps.lists = () => new Promise((resolve) => (release = resolve))
+  const store = startContext(verification([contract(A)]), deps)
+  for (let i = 0; i < 20; i++) await tick()
+  assert.equal(store.getSnapshot().profiles[A]?.lists.state, 'pending')
+  release([ofacWith(A)])
+  const context = await ended(store)
+  assert.equal(context.profiles[A]?.blocked[0]?.source, 'OFAC sanctions')
+})
+
+test('a block-list hit on the deployer is on the profile, with the deployer named', async () => {
+  const net = world()
+  const { deps } = profileDeps(net.fetch)
+  deps.lists = async () => [ofacWith(DEPLOYER)]
+  const context = await ended(startContext(verification([contract(A)]), deps))
+  assert.deepEqual(context.profiles[A]?.blocked, [
+    { value: 'sanctioned · ETH', proof: false, source: 'OFAC sanctions', of: 'deployer' },
+  ])
+  assert.ok(
+    context.lines.some((line) => line.text === 'deployer · on a block list · OFAC sanctions · sanctioned · ETH'),
+  )
+})
+
+test('a named account without code on a block list: a small result, no explorer request', async () => {
+  const net = world()
+  const { deps } = profileDeps(net.fetch, { goPlus: true })
+  deps.lists = async () => [ofacWith(A)]
+  const context = await ended(startContext(verification([contract(A, '0x')]), deps))
+  assert.deepEqual(context.profiles, {})
+  const account = context.accounts[A]!
+  assert.deepEqual(account.blocked, [
+    { value: 'sanctioned · ETH', proof: false, source: 'OFAC sanctions', of: 'address' },
+  ])
+  assert.equal(account.goPlus.state, 'known')
+  // GoPlus only: no explorer, no chain read.
+  assert.deepEqual(net.calls, [`https://api.gopluslabs.io/api/v1/address_security/${A}?chain_id=1`])
+  assert.ok(
+    context.lines.some(
+      (line) => line.address === A && line.text === 'on a block list · OFAC sanctions · sanctioned · ETH',
+    ),
+  )
+})
+
+test('a named account not on a list, with a list missing: the missing list is named', async () => {
+  const net = world()
+  const { deps } = profileDeps(net.fetch)
+  deps.lists = async () => [{ ...ofacWith(B), fetchedAt: null, entries: [], error: 'HTTP 503' }]
+  const context = await ended(startContext(verification([contract(A, '0x')]), deps))
+  const lists = context.accounts[A]?.lists
+  assert.deepEqual(lists?.state === 'known' && lists.value, {
+    hits: [],
+    missing: [{ list: 'OFAC sanctions', reason: 'HTTP 503' }],
+  })
+  assert.ok(context.lines.some((line) => line.text === 'not on any list · OFAC sanctions not loaded: HTTP 503'))
+})
+
+test('an account with a delegate: one account entry; the delegate gets no profile', async () => {
+  const net = world()
+  const { deps } = profileDeps(net.fetch)
+  const account = contract(A, `0xef0100${B.slice(2)}` as Hex)
+  const delegate: Contract = { ...contract(B), implementationOf: A }
+  const context = await ended(startContext(verification([account, delegate]), deps))
+  assert.deepEqual(Object.keys(context.accounts), [A])
+  assert.deepEqual(context.profiles, {})
+  // The delegate has code: its source code status is looked up.
+  assert.ok(context.explorers[B])
+})
+
+test('a request that waits in the Blockscout queue starts no timer before it goes out', async () => {
+  const net = network((url) => blockscoutAnswer(url), true)
+  const { deps } = profileDeps(net.fetch)
+  const timeout = AbortSignal.timeout
+  let timers = 0
+  AbortSignal.timeout = (ms: number) => {
+    timers += 1
+    return timeout(ms)
+  }
+  try {
+    const store = startContext(verification([A, B, C].map((address) => contract(address))), deps)
+    const run = ended(store)
+    while (store.getSnapshot().status === 'running') {
+      await tick()
+      // Each timer belongs to a request that went out.
+      assert.equal(timers, net.calls.length)
+      assert.ok(net.waiting() <= IN_FLIGHT)
+      net.release()
+    }
+    await run
+  } finally {
+    AbortSignal.timeout = timeout
+  }
 })

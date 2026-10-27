@@ -153,11 +153,17 @@ export function parseFirstTransaction(body: unknown): FirstTransaction | null {
 }
 
 // One part: the request, then the parser. HTTP 404 with the text of
-// Blockscout means that the explorer does not know the address.
-async function part<T>(url: string, fetch: Fetch, parse: (body: unknown) => T, unknown: T): Promise<Lookup<T>> {
+// Blockscout means that the explorer does not know the address; the
+// part gives `notFound` then.
+async function part<T>(
+  url: string,
+  fetch: Fetch,
+  parse: (body: unknown) => T,
+  notFound: Lookup<T>,
+): Promise<Lookup<T>> {
   const answer = await fetchJson(url, fetch)
   if (!answer.ok) return answer
-  if (answer.status === 404 && record(answer.body)?.message === 'Not found') return { ok: true, value: unknown }
+  if (answer.status === 404 && record(answer.body)?.message === 'Not found') return notFound
   if (answer.status === 403) return { ok: false, reason: 'the instance refused the request' }
   if (answer.status !== 200) return { ok: false, reason: `HTTP ${answer.status}` }
   if (answer.body === undefined) return { ok: false, reason: 'an answer that is not JSON' }
@@ -168,14 +174,17 @@ async function part<T>(url: string, fetch: Fetch, parse: (body: unknown) => T, u
   }
 }
 
+const found = <T>(value: T): Lookup<T> => ({ ok: true, value })
+
 export const blockscoutAddress = (api: string, address: Hex, fetch: Fetch) =>
-  part(addressUrl(api, address), fetch, parseAddress, UNKNOWN_ADDRESS)
+  part(addressUrl(api, address), fetch, parseAddress, found(UNKNOWN_ADDRESS))
+// No count is not a count of 0: the young hint must not fire on it.
 export const blockscoutCounters = (api: string, address: Hex, fetch: Fetch) =>
-  part(countersUrl(api, address), fetch, parseCounters, 0)
+  part(countersUrl(api, address), fetch, parseCounters, { ok: false, reason: 'Blockscout does not know the address' })
 export const blockscoutTokens = (api: string, address: Hex, fetch: Fetch) =>
-  part(tokensUrl(api, address), fetch, parseTokens, { tokens: [], more: false })
+  part(tokensUrl(api, address), fetch, parseTokens, found({ tokens: [], more: false }))
 export const blockscoutFirstTransaction = (api: string, address: Hex, fetch: Fetch) =>
-  part<FirstTransaction | null>(firstTransactionUrl(api, address), fetch, parseFirstTransaction, null)
+  part<FirstTransaction | null>(firstTransactionUrl(api, address), fetch, parseFirstTransaction, found(null))
 
 const short = (hex: Hex) => `${hex.slice(0, 6)}…${hex.slice(-4)}`
 
@@ -224,23 +233,32 @@ const READERS: Record<ClaimPart, (api: string, address: Hex, fetch: Fetch) => Pr
   firstTransaction: blockscoutFirstTransaction,
 }
 
-// Runs the four parts. A part in `known` is not asked again. Each part
-// logs one line and reports when it ends.
+export type ClaimOptions = {
+  // The parts of this session. A part here is not asked again.
+  known?: Partial<BlockscoutClaims>
+  // Called when a part ends.
+  report?: (part: ClaimPart, claim: Lookup<unknown>) => void
+  // The start of each log line, such as 'deployer · '.
+  prefix?: string
+  // Runs one whole request, such as through a queue. The request starts
+  // its timer only when it runs.
+  ask?: (request: () => Promise<Lookup<unknown>>) => Promise<Lookup<unknown>>
+}
+
+// Runs the four parts. Each part logs one line and reports when it ends.
 export async function readBlockscoutClaims(
   api: string,
   address: Hex,
   fetch: Fetch,
   log: Log,
-  known: Partial<BlockscoutClaims> = {},
-  report: (part: ClaimPart, claim: Lookup<unknown>) => void = () => {},
-  prefix = '',
+  { known = {}, report = () => {}, prefix = '', ask = (request) => request() }: ClaimOptions = {},
 ): Promise<BlockscoutClaims> {
   const host = new URL(api).host
   const claims: Partial<Record<ClaimPart, Lookup<unknown>>> = {}
   await Promise.all(
     PARTS.map(async (name) => {
       const cached = known[name]
-      const claim = cached ?? (await READERS[name](api, address, fetch))
+      const claim = cached ?? (await ask(() => READERS[name](api, address, fetch)))
       claims[name] = claim
       const text = claimText(name, claim as BlockscoutClaims[typeof name])
       log({

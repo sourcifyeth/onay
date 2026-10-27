@@ -199,6 +199,11 @@ test('each lookup: 404 of Blockscout is an unknown address, other errors give a 
   })
   assert.deepEqual(await blockscoutTokens(API, USDT, notFound), { ok: true, value: { tokens: [], more: false } })
   assert.deepEqual(await blockscoutFirstTransaction(API, USDT, notFound), { ok: true, value: null })
+  // No count is not a count of 0.
+  assert.deepEqual(await blockscoutCounters(API, USDT, notFound), {
+    ok: false,
+    reason: 'Blockscout does not know the address',
+  })
   const proxy404: Fetch = async () => answer(404, { error: 'no route' })
   assert.deepEqual(await blockscoutCounters(API, USDT, proxy404), { ok: false, reason: 'HTTP 404' })
   const limited: Fetch = async () => answer(429, {})
@@ -231,15 +236,18 @@ test('readBlockscoutClaims: each part fails on its own, a known part is not aske
   const lines: LogLine[] = []
   const reported: ClaimPart[] = []
   const known = { address: { ok: true as const, value: parseAddress(usdtAddress) } }
-  const claims = await readBlockscoutClaims(
-    API,
-    USDT,
-    fetch,
-    (line) => lines.push(line),
+  let asked = 0
+  const claims = await readBlockscoutClaims(API, USDT, fetch, (line) => lines.push(line), {
     known,
-    (part) => reported.push(part),
-  )
+    report: (part) => reported.push(part),
+    ask: (request) => {
+      asked += 1
+      return request()
+    },
+  })
   assert.equal(calls.length, 3)
+  // Each request that goes out runs through `ask`.
+  assert.equal(asked, 3)
   assert.ok(calls.every((url) => !url.endsWith(USDT)))
   assert.deepEqual(claims.counters, { ok: false, reason: 'HTTP 500' })
   assert.equal(claims.tokens.ok && claims.tokens.value.tokens.length, 3)

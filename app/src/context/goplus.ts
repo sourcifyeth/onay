@@ -43,7 +43,12 @@ export const FLAGS: Record<string, string> = {
 
 export const goPlusUrl = (chainId: number, address: Hex) => `${GOPLUS_API}/${address}?chain_id=${chainId}`
 
-// A flag with a value other than "0" or "1" is left out.
+export const NO_DATA = 'GoPlus has no data for this address on this chain'
+
+// A flag with a value other than "0" or "1" is left out. Checked on
+// 2026-10-27: for a chain or an address that GoPlus does not cover, it
+// answers code 1, each flag "0" and `contract_address: "-1"`. That
+// answer, or one without a known flag, is no data, not a clean address.
 export function parseGoPlus(body: unknown): GoPlusResult {
   const answer = record(body)
   if (!answer) throw new Error('an answer that does not read')
@@ -53,6 +58,8 @@ export function parseGoPlus(body: unknown): GoPlusResult {
   }
   const result = record(answer.result)
   if (!result) throw new Error('an answer without a result')
+  const read = Object.keys(FLAGS).some((id) => result[id] === '0' || result[id] === '1')
+  if (result.contract_address === '-1' || !read) throw new Error(NO_DATA)
   const flags: GoPlusFlag[] = []
   for (const [id, text] of Object.entries(FLAGS)) if (result[id] === '1') flags.push({ id, text })
   const created = result.number_of_malicious_contracts_created

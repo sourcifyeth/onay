@@ -42,7 +42,12 @@ const deps: Deps = {
     proof: chain.mode === 'helios',
   }),
   creationReaderFor: (chain, log) => creationReaderFor(chain, chainReaderFor(chain), log),
-  lists: () => addressListStore.getSnapshot(),
+  // The first fetch of a list starts with the first run. The run waits
+  // for it, so that a list in flight does not show as missing.
+  lists: async () => {
+    await addressListStore.settled()
+    return addressListStore.getSnapshot()
+  },
   registryIndex: () => registryIndex(),
   tokenLists: () => tokenListStore.getSnapshot(),
 }

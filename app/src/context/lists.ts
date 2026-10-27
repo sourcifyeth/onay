@@ -40,6 +40,8 @@ export type ListSource = {
   // What the settings say about the source, if anything.
   note: string | null
   repository: string
+  // True for a source with a file or an entry for each chain.
+  perChain: boolean
   // The files of the chains in the settings.
   files(chainIds: number[]): ListFile[]
   // Throws when the file has the wrong shape.
@@ -142,6 +144,7 @@ export const LIST_SOURCES: ListSource[] = [
     license: 'MIT',
     note: null,
     repository: 'https://github.com/safe-global/safe-deployments',
+    perChain: true,
     files: () => SAFE_FILES.map((path) => ({ url: `${SAFE_RAW}/${path}` })),
     parse: parseSafe,
   },
@@ -152,6 +155,7 @@ export const LIST_SOURCES: ListSource[] = [
     license: 'none stated',
     note: 'the repository names no license',
     repository: 'https://github.com/Uniswap/contracts',
+    perChain: true,
     files: (chainIds) =>
       chainIds.map((chainId) => ({
         url: `https://raw.githubusercontent.com/Uniswap/contracts/main/deployments/json/${chainId}.json`,
@@ -166,6 +170,7 @@ export const LIST_SOURCES: ListSource[] = [
     license: 'MIT',
     note: 'generated each night from the list of the US Treasury',
     repository: 'https://github.com/0xB10C/ofac-sanctioned-digital-currency-addresses',
+    perChain: false,
     files: () => OFAC_ASSETS.map((asset) => ({ url: `${OFAC_RAW}/sanctioned_addresses_${asset}.json` })),
     parse: parseOfac,
   },
@@ -176,6 +181,7 @@ export const LIST_SOURCES: ListSource[] = [
     license: 'GPL-3.0',
     note: 'the address file is frozen since 2024-02',
     repository: 'https://github.com/scamsniffer/scam-database',
+    perChain: false,
     files: () => [{ url: 'https://raw.githubusercontent.com/scamsniffer/scam-database/main/blacklist/address.json' }],
     parse: (body) => parseScamSniffer(body),
   },
@@ -284,12 +290,13 @@ export function parseStates(value: unknown): ListState[] {
 const sameChains = (a: number[], b: number[]) =>
   a.length === b.length && [...a].sort((x, y) => x - y).every((chain, i) => chain === [...b].sort((x, y) => x - y)[i])
 
-// A source counts as stale a day after its last good fetch, or when the
-// chains in the settings changed since then. A failed fetch keeps the
-// time of the last good one, so it is tried again.
+// A source counts as stale a day after its last good fetch. A source
+// with a file for each chain is also stale when the chains in the
+// settings changed since then. A failed fetch keeps the time of the last
+// good one, so it is tried again.
 export function isStale(state: ListState, chainIds: number[], now: number): boolean {
   if (state.fetchedAt === null || now - state.fetchedAt >= REFRESH_AFTER) return true
-  return !sameChains(state.chains, chainIds)
+  return sourceOf(state.id).perChain && !sameChains(state.chains, chainIds)
 }
 
 export const withFetched = (state: ListState, entries: Entry[], chains: number[], now: number): ListState => ({
@@ -311,6 +318,13 @@ export type Hit = {
   link: string | null
 }
 
+// An enabled list that gave no answer for the chain, and why.
+export type MissingList = { list: string; reason: string }
+
+// The answer of all lists for one address. `hits` empty and `missing`
+// empty: every enabled list answered, and none knows the address.
+export type ListAnswer = { hits: Hit[]; missing: MissingList[] }
+
 const matches = (entry: { chainId: number | null; address: string }, chainId: number, address: Hex) =>
   (entry.chainId === null || entry.chainId === chainId) && entry.address.toLowerCase() === address.toLowerCase()
 
@@ -328,6 +342,24 @@ export function hitsFor(states: ListState[], chainId: number, address: Hex): Hit
     }
   }
   return hits
+}
+
+// The enabled sources without data for the chain: never fetched, a
+// failed fetch with no entries, or a fetch without this chain.
+export function missingFor(states: ListState[], chainId: number): MissingList[] {
+  const missing: MissingList[] = []
+  for (const state of states) {
+    if (!state.enabled) continue
+    const source = sourceOf(state.id)
+    let reason: string | null = null
+    if (state.fetchedAt === null) reason = state.error ?? 'not fetched yet'
+    else if (state.error !== null && state.entries.length === 0) reason = state.error
+    else if (source.perChain && !state.chains.includes(chainId)) {
+      reason = state.error ?? `not fetched for chain ${chainId}`
+    }
+    if (reason !== null) missing.push({ list: source.name, reason })
+  }
+  return missing
 }
 
 export const ERC7730_NAME = 'ERC-7730 registry'
@@ -365,6 +397,26 @@ export function tokenListHits(entries: ListEntry[], chainId: number, address: He
   }))
 }
 
+// The token lists of the user that have no list yet.
+export function missingTokenLists(entries: ListEntry[]): MissingList[] {
+  return entries
+    .filter((entry) => entry.list === null)
+    .map((entry) => ({ list: hostOf(entry.url), reason: entry.error ?? 'not fetched yet' }))
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return url.slice(0, 60)
+  }
+}
+
+// The missing lists in words, for the log.
+export function missingText(missing: MissingList[]): string {
+  return missing.map((item) => `${item.list} not loaded: ${item.reason}`).join(' · ')
+}
+
 export type Storage = { getItem(key: string): string | null; setItem(key: string, value: string): void }
 
 export type AddressListStore = {
@@ -374,6 +426,8 @@ export type AddressListStore = {
   // Fetches each enabled source that is stale. Call it at start.
   refreshStale(chainIds: number[]): Promise<void>
   setEnabled(id: SourceId, enabled: boolean): void
+  // Resolves when the fetches that run now end. Each fetch has a timeout.
+  settled(): Promise<void>
 }
 
 // A store over the given storage and network. A storage that throws
@@ -430,6 +484,9 @@ export function createAddressListStore(io: { storage(): Storage; fetch: Fetch; n
     },
     setEnabled(id, enabled) {
       update(id, (state) => ({ ...state, enabled }))
+    },
+    async settled() {
+      await Promise.all(running.values())
     },
   }
 }

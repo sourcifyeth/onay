@@ -12,7 +12,9 @@ import {
   etherscanUrl,
   EXPLORER_HOSTS,
   explorersOf,
+  fetchJson,
   linkable,
+  MAX_ANSWER,
   parseBlockscoutContract,
   parseEtherscanAnswer,
   sourcifyLink,
@@ -264,6 +266,16 @@ test('etherscanSource gives unknown for each failure of the transport', async ()
     kind: 'unknown',
     reason: 'no answer in time',
   })
+})
+
+test('fetchJson reads at most MAX_ANSWER bytes of a body', async () => {
+  const big: Fetch = async () => new Response(`"${'a'.repeat(MAX_ANSWER)}"`)
+  assert.deepEqual(await fetchJson('https://eth.blockscout.com/api', big), {
+    ok: false,
+    reason: 'the answer is over 2 MB',
+  })
+  const small: Fetch = async () => new Response('{"a":1}', { status: 200 })
+  assert.deepEqual(await fetchJson('https://eth.blockscout.com/api', small), { ok: true, status: 200, body: { a: 1 } })
 })
 
 test('blockscoutContract asks the API host and reads the status', async () => {

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { addressSecurity, goPlusText, goPlusUrl, parseGoPlus } from '../src/context/goplus.ts'
+import { addressSecurity, goPlusText, goPlusUrl, NO_DATA, parseGoPlus } from '../src/context/goplus.ts'
 import type { Fetch } from '../src/gates/gate.ts'
 import type { Hex } from '../src/messages.ts'
 
@@ -74,6 +74,21 @@ test('an error code of GoPlus is an error, not a clean answer', async () => {
   assert.throws(() => parseGoPlus({ code: 1, message: 'ok' }), /without a result/)
   const limited: Fetch = async () => new Response(JSON.stringify({ code: 4029, message: 'too many requests' }))
   assert.deepEqual(await addressSecurity(1, ADDRESS, limited), { ok: false, reason: 'GoPlus says too many requests' })
+})
+
+// Hoodi, chain 999999, and the Safe singleton on Sepolia: code 1, each
+// flag "0", and `contract_address: "-1"`.
+const notCovered = { code: 1, message: 'ok', result: result({ contract_address: '-1' }) }
+
+test('an address or a chain that GoPlus does not cover is unknown, not clean', async () => {
+  assert.throws(() => parseGoPlus(notCovered), { message: NO_DATA })
+  // No known flag with "0" or "1".
+  assert.throws(() => parseGoPlus({ code: 1, message: 'ok', result: { data_source: '' } }), { message: NO_DATA })
+  const fetch: Fetch = async () => new Response(JSON.stringify(notCovered))
+  assert.deepEqual(await addressSecurity(560048, ADDRESS, fetch), {
+    ok: false,
+    reason: 'GoPlus has no data for this address on this chain',
+  })
 })
 
 test('the request: the address and the chain id', async () => {
