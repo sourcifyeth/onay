@@ -113,15 +113,16 @@ export function parseTokenList(value: unknown): { list: TokenList; skipped: numb
   return { list: { name: record.name.trim().slice(0, 60), version, timestamp, tokens }, skipped }
 }
 
-const TOO_BIG = `the list is over ${MAX_BYTES / 1024 / 1024} MB`
+const tooBig = (cap: number) => `the list is over ${cap / 1024 / 1024} MB`
+const TOO_BIG = tooBig(MAX_BYTES)
 
 // The body as text, read in chunks and stopped at the cap, so that a
 // list cannot fill the memory before the check.
-async function readCapped(response: Response, cap: number): Promise<string> {
+export async function readCapped(response: Response, cap: number): Promise<string> {
   const reader = response.body?.getReader()
   if (!reader) {
     const text = await response.text()
-    if (new TextEncoder().encode(text).length > cap) throw new Error(TOO_BIG)
+    if (new TextEncoder().encode(text).length > cap) throw new Error(tooBig(cap))
     return text
   }
   const chunks: Uint8Array[] = []
@@ -132,7 +133,7 @@ async function readCapped(response: Response, cap: number): Promise<string> {
     size += value.length
     if (size > cap) {
       await reader.cancel()
-      throw new Error(TOO_BIG)
+      throw new Error(tooBig(cap))
     }
     chunks.push(value)
   }

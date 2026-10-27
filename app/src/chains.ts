@@ -4,58 +4,9 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import type { StartChainArgs, StopChainArgs } from './messages.ts'
+import { loadChains, type ChainConfig } from './chainList.ts'
 
-export type ChainConfig = {
-  id: number
-  name: string
-  // 'helios': the light client checks each answer with a proof.
-  // 'rpc': the answers come from the endpoint without a check.
-  mode: 'helios' | 'rpc'
-  // In Helios mode, it must have `eth_getProof`.
-  executionRpc: string
-  // Helios mode only: a beacon node with the light client API.
-  consensusRpc?: string
-  // Added by the user, so the user can remove it.
-  custom?: boolean
-}
-
-// Helios mode supports only the Ethereum chains (Helios 0.12.0):
-// - Linea: Helios stops its support. Linea blocks do not carry the
-//   sequencer signature that Helios checks, and the sync stops.
-//   https://github.com/a16z/helios/pull/833
-// - OP Stack: the Helios server gets no blocks on the mainnet chains, so
-//   the default servers do not answer.
-//   https://github.com/a16z/helios/pull/801
-//
-// The execution endpoint of a Helios chain must answer eth_getProof for
-// blocks a few behind its head, because Helios asks at its own head, which
-// lags the node. Publicnode serves proofs for the newest block only, so it
-// is not used here. Checked on 2026-10-08: dRPC and Tenderly serve proofs
-// at least 10 blocks back.
-const DEFAULT_CHAINS: ChainConfig[] = [
-  {
-    id: 1,
-    name: 'Ethereum mainnet',
-    mode: 'helios',
-    executionRpc: 'https://eth.drpc.org',
-    consensusRpc: 'https://ethereum-beacon-api.publicnode.com',
-  },
-  {
-    id: 11155111,
-    name: 'Sepolia',
-    mode: 'helios',
-    executionRpc: 'https://sepolia.gateway.tenderly.co',
-    consensusRpc: 'https://ethereum-sepolia-beacon-api.publicnode.com',
-  },
-  {
-    id: 560048,
-    name: 'Hoodi',
-    mode: 'helios',
-    executionRpc: 'https://hoodi.drpc.org',
-    consensusRpc: 'https://ethereum-hoodi-beacon-api.publicnode.com',
-  },
-  { id: 42161, name: 'Arbitrum One', mode: 'rpc', executionRpc: 'https://arb1.arbitrum.io/rpc' },
-]
+export type { ChainConfig }
 
 const STORAGE_KEY = 'onay.chains'
 
@@ -101,7 +52,7 @@ export function saveChains(next: ChainConfig[]) {
 
   for (const chain of next) {
     const old = before.find((other) => other.id === chain.id)
-    if (JSON.stringify(old) !== JSON.stringify(chain)) startHelios(chain)
+    if (!old || heliosKey(old) !== heliosKey(chain)) startHelios(chain)
   }
   for (const old of before) {
     const now = next.find((chain) => chain.id === old.id)
@@ -111,6 +62,10 @@ export function saveChains(next: ChainConfig[]) {
     }
   }
 }
+
+// The fields that the Helios client uses. A change of an explorer does
+// not restart it.
+export const heliosKey = (chain: ChainConfig) => JSON.stringify([chain.mode, chain.executionRpc, chain.consensusRpc])
 
 function startHelios(chain: ChainConfig) {
   if (chain.mode !== 'helios') return
@@ -125,27 +80,10 @@ function startHelios(chain: ChainConfig) {
   heliosStarts.set(chain.id, start)
 }
 
-// The built-in chains with the saved edits, then the chains that the user
-// added. A built-in chain of a newer version shows up with its defaults.
 function load(): ChainConfig[] {
-  let saved: ChainConfig[] = []
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null')
-    if (Array.isArray(parsed)) saved = parsed.filter(isChainConfig)
+    return loadChains(localStorage.getItem(STORAGE_KEY))
   } catch {
-    // Use the defaults.
+    return loadChains(null)
   }
-  const builtIn = DEFAULT_CHAINS.map((chain) => saved.find((other) => other.id === chain.id && !other.custom) ?? chain)
-  const custom = saved.filter((chain) => chain.custom && !DEFAULT_CHAINS.some((other) => other.id === chain.id))
-  return [...builtIn, ...custom]
-}
-
-function isChainConfig(value: unknown): value is ChainConfig {
-  const chain = value as Partial<ChainConfig> | null
-  return (
-    typeof chain?.id === 'number' &&
-    typeof chain.name === 'string' &&
-    (chain.mode === 'helios' || chain.mode === 'rpc') &&
-    typeof chain.executionRpc === 'string'
-  )
 }

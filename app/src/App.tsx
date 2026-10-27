@@ -7,6 +7,7 @@ import { PasteCard } from './PasteCard.tsx'
 import { SettingsPage } from './SettingsPage.tsx'
 import { forgetVerification, requestKey, verificationFor } from './gates/verification.ts'
 import { forgetClearSigning } from './clear-signing/store.ts'
+import { forgetContext } from './context/store.ts'
 import { refreshStaleTokenLists } from './clear-signing/tokenLists.ts'
 import { AttesterNotice } from './AttesterNotice.tsx'
 
@@ -82,6 +83,7 @@ function Request({ request, onOpen }: { request: SigningRequest; onOpen: () => v
   const dismiss = () => {
     forgetVerification(request)
     forgetClearSigning(request)
+    forgetContext(request)
     return invoke('dismiss_request', { connection: request.connection, id: request.id })
   }
   // The page reports the chain of eth_sendTransaction, apart from the request.

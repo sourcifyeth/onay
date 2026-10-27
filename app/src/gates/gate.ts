@@ -15,8 +15,9 @@ export type GateState<T> =
 
 // Where a line comes from: the source of the request (the browser or a
 // paste), or a gate. The page shows the lines of each gate under its own
-// header. 'evm' is the simulation, 'erc7730' the Clear Signing.
-export type Source = RequestSource | 'helios' | 'rpc' | 'evm' | 'sourcify' | 'solc' | 'erc7730'
+// header. 'evm' is the simulation, 'erc7730' the Clear Signing,
+// 'explorer' the block explorers, 'lists' the address lists.
+export type Source = RequestSource | 'helios' | 'rpc' | 'evm' | 'sourcify' | 'solc' | 'erc7730' | 'explorer' | 'lists'
 
 export type LogLine = {
   source: Source

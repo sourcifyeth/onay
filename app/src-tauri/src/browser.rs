@@ -4,7 +4,27 @@
 
 use std::process::Command;
 
-const ALLOWED: &[&str] = &["https://github.com/", "https://4byte.sourcify.dev/"];
+// The explorer hosts are the ones of EXPLORER_HOSTS in
+// src/context/explorers.ts. Keep both lists the same.
+const ALLOWED: &[&str] = &[
+    "https://github.com/",
+    "https://4byte.sourcify.dev/",
+    "https://repo.sourcify.dev/",
+    "https://etherscan.io/",
+    "https://sepolia.etherscan.io/",
+    "https://hoodi.etherscan.io/",
+    "https://arbiscan.io/",
+    "https://optimistic.etherscan.io/",
+    "https://basescan.org/",
+    "https://lineascan.build/",
+    "https://eth.blockscout.com/",
+    "https://eth-sepolia.blockscout.com/",
+    "https://eth-hoodi.blockscout.com/",
+    "https://arbitrum.blockscout.com/",
+    "https://explorer.optimism.io/",
+    "https://base.blockscout.com/",
+    "https://explorer.linea.build/",
+];
 
 /// True if the URL starts with an allowed site and has only the
 /// characters a URL is made of. The path of a link can come from the
@@ -62,6 +82,43 @@ mod tests {
         assert!(!allowed("http://github.com/"));
         assert!(!allowed("https://example.com/https://github.com/"));
         assert!(!allowed("file:///etc/passwd"));
+    }
+
+    #[test]
+    fn allows_the_explorers_and_the_sourcify_repository() {
+        let address = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+        let hosts = [
+            "https://etherscan.io",
+            "https://sepolia.etherscan.io",
+            "https://hoodi.etherscan.io",
+            "https://arbiscan.io",
+            "https://optimistic.etherscan.io",
+            "https://basescan.org",
+            "https://lineascan.build",
+        ];
+        for host in hosts {
+            let url = format!("{host}/address/{address}#code");
+            assert!(allowed(&url), "{url}");
+        }
+        let hosts = [
+            "https://eth.blockscout.com",
+            "https://eth-sepolia.blockscout.com",
+            "https://eth-hoodi.blockscout.com",
+            "https://arbitrum.blockscout.com",
+            "https://explorer.optimism.io",
+            "https://base.blockscout.com",
+            "https://explorer.linea.build",
+        ];
+        for host in hosts {
+            let url = format!("{host}/address/{address}?tab=contract");
+            assert!(allowed(&url), "{url}");
+        }
+        assert!(allowed(&format!("https://repo.sourcify.dev/1/{address}")));
+        assert!(allowed("https://etherscan.io/apis"));
+        assert!(!allowed("https://etherscan.io.evil.com/"));
+        assert!(!allowed("https://eth.blockscout.com.evil.com/"));
+        assert!(!allowed("https://api.etherscan.io/v2/api"));
+        assert!(!allowed("https://evil.com/https://etherscan.io/"));
     }
 
     #[test]
