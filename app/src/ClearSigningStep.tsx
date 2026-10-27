@@ -101,14 +101,6 @@ function Interpolated({ text, values }: { text: string; values: string[] }) {
   )
 }
 
-function Details({ open, onToggle }: { open: boolean; onToggle: () => void }) {
-  return (
-    <button onClick={onToggle} className="font-mono text-xs text-gray-400 transition-colors hover:text-gray-600">
-      {open ? 'hide details ▴' : 'details ▾'}
-    </button>
-  )
-}
-
 function IntentToggle({ pill, open, onToggle }: { pill: ReactNode; open: boolean; onToggle: () => void }) {
   return (
     <p className="flex items-center justify-between gap-4 pb-2">
@@ -358,7 +350,7 @@ function Unattested({ state, error }: { state: ClearSigning; error: string | nul
   )
 }
 
-// A descriptor rendered the data: intent, sentence, fields.
+// A descriptor rendered the data: sentence, action, fields.
 function DisplayPane({
   display,
   source,
@@ -372,15 +364,12 @@ function DisplayPane({
   attestationError: string | null
   state: ClearSigning
 }) {
-  const [open, setOpen] = useState(false)
   // The template has no metadata: the name is the token's own, from the
   // chain.
   const contractName = display.metadata?.contractName ?? (source?.kind === 'template' ? source.name : undefined)
   const owner = display.metadata?.owner
   const intent = intentText(display.intent)
   const sentence = display.interpolatedIntent
-  // Without a sentence the fields are the intent, so they show at once.
-  const fields = sentence ? open : true
   return (
     <div>
       {!attested && (
@@ -403,22 +392,15 @@ function DisplayPane({
           'The descriptor does not name the contract.'
         )}
       </p>
-      <Interpolated text={sentence ?? intent} values={sentence ? valuesOf(display.fields) : []} />
-      {sentence && (
-        <p className="pt-2">
-          <Details open={open} onToggle={() => setOpen((v) => !v)} />
-        </p>
-      )}
-      {fields && (
-        <dl className="mt-2 divide-y divide-gray-100 border-t border-gray-100 px-4">
-          {sentence && (
-            <ListRow label="Intent">
-              <span className="text-sm font-semibold text-gray-900">{intent}</span>
-            </ListRow>
-          )}
-          <FieldRows fields={display.fields} />
-        </dl>
-      )}
+      {sentence && <Interpolated text={sentence} values={valuesOf(display.fields)} />}
+      <dl className="mt-2 divide-y divide-gray-100 px-4">
+        <ListRow label="Action">
+          <span className="inline-block rounded-lg bg-cerulean-blue-100/50 px-3 py-1 text-[15px] leading-relaxed font-semibold text-gray-900">
+            {intent}
+          </span>
+        </ListRow>
+        <FieldRows fields={display.fields} />
+      </dl>
       <Warnings warnings={display.warnings} />
       <Provenance source={source} display={display} attested={attested} />
     </div>
