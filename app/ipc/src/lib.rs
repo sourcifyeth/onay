@@ -8,7 +8,7 @@ use std::path::PathBuf;
 pub const HOST_NAME: &str = "dev.sourcify.onay";
 
 /// ID of our extension. Derived from the `key` in extension/manifest.json.
-pub const EXTENSION_ID: &str = "jhopbgoicoiceialjejgojebmeijklbn";
+pub const EXTENSION_ID: &str = "iobfgkmfcccohihielbadfbebklmbdbp";
 
 /// Largest message in either direction. Chrome rejects host messages above 1 MiB.
 pub const MAX_MESSAGE_LEN: usize = 1024 * 1024;

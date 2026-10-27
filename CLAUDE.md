@@ -14,7 +14,7 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 - `app/` — the Tauri app: Vite + React + TypeScript webview in `app/src/`, Rust in `app/src-tauri/`, and the native messaging relay crate in `app/relay/`. One Cargo workspace at `app/Cargo.toml`, lockfile committed. `app/README.md` explains the architecture.
 - `extension/` — the Chrome extension (Manifest V3). Zero runtime dependencies: TypeScript compiled by `tsc` into plain ES modules in `extension/dist/`, no bundler. `inpage.ts` and `content.ts` are plain scripts, not modules: no imports or exports, types through `import('./messages.ts')`. `extension/README.md` explains the architecture.
 - `testdata/` — test vectors that the Rust and the TypeScript implementation of the encrypted channel must both match.
-- `extension/key.pem` (gitignored) is the private key behind the `key` field in `extension/manifest.json`. It fixes the extension ID to `jhopbgoicoiceialjejgojebmeijklbn`, which the app's host manifest allowlists. Back it up; never commit it.
+- `extension/key.pem` (gitignored) is the private key behind the `key` field in `extension/manifest.json`. It fixes the extension ID to `iobfgkmfcccohihielbadfbebklmbdbp`, which the app's host manifest allowlists. Back it up; never commit it.
 
 ## Rules
 

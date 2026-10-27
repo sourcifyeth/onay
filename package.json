@@ -5,7 +5,8 @@
   "license": "GPL-3.0-only",
   "scripts": {
     "format": "oxfmt",
-    "format:check": "oxfmt --check"
+    "format:check": "oxfmt --check",
+    "version:set": "node scripts/set-version.mjs"
   },
   "devDependencies": {
     "oxfmt": "0.71.0"
