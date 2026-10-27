@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import type { ConnectionInfo, SigningRequest, Snapshot } from './messages.ts'
 import { GatePage } from './GatePage.tsx'
+import { Legend } from './Legend.tsx'
 import { PasteCard } from './PasteCard.tsx'
 import { SettingsPage } from './SettingsPage.tsx'
 import { forgetVerification, requestKey, verificationFor } from './gates/verification.ts'
@@ -224,6 +225,7 @@ export default function App() {
           </section>
         </>
       )}
+      <Legend />
     </main>
   )
 }

@@ -10,7 +10,6 @@ import {
   dateText,
   goPlusFlags,
   goPlusSource,
-  provenanceText,
   searchLinks,
   summaryState,
   youngText,
@@ -172,11 +171,4 @@ test('youngText builds the sentence for each case', () => {
   assert.equal(youngText({ days: 1, transactions: null }), 'This contract was deployed 1 day ago.')
   assert.equal(youngText({ days: null, transactions: 12 }), 'This contract has only 12 transactions.')
   assert.equal(youngText({ days: null, transactions: 1 }), 'This contract has only 1 transaction.')
-})
-
-test('provenanceText parts the checked sources from the claims', () => {
-  assert.deepEqual(provenanceText(['Helios', 'Blockscout', 'eth.drpc.org without proof', 'OFAC sanctions']), {
-    checked: ['Helios'],
-    claims: ['Blockscout', 'eth.drpc.org without proof', 'OFAC sanctions'],
-  })
 })

@@ -89,12 +89,3 @@ export function summaryState(profile: Profile | AccountProfile, running: boolean
   if (profile.lists.value.missing.length > 0) return { text: 'on no loaded list', tone: 'gray' }
   return { text: 'not on any list', tone: 'gray' }
 }
-
-// The sources of a profile in words: what was read with a proof, and
-// what is a claim.
-export function provenanceText(sources: string[]): { checked: string[]; claims: string[] } {
-  return {
-    checked: sources.filter((source) => source === 'Helios'),
-    claims: sources.filter((source) => source !== 'Helios'),
-  }
-}

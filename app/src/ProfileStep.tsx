@@ -10,7 +10,6 @@ import {
   dateText,
   goPlusFlags,
   goPlusSource,
-  provenanceText,
   searchLinks,
   summaryState,
   youngText,
@@ -64,8 +63,8 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-// A value with its trust mark and its source in a tooltip. `detail` is
-// a second line of the tooltip.
+// A value with its data source in a tooltip: the trust mark, the source,
+// and whether it is verified. `detail` is a second line of the tooltip.
 function Marked({
   proof,
   source,
@@ -81,16 +80,8 @@ function Marked({
 }) {
   const tip = (
     <>
-      {proof ? (
-        <>
-          <LocallyVerifiedIcon className={TIP_ICON} />
-          Read through {source} with a proof, checked on this machine
-        </>
-      ) : (
-        <>
-          <ThirdPartyIcon className={TIP_ICON} />A claim of {source}, not checked here
-        </>
-      )}
+      {proof ? <LocallyVerifiedIcon className={TIP_ICON} /> : <ThirdPartyIcon className={TIP_ICON} />}
+      Data source: {source} · {proof ? 'verified locally with a proof' : 'not verified locally'}
       {detail && <span className="block text-gray-400">{detail}</span>}
     </>
   )
@@ -423,41 +414,6 @@ function DeployedRow({ profile, now }: { profile: Profile; now: number }) {
   )
 }
 
-function Provenance({ sources, explorer }: { sources: string[]; explorer: string | null }) {
-  const { checked, claims } = provenanceText(sources)
-  const named = claims.map((source) => (source === 'Blockscout' && explorer ? `Blockscout at ${explorer}` : source))
-  if (checked.length + named.length === 0) return null
-  return (
-    <p className="mt-3 border-t border-gray-100 pt-3 text-xs leading-relaxed text-gray-500">
-      {checked.length > 0 && (
-        <Tooltip
-          tip={
-            <>
-              <LocallyVerifiedIcon className={TIP_ICON} />
-              Read from the chain through Helios, with a proof
-            </>
-          }
-        >
-          checked on this machine
-        </Tooltip>
-      )}
-      {checked.length > 0 && named.length > 0 && ' · '}
-      {named.length > 0 && (
-        <Tooltip
-          tip={
-            <>
-              <ThirdPartyIcon className={TIP_ICON} />
-              Claims of {named.join(', ')}
-            </>
-          }
-        >
-          third-party claims, not checked here
-        </Tooltip>
-      )}
-    </p>
-  )
-}
-
 function SummaryState({ profile, running }: { profile: Profile | AccountProfile | undefined; running: boolean }) {
   const { text, tone } = profile ? summaryState(profile, running) : { text: 'looking up', tone: 'gray' as const }
   const pulse = text === 'looking up' ? ' animate-pulse' : ''
@@ -570,7 +526,6 @@ function ProfileBody({
         </Row>
         <SecurityRow blockscout={profile.security.blockscout} goPlus={profile.security.goPlus} />
       </div>
-      <Provenance sources={profile.sources} explorer={profile.explorer} />
     </>
   )
 }
@@ -613,7 +568,6 @@ function AccountCard({
             </Row>
             <SecurityRow goPlus={account.goPlus} />
           </div>
-          <Provenance sources={account.sources} explorer={null} />
         </>
       )}
       <CollapsibleLog lines={lines} />
