@@ -1,16 +1,13 @@
 # Builds and publishes a release from a version tag on main, such as 0.1.0.
 # The tag must equal the app version in the repo (scripts/set-version.mjs).
 # The app is published only from here. The extension still goes to the
-# Chrome Web Store by hand (README).
-#
-# A manual run from any branch is a dry run: it builds the packages, with
-# the signing and the notarization on macOS, and publishes nothing.
+# Chrome Web Store by hand (README). There is no manual trigger: the
+# signing secrets are reachable only through a tag on main.
 name: Release
 
 on:
   push:
     tags: ['[0-9]+.[0-9]+.[0-9]+']
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -22,7 +19,6 @@ concurrency:
 jobs:
   check:
     name: Tag on main, version in the repo
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       # actions are pinned to commit SHAs (tag in the comment), per the supply-chain rules
@@ -38,8 +34,6 @@ jobs:
   app:
     name: App on ${{ matrix.os }}
     needs: check
-    # a dry run skips the check
-    if: ${{ !cancelled() && (needs.check.result == 'success' || github.event_name == 'workflow_dispatch') }}
     strategy:
       fail-fast: false
       matrix:
@@ -135,7 +129,6 @@ jobs:
   release:
     name: GitHub release
     needs: app
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write

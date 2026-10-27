@@ -145,7 +145,7 @@ The `Release` workflow then checks that the tag is on `main` and equals the app 
 
 A tag push is a release, so a tag ruleset in the repository settings (Rules, Rulesets, target all tags, rule "Restrict creations", with the repository admins in the bypass list) limits who creates version tags to the maintainers.
 
-A manual run of the workflow (Actions, Release, Run workflow, from any branch) is a dry run: it builds the packages with the signing and the notarization, keeps them as artifacts of the run for an inspection, and publishes nothing.
+The workflow has no manual trigger: a run from a branch would reach the signing secrets with a workflow file nobody reviewed. The first tag after a change to the workflow is its test.
 
 The macOS build signs and notarizes when these six repository secrets exist, and makes an ad-hoc build when none of them does. Some of them set, and some not, fails the build:
 
