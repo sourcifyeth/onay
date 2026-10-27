@@ -4,12 +4,13 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
+import { FEW_TRANSACTIONS } from '../src/context/blockscout.ts'
 import {
   creation,
   creationUrl,
-  firstTransaction,
   parseCreation,
-  parseFirstTransaction,
+  parseTransactions,
+  transactions,
   txlistUrl,
 } from '../src/context/etherscan.ts'
 import type { Fetch } from '../src/gates/gate.ts'
@@ -53,9 +54,19 @@ test('getcontractcreation: the deployer, the hash, the block and the time', () =
   assert.throws(() => parseCreation({ status: '1', message: 'OK', result: [{ txHash: 'x' }] }), /does not read/)
 })
 
-test('txlist: the first transaction, or null for none', () => {
-  assert.deepEqual(parseFirstTransaction(txlist), { hash: HASH, block: 4634748, time: 1511829681000 })
-  assert.equal(parseFirstTransaction({ status: '0', message: 'No transactions found', result: [] }), null)
+test('txlist: the first transaction and the count of the page, or none', () => {
+  assert.deepEqual(parseTransactions(txlist), {
+    first: { hash: HASH, block: 4634748, time: 1511829681000 },
+    seen: 1,
+    more: false,
+  })
+  const full = { ...txlist, result: Array.from({ length: FEW_TRANSACTIONS }, () => txlist.result[0]) }
+  assert.deepEqual([parseTransactions(full).seen, parseTransactions(full).more], [FEW_TRANSACTIONS, true])
+  assert.deepEqual(parseTransactions({ status: '0', message: 'No transactions found', result: [] }), {
+    first: null,
+    seen: 0,
+    more: false,
+  })
 })
 
 test('the errors of Etherscan give a reason, a rate limit is marked', async () => {
@@ -67,7 +78,7 @@ test('the errors of Etherscan give a reason, a rate limit is marked', async () =
     ok: false,
     reason: 'the API key is missing or not valid',
   })
-  assert.deepEqual(await firstTransaction(1, USDT, KEY, answer('Max calls per sec rate limit reached (3/sec)')), {
+  assert.deepEqual(await transactions(1, USDT, KEY, answer('Max calls per sec rate limit reached (3/sec)')), {
     ok: false,
     reason: 'rate limited',
     limited: true,
@@ -87,7 +98,7 @@ test('without a key, no request goes out', async () => {
     return new Response(JSON.stringify(created))
   }
   assert.equal((await creation(1, USDT, ' ', fetch)).ok, false)
-  assert.equal((await firstTransaction(1, USDT, '', fetch)).ok, false)
+  assert.equal((await transactions(1, USDT, '', fetch)).ok, false)
   assert.deepEqual(calls, [])
   assert.equal((await creation(1, USDT, KEY, fetch)).ok, true)
   assert.equal(calls.length, 1)
@@ -98,5 +109,5 @@ test('the URLs: the chain id, the action, and the key', () => {
     creationUrl(10, USDT, KEY),
     `https://api.etherscan.io/v2/api?chainid=10&module=contract&action=getcontractcreation&contractaddresses=${USDT}&apikey=${KEY}`,
   )
-  assert.match(txlistUrl(1, USDT, KEY), /action=txlist&address=0xdac1.*&page=1&offset=1&sort=asc&apikey=/)
+  assert.match(txlistUrl(1, USDT, KEY), /action=txlist&address=0xdac1.*&page=1&offset=100&sort=asc&apikey=/)
 })

@@ -6,17 +6,16 @@ import { test } from 'node:test'
 
 import {
   blockscoutAddress,
-  blockscoutCounters,
-  blockscoutFirstTransaction,
   blockscoutTokens,
-  firstTransactionUrl,
+  blockscoutTransactions,
+  FEW_TRANSACTIONS,
   MAX_TOKENS,
   parseAddress,
-  parseCounters,
-  parseFirstTransaction,
   parseTokens,
+  parseTransactions,
   readBlockscoutClaims,
   tokensUrl,
+  transactionsUrl,
   type ClaimPart,
 } from '../src/context/blockscout.ts'
 import type { Fetch, LogLine } from '../src/gates/gate.ts'
@@ -56,13 +55,6 @@ const unseenAddress = {
   is_scam: false,
   name: null,
   reputation: 'ok',
-}
-
-const counters = {
-  transactions_count: '1356514',
-  token_transfers_count: '59',
-  gas_usage_count: '54863744147',
-  validations_count: '0',
 }
 
 const token = (address: string, symbol: string, decimals: string, value: string) => ({
@@ -148,13 +140,6 @@ test('the address: a bad field is left out, the rest stays', () => {
   assert.throws(() => parseAddress('Internal server error'), /does not read/)
 })
 
-test('the counters: the count of transactions, or an error', () => {
-  assert.equal(parseCounters(counters), 1356514)
-  assert.equal(parseCounters({ transactions_count: 12 }), 12)
-  assert.throws(() => parseCounters({ ...counters, transactions_count: 'many' }), /no count/)
-  assert.throws(() => parseCounters({ transactions_count: '99999999999999999999' }), /no count/)
-})
-
 test('the tokens: good ones kept, bad ones skipped, at most ten', () => {
   const page = parseTokens(deployerTokens)
   assert.deepEqual(page.tokens, [
@@ -171,21 +156,68 @@ test('the tokens: good ones kept, bad ones skipped, at most ten', () => {
   assert.throws(() => parseTokens({ message: 'Not found' }), /no list of tokens/)
 })
 
-test('the first transaction: the first item, or null for none', () => {
-  assert.deepEqual(parseFirstTransaction(firstTransactions), {
-    hash: CREATION,
-    block: 4634748,
-    time: Date.parse('2017-11-28T00:41:21Z'),
+test('the transactions: the first item, the count of the page, and the next page', () => {
+  const { page, next } = parseTransactions(firstTransactions)
+  assert.deepEqual(page, {
+    first: { hash: CREATION, block: 4634748, time: Date.parse('2017-11-28T00:41:21Z') },
+    seen: 1,
+    more: true,
   })
-  assert.equal(parseFirstTransaction({ items: [], next_page_params: null }), null)
-  assert.throws(() => parseFirstTransaction({ items: [{ hash: CREATION, timestamp: 'yesterday' }] }), /does not read/)
+  assert.deepEqual(next, {
+    index: '181',
+    value: '0',
+    sort: 'block_number',
+    filter: 'to',
+    order: 'asc',
+    block_number: '4963010',
+    items_count: '50',
+  })
+  assert.deepEqual(parseTransactions({ items: [], next_page_params: null }), {
+    page: { first: null, seen: 0, more: false },
+    next: null,
+  })
+  assert.throws(() => parseTransactions({ items: [{ hash: CREATION, timestamp: 'yesterday' }] }), /does not read/)
+})
+
+const fullPage = (count: number, last: boolean) => ({
+  items: Array.from({ length: count }, () => firstTransactions.items[0]),
+  next_page_params: last ? null : firstTransactions.next_page_params,
+})
+
+test('the transactions: a second page only when the first is full and under the limit', async () => {
+  const calls: string[] = []
+  const twoPages: Fetch = async (url) => {
+    calls.push(url)
+    return answer(200, url.includes('block_number=4963010') ? fullPage(30, true) : fullPage(50, false))
+  }
+  const page = await blockscoutTransactions(API, USDT, twoPages)
+  assert.deepEqual(page.ok && [page.value.seen, page.value.more, page.value.first?.block], [80, false, 4634748])
+  assert.equal(calls.length, 2)
+  assert.match(calls[1], /order=asc&index=181&value=0&block_number=4963010&items_count=50$/)
+  // Two full pages: at least the limit, and more.
+  const busy: Fetch = async () => answer(200, fullPage(50, false))
+  const floor = await blockscoutTransactions(API, USDT, busy)
+  assert.deepEqual(floor.ok && [floor.value.seen, floor.value.more], [FEW_TRANSACTIONS, true])
+  // A short first page: no second request.
+  const few: Fetch = async (url) => {
+    calls.push(url)
+    return answer(200, fullPage(3, true))
+  }
+  calls.length = 0
+  const exact = await blockscoutTransactions(API, USDT, few)
+  assert.deepEqual(exact.ok && [exact.value.seen, exact.value.more], [3, false])
+  assert.equal(calls.length, 1)
 })
 
 test('the URLs: the API of the instance, tokens of ERC-20 only, oldest first', () => {
   assert.equal(tokensUrl(`${API}/`, USDT), `${API}/api/v2/addresses/${USDT}/tokens?type=ERC-20`)
   assert.equal(
-    firstTransactionUrl(API, USDT),
+    transactionsUrl(API, USDT),
     `${API}/api/v2/addresses/${USDT}/transactions?filter=to&sort=block_number&order=asc`,
+  )
+  assert.equal(
+    transactionsUrl(API, USDT, { block_number: '4963010', index: '181' }),
+    `${API}/api/v2/addresses/${USDT}/transactions?filter=to&sort=block_number&order=asc&block_number=4963010&index=181`,
   )
 })
 
@@ -203,27 +235,26 @@ test('each lookup: 404 of Blockscout is an unknown address, other errors give a 
     value: { tokens: [], more: false },
     notFound: true,
   })
-  assert.deepEqual(await blockscoutFirstTransaction(API, USDT, notFound), { ok: true, value: null, notFound: true })
-  // No count is not a count of 0.
-  assert.deepEqual(await blockscoutCounters(API, USDT, notFound), {
-    ok: false,
-    reason: 'Blockscout does not know the address',
+  assert.deepEqual(await blockscoutTransactions(API, USDT, notFound), {
+    ok: true,
+    value: { first: null, seen: 0, more: false },
+    notFound: true,
   })
   const proxy404: Fetch = async () => answer(404, { error: 'no route' })
-  assert.deepEqual(await blockscoutCounters(API, USDT, proxy404), { ok: false, reason: 'HTTP 404' })
+  assert.deepEqual(await blockscoutTokens(API, USDT, proxy404), { ok: false, reason: 'HTTP 404' })
   const limited: Fetch = async () => answer(429, {})
-  assert.deepEqual(await blockscoutCounters(API, USDT, limited), { ok: false, reason: 'rate limited', limited: true })
+  assert.deepEqual(await blockscoutTokens(API, USDT, limited), { ok: false, reason: 'rate limited', limited: true })
   const refused: Fetch = async () => answer(403, {})
-  assert.deepEqual(await blockscoutCounters(API, USDT, refused), {
+  assert.deepEqual(await blockscoutTokens(API, USDT, refused), {
     ok: false,
     reason: 'the instance refused the request',
   })
   const broken: Fetch = async () => new Response('<html>', { status: 200 })
-  assert.deepEqual(await blockscoutCounters(API, USDT, broken), { ok: false, reason: 'an answer that is not JSON' })
+  assert.deepEqual(await blockscoutTokens(API, USDT, broken), { ok: false, reason: 'an answer that is not JSON' })
   const down: Fetch = async () => {
     throw new TypeError('Failed to fetch')
   }
-  assert.deepEqual(await blockscoutCounters(API, USDT, down), {
+  assert.deepEqual(await blockscoutTokens(API, USDT, down), {
     ok: false,
     reason: 'network error · Failed to fetch',
   })
@@ -233,8 +264,8 @@ test('readBlockscoutClaims: each part fails on its own, a known part is not aske
   const calls: string[] = []
   const fetch: Fetch = async (url) => {
     calls.push(url)
-    if (url.endsWith('/counters')) return answer(500, {})
-    if (url.includes('/tokens')) return answer(200, deployerTokens)
+    if (url.includes('/tokens')) return answer(500, {})
+    if (url.includes('block_number=4963010')) return answer(200, fullPage(0, true))
     if (url.includes('/transactions')) return answer(200, firstTransactions)
     return answer(200, usdtAddress)
   }
@@ -250,21 +281,27 @@ test('readBlockscoutClaims: each part fails on its own, a known part is not aske
       return request()
     },
   })
+  // The tokens, and two pages of transactions.
   assert.equal(calls.length, 3)
-  // Each request that goes out runs through `ask`.
-  assert.equal(asked, 3)
+  // Each part that goes out runs through `ask`, with its pages inside.
+  assert.equal(asked, 2)
   assert.ok(calls.every((url) => !url.endsWith(USDT)))
-  assert.deepEqual(claims.counters, { ok: false, reason: 'HTTP 500' })
-  assert.equal(claims.tokens.ok && claims.tokens.value.tokens.length, 3)
-  assert.equal(claims.firstTransaction.ok && claims.firstTransaction.value?.block, 4634748)
-  assert.deepEqual(reported.sort(), ['address', 'counters', 'firstTransaction', 'tokens'])
+  assert.deepEqual(claims.tokens, { ok: false, reason: 'HTTP 500' })
+  assert.deepEqual(claims.transactions.ok && claims.transactions.value, {
+    first: { hash: CREATION, block: 4634748, time: Date.parse('2017-11-28T00:41:21Z') },
+    seen: 1,
+    more: false,
+  })
+  assert.deepEqual(reported.sort(), ['address', 'tokens', 'transactions'])
   assert.ok(lines.every((line) => line.source === 'explorer' && line.proof === false))
   const texts = lines.map((line) => line.text)
-  assert.ok(texts.includes('Blockscout · eth.blockscout.com · transactions · not read · HTTP 500'))
+  assert.ok(texts.includes('Blockscout · eth.blockscout.com · ERC-20 tokens · not read · HTTP 500'))
   assert.ok(
     texts.includes(
       'Blockscout · eth.blockscout.com · address · name TetherToken · creator 0x3692…7d57 · creation transaction 0x2f1c…9190 · from this session',
     ),
   )
-  assert.ok(texts.includes('Blockscout · eth.blockscout.com · first transaction · 2017-11-28 · 0x2f1c…9190'))
+  assert.ok(
+    texts.includes('Blockscout · eth.blockscout.com · transactions · fewer than 100 · first 2017-11-28 · 0x2f1c…9190'),
+  )
 })

@@ -9,6 +9,7 @@ import {
   buildProfile,
   CHAIN,
   emptyHolder,
+  boundOf,
   FEW_TRANSACTIONS,
   LISTS,
   type Fact,
@@ -153,7 +154,10 @@ test('Blockscout claim only: the deployer as Blockscout says, the time of its fi
         ...emptyHolder(),
         blockscout: {
           address: blockscoutAddress(),
-          firstTransaction: { ok: true, value: { hash: HASH, block: 4634748, time: 1511829681000 } },
+          transactions: {
+            ok: true,
+            value: { first: { hash: HASH, block: 4634748, time: 1511829681000 }, seen: 1, more: false },
+          },
         },
       },
       creationRead: { creation: null, reason: 'created by another contract', retry: false },
@@ -222,48 +226,56 @@ test('while the run runs, a row that waits is pending, not unknown', () => {
   assert.deepEqual(waiting.deployedAt, { state: 'pending', source: CHAIN })
 })
 
-test('a missing counter leaves its row unknown, the rest stays', () => {
+test('a failed page of transactions leaves its rows unknown, the rest stays', () => {
   const profile = buildProfile(
     reads({
       contract: {
         ...emptyHolder(),
         blockscout: {
           address: blockscoutAddress(),
-          counters: { ok: false, reason: 'no count of transactions' },
-          firstTransaction: { ok: true, value: null },
+          transactions: { ok: false, reason: 'HTTP 500' },
           tokens: { ok: true, value: { tokens: [], more: false } },
         },
       },
     }),
   )
-  assert.deepEqual(profile.transactions, { state: 'unknown', reason: 'no count of transactions' })
-  assert.equal(known(profile.firstTransaction).value, null)
+  assert.deepEqual(profile.transactions, { state: 'unknown', reason: 'HTTP 500' })
+  assert.deepEqual(profile.firstTransaction, { state: 'unknown', reason: 'HTTP 500' })
   assert.deepEqual(known(profile.tokens).value, { tokens: [], more: false, checked: true })
   assert.equal(known(profile.name).value, 'TetherToken')
 })
 
-test('the first transaction: Etherscan when Blockscout failed', () => {
+test('the transactions: Etherscan when Blockscout failed', () => {
   const first = { hash: HASH, block: 1, time: 5 }
   const profile = buildProfile(
     reads({
       contract: {
         ...emptyHolder(),
-        blockscout: { firstTransaction: { ok: false, reason: 'HTTP 500' } },
-        etherscanFirst: { ok: true, value: first },
+        blockscout: { transactions: { ok: false, reason: 'HTTP 500' } },
+        etherscanTransactions: { ok: true, value: { first, seen: FEW_TRANSACTIONS, more: true } },
       },
     }),
   )
   assert.deepEqual(mark(profile.firstTransaction), [false, 'Etherscan'])
+  assert.deepEqual(known(profile.firstTransaction).value, first)
+  assert.deepEqual(known(profile.transactions).value, { count: FEW_TRANSACTIONS, atLeast: true })
   const neither = buildProfile(
     reads({
       contract: {
         ...emptyHolder(),
-        blockscout: { firstTransaction: { ok: false, reason: 'HTTP 500' } },
-        etherscanFirst: { ok: false, reason: 'rate limited' },
+        blockscout: { transactions: { ok: false, reason: 'HTTP 500' } },
+        etherscanTransactions: { ok: false, reason: 'rate limited' },
       },
     }),
   )
   assert.deepEqual(neither.firstTransaction, { state: 'unknown', reason: 'HTTP 500 · Etherscan: rate limited' })
+})
+
+test('boundOf: an exact count when the pages ended, else a floor', () => {
+  assert.deepEqual(boundOf({ first: null, seen: 0, more: false }), { count: 0, atLeast: false })
+  assert.deepEqual(boundOf({ first: null, seen: 99, more: false }), { count: 99, atLeast: false })
+  assert.deepEqual(boundOf({ first: null, seen: 50, more: true }), { count: 50, atLeast: true })
+  assert.deepEqual(boundOf({ first: null, seen: 100, more: false }), { count: 100, atLeast: true })
 })
 
 const page: TokenPage = {
@@ -463,13 +475,21 @@ test('an account: the lists and GoPlus only', () => {
 
 test('young: under 30 days, or under 100 transactions', () => {
   const at = (days: number) => ({ state: 'known' as const, value: NOW - days * DAY, proof: true, source: 'Helios' })
-  const count = (value: number) => ({ state: 'known' as const, value, proof: false, source: 'Blockscout' })
-  assert.deepEqual(young({ deployedAt: at(3), transactions: count(5000) }, NOW), { days: 3, transactions: null })
+  const count = (count: number, atLeast = false) => ({
+    state: 'known' as const,
+    value: { count, atLeast },
+    proof: false,
+    source: 'Blockscout',
+  })
+  assert.deepEqual(young({ deployedAt: at(3), transactions: count(FEW_TRANSACTIONS, true) }, NOW), {
+    days: 3,
+    transactions: null,
+  })
   assert.deepEqual(young({ deployedAt: at(400), transactions: count(FEW_TRANSACTIONS - 1) }, NOW), {
     days: null,
     transactions: 99,
   })
-  assert.equal(young({ deployedAt: at(YOUNG_DAYS), transactions: count(FEW_TRANSACTIONS) }, NOW), null)
+  assert.equal(young({ deployedAt: at(YOUNG_DAYS), transactions: count(FEW_TRANSACTIONS, true) }, NOW), null)
   assert.equal(
     young({ deployedAt: { state: 'pending', source: CHAIN }, transactions: { state: 'unknown', reason: 'x' } }, NOW),
     null,

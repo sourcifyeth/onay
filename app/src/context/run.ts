@@ -14,7 +14,15 @@ import type { TimedLine, Verification } from '../gates/run.ts'
 import { delegateOf } from '../gates/simulation.ts'
 import { claimOf } from '../gates/sourcify.ts'
 import type { Hex } from '../messages.ts'
-import { isNotFound, MAX_TOKENS, readBlockscoutClaims, type BlockscoutClaims, type ClaimPart } from './blockscout.ts'
+import {
+  dayText,
+  isNotFound,
+  MAX_TOKENS,
+  pageText,
+  readBlockscoutClaims,
+  type BlockscoutClaims,
+  type ClaimPart,
+} from './blockscout.ts'
 import { balance, blockTime, codeKind, tokenBalance, type ChainAccess, type ChainValue } from './chain.ts'
 import * as etherscan from './etherscan.ts'
 import {
@@ -492,7 +500,7 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
       const claimsOf = async (holder: HolderReads, target: Hex, prefix: string) => {
         if (!blockscoutApi) {
           const none: Lookup<never> = { ok: false, reason: 'no Blockscout instance covers this chain' }
-          holder.blockscout = { address: none, counters: none, tokens: none, firstTransaction: none }
+          holder.blockscout = { address: none, tokens: none, transactions: none }
           log({ source: 'explorer', text: `${prefix}Blockscout · ${none.reason}` })
           return publish()
         }
@@ -547,16 +555,17 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
         )
       }
 
-      const firstTransactionFallback = async (holder: HolderReads, target: Hex, prefix: string) => {
-        const first = holder.blockscout.firstTransaction
-        if (!first || first.ok || etherscanKey === '' || stop?.aborted) return
-        const answer = await askEtherscan(() => etherscan.firstTransaction(chain.id, target, etherscanKey, deps.fetch))
-        holder.etherscanFirst = answer
+      const transactionsFallback = async (holder: HolderReads, target: Hex, prefix: string) => {
+        const page = holder.blockscout.transactions
+        if (!page || page.ok || etherscanKey === '' || stop?.aborted) return
+        const answer = await askEtherscan(() => etherscan.transactions(chain.id, target, etherscanKey, deps.fetch))
+        holder.etherscanTransactions = answer
+        const first = answer.ok ? answer.value.first : null
         const text = answer.ok
-          ? answer.value
-            ? `first transaction · ${new Date(answer.value.time).toISOString().slice(0, 10)} · ${short(answer.value.hash)}`
-            : 'first transaction · none'
-          : `first transaction · not read · ${answer.reason}`
+          ? first
+            ? `transactions · ${pageText(answer.value)} · first ${dayText(first.time)} · ${short(first.hash)}`
+            : 'transactions · none'
+          : `transactions · not read · ${answer.reason}`
         log({ source: 'explorer', text: `${prefix}Etherscan · ${text}`, proof: false })
         publish()
       }
@@ -577,7 +586,7 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
         await Promise.all([
           (async () => {
             await claimsOf(holder, target, prefix)
-            await Promise.all([amountsOf(holder, target, prefix), firstTransactionFallback(holder, target, prefix)])
+            await Promise.all([amountsOf(holder, target, prefix), transactionsFallback(holder, target, prefix)])
           })(),
           ethOf(holder, target, prefix),
           (async () => {
@@ -600,7 +609,7 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
         await claimsOf(reads.contract, address, '')
         await Promise.all([
           amountsOf(reads.contract, address, ''),
-          firstTransactionFallback(reads.contract, address, ''),
+          transactionsFallback(reads.contract, address, ''),
           (async () => {
             let claim = chooseCreation(reads)
             if (claim === null && etherscanKey !== '' && !stop?.aborted) {

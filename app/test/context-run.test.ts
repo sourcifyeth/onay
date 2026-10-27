@@ -378,7 +378,6 @@ const USDC: Hex = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'
 
 function blockscoutAnswer(url: string, withCreation = true): Answer {
   if (url.includes('/smart-contracts/')) return { status: 200, body: BLOCKSCOUT_VERIFIED }
-  if (url.endsWith('/counters')) return { status: 200, body: { transactions_count: '42' } }
   if (url.includes('/tokens?type=ERC-20')) {
     return {
       status: 200,
@@ -470,14 +469,19 @@ test('the profile: only the named contract, each row from its source, each read 
   assert.equal(profile.deployedAt.state === 'known' && profile.deployedAt.proof, true)
   assert.deepEqual(profile.deployer.address, { state: 'known', value: DEPLOYER, proof: true, source: 'Helios' })
   assert.deepEqual(profile.deployer.kind, { state: 'known', value: 'account', proof: true, source: 'Helios' })
-  assert.deepEqual(profile.transactions, { state: 'known', value: 42, proof: false, source: 'Blockscout' })
+  assert.deepEqual(profile.transactions, {
+    state: 'known',
+    value: { count: 1, atLeast: false },
+    proof: false,
+    source: 'Blockscout',
+  })
   assert.deepEqual(profile.eth, { state: 'known', value: 10n ** 18n, proof: true, source: 'Helios' })
   const tokens = profile.tokens.state === 'known' ? profile.tokens.value : null
   assert.equal(tokens?.checked, true)
   assert.deepEqual(tokens?.tokens[0].amount, { value: 25_000_000n, proof: true, source: 'Helios' })
   assert.equal(profile.security.goPlus.state, 'known')
-  // The young hint: deployed a week before NOW, 42 transactions.
-  assert.deepEqual(profile.young, { days: 7, transactions: 42 })
+  // The young hint: deployed a week before NOW, one transaction.
+  assert.deepEqual(profile.young, { days: 7, transactions: 1 })
   // Contract and deployer: balance, code kind, block time, two token amounts.
   assert.deepEqual(chain.calls.sort(), [
     'eth_call',
@@ -496,8 +500,8 @@ test('the profile: only the named contract, each row from its source, each read 
   const explorerLines = lines.filter(
     (line) => line.source === 'explorer' && /^(deployer · )?Blockscout/.test(line.text),
   )
-  // The status, four parts of the contract, four of the deployer.
-  assert.equal(explorerLines.length, 9)
+  // The status, three parts of the contract, three of the deployer.
+  assert.equal(explorerLines.length, 7)
   assert.ok(explorerLines.every((line) => line.proof === false))
   assert.ok(lines.some((line) => line.source === 'lists' && line.text === 'GoPlus · no flags' && line.proof === false))
   assert.ok(lines.some((line) => line.source === 'lists' && line.text === 'not on any list'))
@@ -563,8 +567,8 @@ test('the session cache: a second run asks Blockscout nothing again for the prof
   const { deps } = profileDeps(net.fetch)
   await ended(startContext(verification([contract(A)]), deps))
   const first = net.calls.filter((url) => url.includes('/api/v2/addresses/')).length
-  // Four parts for the contract and four for the deployer.
-  assert.equal(first, 8)
+  // Three parts for the contract and three for the deployer.
+  assert.equal(first, 6)
   const context = await ended(startContext(verification([contract(A)]), deps))
   assert.equal(net.calls.filter((url) => url.includes('/api/v2/addresses/')).length, first)
   assert.ok(context.lines.some((line) => line.text.endsWith('· from this session') && line.text.includes('address')))
@@ -595,7 +599,7 @@ test('the session cache: an address that Blockscout does not know is asked again
   const asked = () => net.calls.filter((url) => url.includes(`/api/v2/addresses/${A}`)).length
   await ended(startContext(verification([contract(A)]), deps))
   const first = asked()
-  assert.equal(first, 4)
+  assert.equal(first, 3)
   await ended(startContext(verification([contract(A)]), deps))
   assert.equal(asked(), 2 * first)
 })

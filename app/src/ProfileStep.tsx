@@ -12,6 +12,7 @@ import {
   goPlusSource,
   searchLinks,
   summaryState,
+  transactionsText,
   youngText,
   type Tone,
 } from './context/card.ts'
@@ -325,7 +326,7 @@ function ActivityRows({
   return (
     <>
       <Row label="Transactions">
-        <FactView fact={activity.transactions}>{(count) => count.toLocaleString('en-US')}</FactView>
+        <FactView fact={activity.transactions}>{(bound) => transactionsText(bound)}</FactView>
       </Row>
       <Row label="First transaction">
         <FactView fact={activity.firstTransaction}>

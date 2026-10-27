@@ -1,12 +1,12 @@
 // What Etherscan claims about a contract for the profile, with the key of
-// the user only: the creation transaction, and the first transaction.
+// the user only: the creation transaction, and the first transactions.
 // Both are fallbacks for an answer that Blockscout did not give. Each
 // answer is a claim of the explorer, not checked here. This module takes
 // `fetch` as a parameter, so the tests run it as it is.
 
 import type { Fetch } from '../gates/gate.ts'
 import type { Hex } from '../messages.ts'
-import type { FirstTransaction } from './blockscout.ts'
+import { FEW_TRANSACTIONS, type TransactionPage } from './blockscout.ts'
 import { ETHERSCAN_API, etherscanError, fetchJson, record, type Lookup } from './explorers.ts'
 
 export type EtherscanCreation = {
@@ -38,7 +38,15 @@ export const creationUrl = (chainId: number, address: Hex, key: string) =>
 export const txlistUrl = (chainId: number, address: Hex, key: string) =>
   etherscanQuery(
     chainId,
-    { module: 'account', action: 'txlist', address, startblock: '0', page: '1', offset: '1', sort: 'asc' },
+    {
+      module: 'account',
+      action: 'txlist',
+      address,
+      startblock: '0',
+      page: '1',
+      offset: String(FEW_TRANSACTIONS),
+      sort: 'asc',
+    },
     key,
   )
 
@@ -72,14 +80,17 @@ export function parseCreation(body: unknown): EtherscanCreation | null {
   return { deployer, transactionHash, block: asCount(row?.blockNumber), time: time === null ? null : time * 1000 }
 }
 
-export function parseFirstTransaction(body: unknown): FirstTransaction | null {
+// The oldest transactions, up to FEW_TRANSACTIONS. A full page means
+// that there may be more.
+export function parseTransactions(body: unknown): TransactionPage {
   const rows = rowsOf(body)
-  if (rows === null || rows.length === 0) return null
+  if (rows === null || rows.length === 0) return { first: null, seen: 0, more: false }
   const row = record(rows[0])
   const hash = asHash(row?.hash)
   const time = asCount(row?.timeStamp)
   if (!hash || time === null) throw new Error('a transaction that does not read')
-  return { hash, block: asCount(row?.blockNumber), time: time * 1000 }
+  const first = { hash, block: asCount(row?.blockNumber), time: time * 1000 }
+  return { first, seen: rows.length, more: rows.length >= FEW_TRANSACTIONS }
 }
 
 async function ask<T>(url: string, fetch: Fetch, parse: (body: unknown) => T): Promise<Lookup<T>> {
@@ -108,12 +119,12 @@ export function creation(
   return ask(creationUrl(chainId, address, key.trim()), fetch, parseCreation)
 }
 
-export function firstTransaction(
+export function transactions(
   chainId: number,
   address: Hex,
   key: string,
   fetch: Fetch,
-): Promise<Lookup<FirstTransaction | null>> {
+): Promise<Lookup<TransactionPage>> {
   if (key.trim() === '') return Promise.resolve({ ok: false, reason: 'no API key · not asked' })
-  return ask(txlistUrl(chainId, address, key.trim()), fetch, parseFirstTransaction)
+  return ask(txlistUrl(chainId, address, key.trim()), fetch, parseTransactions)
 }
