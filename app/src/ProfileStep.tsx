@@ -37,7 +37,7 @@ import { short } from './gates/words.ts'
 import { LocallyVerifiedIcon, ThirdPartyIcon } from './Icons.tsx'
 import { CollapsibleLog } from './Log.tsx'
 import type { Hex } from './messages.ts'
-import { CollapsibleCard, Notice, Row, Step } from './Step.tsx'
+import { CollapsibleCard, Notice, Step } from './Step.tsx'
 import { ContractSummary } from './VerificationStep.tsx'
 
 const ICON = 'ml-1.5 inline-block h-3.5 w-3.5 align-[-2px]'
@@ -48,6 +48,18 @@ const TONES: Record<Tone, string> = {
   coral: 'text-light-coral-700',
   amber: 'text-amber-700',
   gray: 'text-gray-400',
+}
+
+// A row of the card: the label in a fixed column, the value next to it,
+// as in the mock. The shared Row puts the value at the far right, which
+// reads badly with the short values of a profile.
+function Row({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-baseline gap-4 py-1.5">
+      <span className="w-32 shrink-0 text-sm text-gray-500">{label}</span>
+      <span className="min-w-0 text-sm [overflow-wrap:anywhere] text-gray-800">{children}</span>
+    </div>
+  )
 }
 
 // The trust icon of a value and its source in words.
@@ -163,9 +175,9 @@ function ListsView({ fact }: { fact: Fact<ListAnswer> }) {
     )
   if (hits.length === 0 && missing.length === 0) return <span className="text-gray-400">{none}</span>
   return (
-    <span className="inline-flex flex-col items-end gap-1">
+    <span className="inline-flex flex-col items-start gap-1">
       {hits.length > 0 && (
-        <span className="flex flex-wrap justify-end gap-1.5">
+        <span className="flex flex-wrap gap-1.5">
           {hits.map((hit, index) => {
             const tone =
               hit.kind === 'block'
@@ -225,7 +237,7 @@ function GoPlusView({ fact }: { fact: GoPlusFact }) {
 function SecurityRow({ blockscout, goPlus }: { blockscout?: Fact<'ok' | 'scam'>; goPlus: GoPlusFact }) {
   return (
     <Row label="Security providers">
-      <span className="flex flex-col items-end">
+      <span className="flex flex-col items-start">
         {blockscout && (
           <span>
             Blockscout:{' '}
@@ -256,7 +268,7 @@ function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
     )
   }
   return (
-    <span className="inline-flex flex-col items-end">
+    <span className="inline-flex flex-col items-start">
       {tokens.map((token) => {
         const amount = (value: bigint) =>
           `${amountText(value, token.decimals ?? 0)}${token.decimals === null ? ' units' : ''}`
@@ -376,7 +388,7 @@ function DeployedRow({ profile, now }: { profile: Profile; now: number }) {
   const { deployment, deployedAt } = profile
   return (
     <Row label="Deployed">
-      <span className="inline-flex flex-col items-end">
+      <span className="inline-flex flex-col items-start">
         <FactView fact={deployedAt}>{(at) => `${dateText(at)} · ${ageText(at, now)}`}</FactView>
         {deployment.state === 'known' && (
           <span className="text-xs text-gray-500">
