@@ -31,6 +31,7 @@ import type {
 import { accountsToCheck, amountText, contractsToProfile, type Context } from './context/run.ts'
 import { ExternalLink } from './ExternalLink.tsx'
 import type { Contract } from './gates/contracts.ts'
+import { claimOf } from './gates/sourcify.ts'
 import type { Verification } from './gates/verification.ts'
 import type { StepInfo } from './gates/verdict.ts'
 import { short } from './gates/words.ts'
@@ -38,7 +39,6 @@ import { LocallyVerifiedIcon, ThirdPartyIcon } from './Icons.tsx'
 import { CollapsibleLog } from './Log.tsx'
 import type { Hex } from './messages.ts'
 import { CollapsibleCard, Notice, Step } from './Step.tsx'
-import { ContractSummary } from './VerificationStep.tsx'
 
 const ICON = 'ml-1.5 inline-block h-3.5 w-3.5 align-[-2px]'
 const LINK = 'text-xs text-cerulean-blue-600 hover:underline'
@@ -432,14 +432,40 @@ function SummaryState({ profile, running }: { profile: Profile | AccountProfile 
   return <span className={`text-xs font-medium ${TONES[tone]}${pulse}`}>· {text}</span>
 }
 
-function AddressLine({ address, name }: { address: Hex; name?: Fact<string | null> }) {
+// The title of a card: the name in bold, then the full address. The name
+// comes from Sourcify, else from Blockscout. An account has no name and
+// shows its kind instead.
+function CardTitle({
+  kind,
+  name,
+  address,
+  state,
+}: {
+  kind?: string
+  name: string | null
+  address: Hex
+  state: ReactNode
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2">
+      {kind && <span className="text-xs text-gray-500">{kind}</span>}
+      {name && <span className="text-base font-semibold text-gray-800">{name}</span>}
+      <span className="font-mono text-sm break-all text-gray-700">{address}</span>
+      {state}
+    </div>
+  )
+}
+
+// The line under the title: the name that Blockscout gives, when the
+// title does not show it already, and the search links.
+function AddressLine({ address, name, title }: { address: Hex; name?: Fact<string | null>; title?: string | null }) {
+  const claimed = name?.state === 'known' && name.value !== null && name.value !== title ? name : null
   return (
     <div className="flex flex-wrap items-baseline gap-x-2 pb-2">
-      <span className="font-mono text-[13px] break-all text-gray-700">{address}</span>
-      {name && name.state === 'known' && name.value !== null && (
+      {claimed && (
         <span className="text-xs text-gray-700">
-          {name.value}
-          <Mark proof={name.proof} source={name.source} />
+          {claimed.value}
+          <Mark proof={claimed.proof} source={claimed.source} />
         </span>
       )}
       <SearchLinks address={address} />
@@ -447,26 +473,30 @@ function AddressLine({ address, name }: { address: Hex; name?: Fact<string | nul
   )
 }
 
+// The name of a contract: the one Sourcify verified, else the claim of
+// Blockscout.
+function nameOf(contract: Contract, profile: Profile | undefined): string | null {
+  const verified = claimOf(contract.sourcify)?.name
+  if (verified) return verified
+  return profile?.name.state === 'known' ? profile.name.value : null
+}
+
 function ProfileCard({
   contract,
-  contracts,
   profile,
   context,
   explorers,
 }: {
   contract: Contract
-  contracts: Contract[]
   profile: Profile | undefined
   context: Context
   explorers: ChainExplorers
 }) {
   const running = context.status === 'running'
   const lines = context.lines.filter((line) => line.address === contract.address && line.topic !== 'status')
+  const name = nameOf(contract, profile)
   const summary = (
-    <div className="flex flex-wrap items-baseline gap-x-2">
-      <ContractSummary contract={contract} contracts={contracts} verdict={false} />
-      <SummaryState profile={profile} running={running} />
-    </div>
+    <CardTitle name={name} address={contract.address} state={<SummaryState profile={profile} running={running} />} />
   )
   return (
     <CollapsibleCard open summary={summary}>
@@ -475,21 +505,29 @@ function ProfileCard({
           <Loading>looking up</Loading>
         </p>
       ) : (
-        <ProfileBody profile={profile} explorers={explorers} />
+        <ProfileBody profile={profile} explorers={explorers} title={name} />
       )}
       <CollapsibleLog lines={lines} />
     </CollapsibleCard>
   )
 }
 
-function ProfileBody({ profile, explorers }: { profile: Profile; explorers: ChainExplorers }) {
+function ProfileBody({
+  profile,
+  explorers,
+  title,
+}: {
+  profile: Profile
+  explorers: ChainExplorers
+  title: string | null
+}) {
   // The ages count from the time the card opened.
   const [now] = useState(() => Date.now())
   return (
     <>
       <BlockNotice blocked={profile.blocked} goPlus={goPlusFlags(profile)} />
       <YoungNotice young={profile.young} />
-      <AddressLine address={profile.address} name={profile.name} />
+      <AddressLine address={profile.address} name={profile.name} title={title} />
       <div className="divide-y divide-gray-100">
         <DeployedRow profile={profile} now={now} />
         <DeployerSection deployer={profile.deployer} explorers={explorers} now={now} />
@@ -519,13 +557,12 @@ function AccountCard({
   const read = contract.helios.status === 'passed'
   const delegated = contract.helios.status === 'passed' && contract.helios.value.code !== '0x'
   const summary = (
-    <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-      <span className="text-xs text-gray-500">{delegated ? 'EIP-7702 account' : read ? 'Account' : 'Address'}</span>
-      <span className="font-mono text-[13px] text-gray-700" title={contract.address}>
-        {short(contract.address)}
-      </span>
-      <SummaryState profile={account} running={context.status === 'running'} />
-    </p>
+    <CardTitle
+      kind={delegated ? 'EIP-7702 account' : read ? 'Account' : 'Address'}
+      name={null}
+      address={contract.address}
+      state={<SummaryState profile={account} running={context.status === 'running'} />}
+    />
   )
   return (
     <CollapsibleCard open summary={summary}>
@@ -584,7 +621,6 @@ export function ProfileStep({
               <ProfileCard
                 key={contract.address}
                 contract={contract}
-                contracts={verification.contracts}
                 profile={context.profiles[contract.address]}
                 context={context}
                 explorers={explorers}
