@@ -26,8 +26,6 @@ Onay is free software (GPL-3.0) by the Sourcify team.
 
 **Official URL / Homepage URL:** https://sourcify.dev
 
-**Support URL:** https://github.com/sourcifyeth/onay/issues (private until the repo is public: use the Sourcify contact page instead)
-
 **Screenshots (1280x800, one to five):** `store-screenshot-1.png` and `store-screenshot-2.png` in this folder, taken from the mock. The store icon is `icon-128.png` (source `nazar.svg`).
 
 ## Privacy tab
@@ -59,12 +57,8 @@ Everything else unticked. No personally identifiable information, no authenticat
 - I do not use or transfer user data for purposes that are unrelated to my item's single purpose.
 - I do not use or transfer user data to determine creditworthiness or for lending purposes.
 
-**Privacy policy URL:** https://sourcifyeth.github.io/onay/privacy.html
+**Privacy policy URL:** to decide: a page on sourcify.dev, or a page in the repo published by the Pages workflow. The store requires the URL for an extension that handles website content and financial information.
 
 ## Distribution tab
 
 Free. Visibility: Unlisted until the app is released, then Public. All regions.
-
-## Privacy policy
-
-The page is `mock/public/privacy.html`, published with the mock at https://sourcifyeth.github.io/onay/privacy.html on every push to main. Edit the page and the date at its bottom together.

@@ -84,6 +84,7 @@ Run these before you push. Continuous integration (CI) runs the same commands.
 | `pnpm format:check`                         | repo root | Checks the formatting with oxfmt. `pnpm format` fixes it.                                                                                                    |
 | `pnpm -r lint`                              | repo root | Runs oxlint.                                                                                                                                                 |
 | `pnpm -r test`                              | repo root | Runs the extension and app tests with the Node.js test runner. The app tests download one compiler build on the first run and keep it in `app/test/.cache/`. |
+| `pnpm test`                                 | repo root | Runs the tests of the scripts in `scripts/`.                                                                                                                 |
 | `cargo test`                                | `app/`    | Runs the Rust tests, including one that drives the real relay binary.                                                                                        |
 | `cargo clippy --all-targets -- -D warnings` | `app/`    | Rust lints.                                                                                                                                                  |
 | `cargo fmt --all --check`                   | `app/`    | Rust formatting.                                                                                                                                             |
@@ -91,7 +92,7 @@ Run these before you push. Continuous integration (CI) runs the same commands.
 
 ## Production
 
-Releases are built and published only by CI, from a version tag on `main`. The commands below produce the same artifacts locally, for a check before the tag. Signing and notarization of the macOS app wait for the Apple account; the rest of the pipeline is tracked in [issue 15](https://github.com/sourcifyeth/onay/issues/15).
+Releases are built and published only by CI, from a version tag on `main`. The commands below produce the same artifacts locally, for a check before the tag. The remaining steps of the pipeline, such as build provenance and the store upload, are tracked in [issue 15](https://github.com/sourcifyeth/onay/issues/15).
 
 ### The app package
 
@@ -107,7 +108,7 @@ This builds the relay in release mode, copies it to where Tauri expects an extra
 The package contains two binaries side by side: `onay` (the app) and `onay-relay`. On Linux its install script gives the relay its own group and the setgid bit, as hardening. To install and run on Debian or Ubuntu:
 
 ```
-sudo apt install ./app/target/release/bundle/deb/Onay_0.1.0_amd64.deb
+sudo apt install ./app/target/release/bundle/deb/Onay_<version>_amd64.deb
 onay
 ```
 
@@ -121,7 +122,7 @@ pnpm --filter extension package
 
 This writes `extension/onay-extension.zip` for the Chrome Web Store. It is the same code as the development build, without the `key` field in the manifest, because the store rejects it.
 
-The zip is reproducible: with `SOURCE_DATE_EPOCH` set to the commit time, two builds of one commit give the same bytes. To compare a store submission with the commit it was built from:
+The zip is reproducible: with `SOURCE_DATE_EPOCH` set to the commit time, two builds of one commit give the same bytes. The bytes also depend on the zip tool: the store uploads are made with Info-ZIP `zip` 3.0, the `zip` of Debian, Ubuntu, and macOS, at its default compression. To compare a store submission with the commit it was built from:
 
 ```
 git checkout <commit>
@@ -140,15 +141,19 @@ To release app `0.2.0`:
 1. `pnpm version:set app 0.2.0` writes it into `app/package.json`, the Tauri config, and the Cargo workspace and lockfile. Open a pull request with the change and merge it.
 2. Tag the merge commit on `main` and push the tag: `git tag 0.2.0 && git push origin 0.2.0`.
 
-The `Release` workflow then checks that the tag is on `main` and equals the app version in the repo, builds the app packages (Linux x64, macOS arm64), and creates the GitHub release with them attached. A tag that fails a check or a build publishes nothing.
+The `Release` workflow then checks that the tag is on `main` and equals the app version in the repo, builds the app packages (Linux x64, macOS arm64), and creates the GitHub release with them attached, with a `SHA256SUMS` file, and with the extension version at the tag in the first line of the notes. A tag that fails a check or a build publishes nothing.
 
-The macOS build signs and notarizes when these repository secrets exist, and makes an ad-hoc build when they do not:
+A tag push is a release, so a tag ruleset in the repository settings (Rules, Rulesets, target all tags, rule "Restrict creations", with the repository admins in the bypass list) limits who creates version tags to the maintainers.
+
+A manual run of the workflow (Actions, Release, Run workflow, from any branch) is a dry run: it builds the packages with the signing and the notarization, keeps them as artifacts of the run for an inspection, and publishes nothing.
+
+The macOS build signs and notarizes when these six repository secrets exist, and makes an ad-hoc build when none of them does. Some of them set, and some not, fails the build:
 
 - `APPLE_CERTIFICATE`: the Developer ID Application certificate with its private key, as a base64 `.p12` (`openssl base64 -A -in certificate.p12`). Only the Account Holder of the Apple Developer account can create this certificate. `APPLE_CERTIFICATE_PASSWORD` is the password of the `.p12`.
 - `APPLE_SIGNING_IDENTITY`: the name of the certificate, such as `Developer ID Application: Sourcify (TEAMID)`.
-- `APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_KEY_CONTENT`: an App Store Connect API key with Developer access, for the notarization: the Issuer ID shown above the keys table, the Key ID, and the text of the downloaded `.p8` file. Without these three the build is signed but not notarized.
+- `APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_KEY_CONTENT`: an App Store Connect API key with Developer access, for the notarization: the Issuer ID shown above the keys table, the Key ID, and the text of the downloaded `.p8` file.
 
-Tauri imports the certificate into a keychain of its own on the runner, signs the app and the relay with the hardened runtime, sends the app to the Apple notary service, and staples the ticket.
+The Rust compile runs before the secrets enter the environment, so no build script of the dependency tree sees them. Then Tauri imports the certificate into a keychain of its own on the runner, signs the app and the relay with the hardened runtime, sends the app to the Apple notary service, and staples the ticket.
 
 To release extension `0.1.1`: `pnpm version:set extension 0.1.1`, merge, build the zip with `package` from the merge commit, and upload it in the developer dashboard. The store refuses a version that is not higher than the last one.
 

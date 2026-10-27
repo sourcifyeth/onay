@@ -6,6 +6,7 @@
   "scripts": {
     "format": "oxfmt",
     "format:check": "oxfmt --check",
+    "test": "node --test \"scripts/*.test.mjs\"",
     "version:set": "node scripts/set-version.mjs"
   },
   "devDependencies": {

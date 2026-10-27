@@ -48,7 +48,9 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 - `pnpm --filter app test` — type-check and run the webview tests with `node --test` (pure modules only, no React).
 - `pnpm --filter extension build` — build the extension into `extension/dist/`; load that folder unpacked in Chrome (its ID must match the one above).
 - `pnpm --filter app bundle` — production package of the app with the relay inside (`app/target/release/bundle/`). Bundle settings live in `app/src-tauri/tauri.bundle.conf.json`, kept out of the main config so `tauri dev` needs no packaged relay.
-- `pnpm --filter extension package` — store zip of the extension (`extension/onay-extension.zip`), without the `key` field.
+- `pnpm --filter extension package` — store zip of the extension (`extension/onay-extension.zip`), without the `key` field. `pnpm --filter extension package:first` adds `key.pem` to it, for the first upload to the store only.
+- `pnpm version:set app|extension X.Y.Z` — write the version of one package into every file that holds it; `--check` before the arguments only verifies it, as the release workflow does.
+- `pnpm test` — run the tests of `scripts/` with `node --test`.
 - `pnpm --filter extension test` — build, type-check the tests, and run them with `node --test`.
 - `cargo build` in `app/` — build the Rust workspace (app and relay).
 - `cargo test` in `app/` — run the Rust tests.
