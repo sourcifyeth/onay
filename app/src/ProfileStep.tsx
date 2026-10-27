@@ -429,7 +429,7 @@ function SummaryState({ profile, running }: { profile: Profile | AccountProfile 
 function CardTitle({ kind, name, state }: { kind: string; name: string | null; state: ReactNode }) {
   return (
     <div className="flex flex-wrap items-baseline gap-x-2">
-      <span className="text-base font-semibold text-gray-800">{name ?? kind}</span>
+      <span className="text-lg font-semibold text-gray-800">{name ?? kind}</span>
       {state}
     </div>
   )
