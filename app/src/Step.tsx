@@ -3,22 +3,14 @@
 // the mock.
 
 import { useState, type ReactNode } from 'react'
+import type { StepInfo } from './gates/verdict.ts'
 
-export function Step({
-  number,
-  title,
-  explainer,
-  children,
-}: {
-  number: number
-  title: string
-  explainer: string
-  children: ReactNode
-}) {
+// The number and the title come from the list of the steps.
+export function Step({ step, explainer, children }: { step: StepInfo; explainer: string; children: ReactNode }) {
   return (
     <section className="animate-fade-up">
       <h2 className="flex items-center gap-2 pb-3 text-base font-semibold text-gray-900">
-        {number}. {title}
+        {step.number}. {step.title}
         <InfoTip>{explainer}</InfoTip>
       </h2>
       {children}
@@ -77,7 +69,7 @@ export function Notice({
     <div className={`rounded-lg border-2 px-4 py-4 ${colors} ${className}`}>
       <p className="text-lg font-semibold">{title}</p>
       {detail && <p className="pt-1 font-mono text-sm break-all text-gray-800">{detail}</p>}
-      {children && <p className="pt-1 text-sm leading-relaxed text-gray-700">{children}</p>}
+      {children && <div className="pt-1 text-sm leading-relaxed text-gray-700">{children}</div>}
     </div>
   )
 }

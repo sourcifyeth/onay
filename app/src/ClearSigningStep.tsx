@@ -1,11 +1,11 @@
-// Step 3 of the review: what the request asks to sign, in words. An
-// ERC-7730 descriptor renders the intent and the fields; one that no
-// trusted auditor attested shows as a preview with a warning. A second
-// tab shows the calldata as the verified ABI (Application Binary
+// The step of the review that shows what the request asks to sign, in
+// words. An ERC-7730 descriptor renders the intent and the fields; one
+// that no trusted auditor attested shows as a preview with a warning. A
+// second tab shows the calldata as the verified ABI (Application Binary
 // Interface) decodes it, and a third the raw request. Taken from the
 // mock's transaction card.
 
-import { useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { DisplayField, DisplayFieldGroup, DisplayModel, Warning } from '@ethereum-sourcify/clear-signing'
 import { isFieldGroup } from '@ethereum-sourcify/clear-signing'
 import { chainById } from './chains.ts'
@@ -19,12 +19,13 @@ import {
   type DescriptorSource,
   type Rendering,
 } from './clear-signing/render.ts'
-import { chainInfoOf, clearSigningFor, type ClearSigning } from './clear-signing/store.ts'
+import { chainInfoOf, type ClearSigning } from './clear-signing/store.ts'
 import { ExternalLink } from './ExternalLink.tsx'
 import { ThirdPartyIcon } from './Icons.tsx'
+import type { StepInfo } from './gates/verdict.ts'
 import type { Verification } from './gates/verification.ts'
 import { CollapsibleLog, Cursor } from './Log.tsx'
-import type { Hex, SigningRequest } from './messages.ts'
+import type { Hex } from './messages.ts'
 import { Hint, ListRow, Step } from './Step.tsx'
 import { Tabs } from './Tabs.tsx'
 
@@ -453,7 +454,7 @@ function RawWords({ data }: { data: Hex }) {
 }
 
 const ABI_SOURCE =
-  'The ABI (Application Binary Interface) comes from the source code verified in step 2: fetched from sourcify.dev, compiled on this machine, and matched to the code on the chain.'
+  'The ABI (Application Binary Interface) comes from the source code verified in the step before: fetched from sourcify.dev, compiled on this machine, and matched to the code on the chain.'
 
 // The calldata as the verified ABI decodes it, with the reason why no
 // descriptor rendered it.
@@ -846,13 +847,21 @@ function tabsOf(state: ClearSigning, chainId: number, currency: Currency): Tab[]
 const EXPLAINER =
   'An ERC-7730 descriptor explains a call in plain words: what it does, and what each value means. A descriptor counts as reviewed only after an auditor you trust attested it; one that none did shows as a preview with a warning, since a wrong description can hide what you sign. The ABI-Decoded tab shows the call as the verified source code decodes it, with or without a descriptor.'
 
-export function ClearSigningStep({ request, verification }: { request: SigningRequest; verification: Verification }) {
-  const store = clearSigningFor(request, verification)
-  const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
+// The page starts Clear Signing and gives its state, since the verdict
+// of the review needs it too.
+export function ClearSigningStep({
+  step,
+  verification,
+  state,
+}: {
+  step: StepInfo
+  verification: Verification
+  state: ClearSigning
+}) {
   const chainId = verification.chainId ?? 0
   const currency = chainInfoOf(chainById(chainId))?.nativeCurrency ?? null
   return (
-    <Step number={4} title="Clear Signing" explainer={EXPLAINER}>
+    <Step step={step} explainer={EXPLAINER}>
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <Tabs tabs={tabsOf(state, chainId, currency)} />
         <div className="pt-3">

@@ -51,6 +51,9 @@ export type Verification = {
   simulation: GateState<Simulation>
   lines: TimedLine[]
   status: Status
+  // Why the run stopped before it read the chain: Onay could not check
+  // the request, and no gate ran. Null otherwise.
+  stopped: string | null
 }
 
 export type VerificationStore = {
@@ -96,6 +99,7 @@ export function startVerification(request: SigningRequest, deps: Deps): Verifica
     simulation: { status: 'waiting' },
     lines: [],
     status: 'running',
+    stopped: null,
   }
 
   const set = (change: Partial<Verification>) => {
@@ -130,7 +134,7 @@ export function startVerification(request: SigningRequest, deps: Deps): Verifica
     log({ source: request.source, text: `request received · ${request.method}${from}` })
     // Before any gate runs: the chain gate takes the reason, the other
     // gates did not start.
-    const fail = (reason: string) => {
+    const fail = (reason: string, change: Partial<Verification> = {}) => {
       const notRead = { status: 'skipped', reason: 'the chain was not read' } as const
       set({
         contracts: snapshot.contracts.map((contract) => ({
@@ -140,42 +144,33 @@ export function startVerification(request: SigningRequest, deps: Deps): Verifica
         })),
         simulation: notRead,
         status: 'failed',
+        ...change,
       })
+    }
+    // A request that Onay cannot check: the run stops before it reads
+    // the chain.
+    const stop = (reason: string) => {
+      log({ source: request.source, text: reason, ok: false })
+      fail(reason, { stopped: reason })
     }
     // A request with a field that does not read is not checked at all:
     // the wallet reads it its own way, and a review of a guess would
     // confirm the wrong thing.
     const problem = requestProblem(request)
-    if (problem) {
-      const reason = `the request could not be read · ${problem}`
-      log({ source: request.source, text: reason, ok: false })
-      return fail(reason)
-    }
+    if (problem) return stop(`the request could not be read · ${problem}`)
     const unchecked = uncheckedPart(request)
-    if (unchecked) {
-      log({ source: request.source, text: unchecked, ok: false })
-      return fail(unchecked)
-    }
+    if (unchecked) return stop(unchecked)
     if (resolved.chainId === null) {
       if (addresses.length === 0) return endWithoutContracts()
-      log({ source: request.source, text: resolved.reason, ok: false })
-      return fail(resolved.reason)
+      return stop(resolved.reason)
     }
     log({ source: request.source, text: `chain ${resolved.chainId} ${CHAIN_SOURCE_TEXT[resolved.source]}` })
-    if (!chain) {
-      const reason = `chain ${chainId} is not in the settings`
-      log({ source: request.source, text: reason, ok: false })
-      return fail(reason)
-    }
+    if (!chain) return stop(`chain ${chainId} is not in the settings`)
     if (addresses.length === 0) {
       log({ source: chain.mode, text: 'no contract to read', ok: true })
       return endWithoutContracts()
     }
-    if (contracts === null) {
-      const reason = `more than ${MAX_CONTRACTS} contracts in the request`
-      log({ source: request.source, text: reason, ok: false })
-      return fail(reason)
-    }
+    if (contracts === null) return stop(`more than ${MAX_CONTRACTS} contracts in the request`)
 
     let head: Head
     try {

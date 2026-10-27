@@ -1,11 +1,12 @@
-// Step 2 of the review: the calls of the request, run on the state of
-// the chain. The call tree shows every contract on the way.
+// The step of the review that runs the calls of the request on the
+// state of the chain. The call tree shows every contract on the way.
 
 import { Fragment } from 'react'
 import type { Contract } from './gates/contracts.ts'
 import type { GateState } from './gates/gate.ts'
 import { claimOf } from './gates/sourcify.ts'
 import { reverted, UNKNOWN, type Frame, type Simulation } from './gates/simulation.ts'
+import type { StepInfo } from './gates/verdict.ts'
 import type { Verification } from './gates/verification.ts'
 import { formatEther, short } from './gates/words.ts'
 import { CollapsibleLog } from './Log.tsx'
@@ -86,7 +87,7 @@ function CallTree({ simulation, contracts }: { simulation: Simulation; contracts
   )
 }
 
-export function SimulationStep({ verification }: { verification: Verification }) {
+export function SimulationStep({ step, verification }: { step: StepInfo; verification: Verification }) {
   const { simulation, contracts, chain } = verification
   const helios = chain?.mode === 'helios'
   const lines = verification.lines.filter((line) => line.source === 'evm')
@@ -100,9 +101,8 @@ export function SimulationStep({ verification }: { verification: Verification })
   const open = simulation.status === 'passed' && reverted(simulation.value)
   return (
     <Step
-      number={2}
-      title="Transaction Simulation"
-      explainer="Onay runs the transaction in a local EVM on the chain state it read in step 1. The result shows every contract the transaction calls, not only the one it names, so that step 3 can check each of them."
+      step={step}
+      explainer="Onay runs the transaction in a local EVM on the chain state that the step before read. The result shows every contract the transaction calls, not only the one it names, so that the next step can check each of them."
     >
       <CollapsibleCard open={open} summary={<Summary state={simulation} helios={helios} runs={verification.runs} />}>
         {simulation.status === 'passed' && (

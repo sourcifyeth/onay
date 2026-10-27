@@ -144,6 +144,7 @@ Each step ends with something that runs and can be reviewed. Steps 3 to 6 work o
 6. **Digest (ERC-8213).** Show what to compare with the wallet: network, recipient, value, calldata, signer, and the digest of the data.
    - Calldata Digest of each call, EIP-712 Digest with Domain Hash and Message Hash, ERC-191 Digest.
    - A digest only for data that every wallet hashes the same way; otherwise the reason.
+   - Above the values, the verdict of each step before: the steps that failed or warn, with the reason. The text about how to confirm shows only when every step passed.
 7. **Call-tree simulation.** Run the transaction in a local EVM (ethereumjs) on verified state.
    - Collect every touched contract, run both gates on each, display them all.
    - This also covers proxies, delegatecalls and diamonds, so step 4 reads no EIP-1967 slots.

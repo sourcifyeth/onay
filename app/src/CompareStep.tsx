@@ -9,6 +9,7 @@ import { chainById, chainName } from './chains.ts'
 import { formatAmount } from './clear-signing/render.ts'
 import { chainInfoOf, clearSigningFor } from './clear-signing/store.ts'
 import { fieldsOf, type CallFields, type Delegation, type Fields } from './compare/fields.ts'
+import type { StepInfo, StepVerdict } from './gates/verdict.ts'
 import type { Verification } from './gates/verification.ts'
 import { LocallyVerifiedIcon } from './Icons.tsx'
 import type { Hex, SigningRequest } from './messages.ts'
@@ -418,29 +419,83 @@ function MessageBlock({ children }: { children: string }) {
 const EXPLAINER =
   'A page can show Onay one request and your wallet another. Find each value here on the confirmation screen of your wallet: one that differs gives the page away. MetaMask and Rabby show no digest. The case of hex letters does not matter. A click on an address or a digest copies it.'
 
+// One line for each step: its number, its title, and the reason.
+function verdictLine({ step, reason }: StepVerdict, steps: StepInfo[], verb: string | null): string {
+  if (step === 'request') return `Onay could not check the request: ${reason}`
+  const info = steps.find((candidate) => candidate.id === step)
+  const name = info ? `Step ${info.number}, ${info.title}` : step
+  const head = verb ? `${name}, ${verb}` : name
+  return reason ? `${head}: ${reason}` : head
+}
+
+function Lines({ lines }: { lines: string[] }) {
+  return (
+    <ul className="flex flex-col gap-1">
+      {lines.map((line) => (
+        <li key={line}>{line}</li>
+      ))}
+    </ul>
+  )
+}
+
+// What the steps before found: the steps that failed, else the ones that
+// warn, else the ones that still run. Null when every step passed.
+function Findings({ verdicts, steps }: { verdicts: StepVerdict[]; steps: StepInfo[] }) {
+  const lines = (status: StepVerdict['status'], verb: string | null) =>
+    verdicts.filter((verdict) => verdict.status === status).map((verdict) => verdictLine(verdict, steps, verb))
+  const failed = lines('failed', 'failed')
+  if (failed.length > 0) {
+    return (
+      <Notice tone="coral" title="Do not sign. Reject this request in your wallet." className="mb-3">
+        <Lines lines={failed} />
+        <p className="pt-2">The values below only show what the request asks for.</p>
+      </Notice>
+    )
+  }
+  const flagged = lines('flagged', null)
+  if (flagged.length > 0) {
+    return (
+      <Notice tone="amber" title="⚠ Onay found warnings in this request" className="mb-3">
+        <Lines lines={flagged} />
+        <p className="pt-2">Read each warning in its step above. If one is not clear to you, reject the request.</p>
+      </Notice>
+    )
+  }
+  const running = lines('running', 'still runs')
+  if (running.length > 0) {
+    return (
+      <Notice tone="gray" title="Wait for the review to end" className="mb-3">
+        <Lines lines={running} />
+      </Notice>
+    )
+  }
+  return null
+}
+
 // The other steps check the request that Onay got. Only this comparison
-// shows that the wallet signs the same request, so the card stands out.
-// After a failed review, it does not lead to a confirmation.
+// shows that the wallet signs the same request. The card stands out, with
+// the text about how to confirm, only when every step passed. Otherwise
+// it names each step that failed, warns, or still runs, with the reason.
 export function CompareStep({
+  step,
+  steps,
+  verdicts,
   request,
   verification,
-  number,
 }: {
+  step: StepInfo
+  steps: StepInfo[]
+  verdicts: StepVerdict[]
   request: SigningRequest
   verification: Verification
-  number: number
 }) {
   const fields = useMemo(() => fieldsOf(request), [request])
-  const failed = verification.status === 'failed' || verification.status === 'reverts'
-  const card = failed ? 'border border-gray-200 bg-white' : 'border-2 border-cerulean-blue-300 bg-cerulean-blue-100/50'
+  const passed = verdicts.every(({ status }) => status === 'passed' || status === 'skipped')
+  const card = passed ? 'border-2 border-cerulean-blue-300 bg-cerulean-blue-100/50' : 'border border-gray-200 bg-white'
   return (
-    <Step number={number} title="Compare with your wallet" explainer={EXPLAINER}>
+    <Step step={step} explainer={EXPLAINER}>
       <section className={`rounded-xl p-5 shadow-sm ${card}`}>
-        {failed ? (
-          <Notice tone="coral" title="Reject this request in your wallet" className="mb-3">
-            Onay found problems in this request. The values below only show what it asks for.
-          </Notice>
-        ) : (
+        {passed ? (
           <div className="pb-2">
             <p className="text-sm font-semibold text-cerulean-blue-700">
               Check that your wallet shows the same values.
@@ -453,6 +508,8 @@ export function CompareStep({
               digest that starts and ends the same. If one value differs, reject the request in your wallet.
             </p>
           </div>
+        ) : (
+          <Findings verdicts={verdicts} steps={steps} />
         )}
         <FieldsView fields={fields} request={request} verification={verification} />
         <p className="flex items-start gap-1.5 pt-3 font-mono text-[11px] leading-relaxed text-gray-400">

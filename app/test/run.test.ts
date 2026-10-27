@@ -11,6 +11,7 @@ import type { ChainCode, Head, Target } from '../src/gates/helios.ts'
 import type { Call } from '../src/gates/request.ts'
 import { startVerification, type Deps, type Verification } from '../src/gates/run.ts'
 import type { Simulation, SimulationInput, Touched } from '../src/gates/simulation.ts'
+import { stepVerdicts } from '../src/gates/verdict.ts'
 import type { Verified } from '../src/gates/verify.ts'
 
 const FROM: Hex = '0x9f21b45c7e83a10fd4e2c11098d2ce6f4b76c04e'
@@ -209,6 +210,17 @@ test('a named contract with nothing on Sourcify fails the request', async () => 
   assert.equal(v.lines.at(-1)?.ok, false)
 })
 
+test('the verdict of a failed run names the step that failed and the reason', async () => {
+  const world: World = { codes: { [A]: '0x60' }, sources: {}, touched: [A] }
+  const v = await ended(transaction(A), setup(world).deps)
+  assert.equal(v.stopped, null)
+  assert.deepEqual(stepVerdicts(v, null), [
+    { step: 'chain', status: 'passed', reason: null },
+    { step: 'simulation', status: 'passed', reason: null },
+    { step: 'verification', status: 'failed', reason: '0xaaaa…aaaa has no verified source code on Sourcify' },
+  ])
+})
+
 test('a found contract whose sources do not match fails the request', async () => {
   const world: World = {
     codes: { [A]: '0x60', [B]: '0x61' },
@@ -316,6 +328,9 @@ test('a transaction that sets a delegate (EIP-7702) fails before any gate runs',
   assert.equal(v.status, 'failed')
   assert.deepEqual(heliosCalls, [])
   assert.match(v.lines.map((line) => line.text).join('\n'), /sets a delegate .*EIP-7702/)
+  // The run stopped before the first step, so the verdict has no step.
+  assert.deepEqual(stepVerdicts(v, null), [{ step: 'request', status: 'failed', reason: v.stopped }])
+  assert.match(v.stopped ?? '', /sets a delegate .*EIP-7702/)
 })
 
 test('a message names no chain: the run passes with nothing to check', async () => {
@@ -435,6 +450,12 @@ test('the chain is not ready: the chain gate fails, the other gates did not star
   assert.deepEqual(v.contracts[0].helios, { status: 'failed', reason: 'Helios did not sync' })
   assert.deepEqual(v.contracts[0].sourcify, { status: 'skipped', reason: 'the chain was not read' })
   assert.deepEqual(v.simulation, { status: 'skipped', reason: 'the chain was not read' })
+  assert.equal(v.stopped, null)
+  assert.deepEqual(stepVerdicts(v, null)[0], {
+    step: 'chain',
+    status: 'failed',
+    reason: 'the chain was not read · Helios did not sync',
+  })
 })
 
 test('typed data on an account with a delegate: the delegate is checked without a simulation', async () => {
