@@ -1,7 +1,7 @@
 // Step 4 of the review: the profile of each address that the request
 // names. Who deployed a contract and when, what it holds, and the lists
-// that know it. The mark of each value names its source in a tooltip.
-// Nothing here changes the
+// that know it. A tooltip on each value shows its mark and names its
+// source. Nothing here changes the
 // status of the request.
 
 import { useState, type ReactNode } from 'react'
@@ -40,8 +40,9 @@ import { LocallyVerifiedIcon, ThirdPartyIcon } from './Icons.tsx'
 import { CollapsibleLog } from './Log.tsx'
 import type { Hex } from './messages.ts'
 import { CollapsibleCard, Notice, Step } from './Step.tsx'
+import { Tooltip } from './Tooltip.tsx'
 
-const ICON = 'ml-1.5 inline-block h-3.5 w-3.5 align-[-2px]'
+const TIP_ICON = 'mr-1 inline-block h-3 w-3 align-[-2px]'
 const LINK = 'text-xs text-cerulean-blue-600 hover:underline'
 
 const TONES: Record<Tone, string> = {
@@ -63,12 +64,40 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-// The trust icon of a value and its source in words.
-function Mark({ proof, source }: { proof: boolean; source: string }) {
-  return proof ? (
-    <LocallyVerifiedIcon className={ICON} title={`Read through ${source} with a proof, checked on this machine`} />
-  ) : (
-    <ThirdPartyIcon className={ICON} title={`A claim of ${source}, not checked here`} />
+// A value with its trust mark and its source in a tooltip. `detail` is
+// a second line of the tooltip.
+function Marked({
+  proof,
+  source,
+  detail,
+  hint,
+  children,
+}: {
+  proof: boolean
+  source: string
+  detail?: ReactNode
+  hint?: boolean
+  children: ReactNode
+}) {
+  const tip = (
+    <>
+      {proof ? (
+        <>
+          <LocallyVerifiedIcon className={TIP_ICON} />
+          Read through {source} with a proof, checked on this machine
+        </>
+      ) : (
+        <>
+          <ThirdPartyIcon className={TIP_ICON} />A claim of {source}, not checked here
+        </>
+      )}
+      {detail && <span className="block text-gray-400">{detail}</span>}
+    </>
+  )
+  return (
+    <Tooltip tip={tip} hint={hint}>
+      {children}
+    </Tooltip>
   )
 }
 
@@ -78,10 +107,9 @@ function FactView<T>({ fact, children }: { fact: Fact<T>; children: (value: T) =
   if (fact.state === 'pending') return <Loading>loading from {fact.source}</Loading>
   if (fact.state === 'unknown') return <span className="text-gray-400">unknown · {fact.reason}</span>
   return (
-    <span>
+    <Marked proof={fact.proof} source={fact.source}>
       {children(fact.value)}
-      <Mark proof={fact.proof} source={fact.source} />
-    </span>
+    </Marked>
   )
 }
 
@@ -128,15 +156,17 @@ function BlockNotice({ blocked, goPlus }: { blocked: Blocked[]; goPlus: GoPlusRe
         <span key={index}>
           {index > 0 && ' · '}
           {hit.of === 'deployer' && 'its deployer: '}
-          {hit.value}
-          <Mark proof={hit.proof} source={hit.source} />
+          <Marked proof={hit.proof} source={hit.source}>
+            {hit.value}
+          </Marked>
         </span>
       ))}
       {goPlus && (
         <span>
           {blocked.length > 0 && ' · '}
-          {goPlus.flags.map((flag) => flag.text).join(', ')}
-          <Mark proof={false} source={goPlusSource(goPlus)} />
+          <Marked proof={false} source={goPlusSource(goPlus)}>
+            {goPlus.flags.map((flag) => flag.text).join(', ')}
+          </Marked>
         </span>
       )}
       <br />
@@ -162,10 +192,9 @@ function ListsView({ fact }: { fact: Fact<ListAnswer> }) {
   // The lists that answered, as the source of "not on".
   const none =
     asked.length > 0 ? (
-      <>
+      <Marked proof={false} source={asked.join(', ')}>
         {missing.length > 0 ? 'on none of the loaded lists' : 'not on any list'}
-        <Mark proof={false} source={asked.join(', ')} />
-      </>
+      </Marked>
     ) : (
       'no list answered'
     )
@@ -181,19 +210,16 @@ function ListsView({ fact }: { fact: Fact<ListAnswer> }) {
                 : 'bg-green-50 text-green-700 hover:bg-green-100'
             const text = `${hit.kind === 'block' ? '⚠' : '✓'} ${hit.list} · ${hit.label}`
             const pill = `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${tone}`
-            const icon = (
-              <ThirdPartyIcon className="h-3 w-3 shrink-0" title={`A claim of ${hit.list}, not checked here`} />
-            )
-            return hit.link && linkable(hit.link) ? (
-              <ExternalLink key={index} href={hit.link} className={pill}>
-                {icon}
-                {text} ↗
-              </ExternalLink>
-            ) : (
-              <span key={index} className={pill}>
-                {icon}
-                {text}
-              </span>
+            return (
+              <Marked key={index} proof={false} source={hit.list} hint={false}>
+                {hit.link && linkable(hit.link) ? (
+                  <ExternalLink href={hit.link} className={pill}>
+                    {text} ↗
+                  </ExternalLink>
+                ) : (
+                  <span className={pill}>{text}</span>
+                )}
+              </Marked>
             )
           })}
         </span>
@@ -219,14 +245,13 @@ function GoPlusView({ fact }: { fact: GoPlusFact }) {
   const result: GoPlusResult = fact.value
   const source = goPlusSource(result)
   return (
-    <span>
+    <Marked proof={fact.proof} source={source}>
       {result.flags.length === 0 ? (
         'no flags'
       ) : (
         <span className="text-light-coral-700">{result.flags.map((flag) => flag.text).join(', ')}</span>
       )}
-      <Mark proof={fact.proof} source={source} />
-    </span>
+    </Marked>
   )
 }
 
@@ -257,10 +282,9 @@ function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
   const { tokens, checked } = fact.value
   if (tokens.length === 0 && !fact.value.more) {
     return (
-      <span>
+      <Marked proof={fact.proof} source={fact.source}>
         none
-        <Mark proof={fact.proof} source={fact.source} />
-      </span>
+      </Marked>
     )
   }
   return (
@@ -269,19 +293,18 @@ function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
         const amount = (value: bigint) =>
           `${amountText(value, token.decimals ?? 0)}${token.decimals === null ? ' units' : ''}`
         const symbol = token.symbol.value ?? short(token.token)
-        const title =
-          token.symbol.source !== token.amount.source
-            ? `${token.token} · symbol from ${token.symbol.source}`
-            : token.token
+        const detail = `${token.token} · named by ${fact.source} · symbol from ${token.symbol.source}`
         return (
           <span key={token.token}>
-            {amount(token.amount.value)} <span title={title}>{symbol}</span>
-            <Mark proof={token.amount.proof} source={token.amount.source} />
+            <Marked proof={token.amount.proof} source={token.amount.source} detail={detail}>
+              {amount(token.amount.value)} {symbol}
+            </Marked>
             {token.claimed !== null && (
               <span className="text-xs text-amber-700">
                 {' '}
-                · Blockscout says {amount(token.claimed)}
-                <ThirdPartyIcon className={ICON} title="A claim of Blockscout, not checked here" />
+                <Marked proof={false} source="Blockscout">
+                  · Blockscout says {amount(token.claimed)}
+                </Marked>
               </span>
             )}
           </span>
@@ -289,7 +312,6 @@ function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
       })}
       <span className="text-xs text-gray-500">
         {checked ? 'amounts checked on chain' : 'not each amount read from the chain'}
-        <ThirdPartyIcon className={ICON} title={`Tokens named by ${fact.source}, a claim not checked here`} />
       </span>
       {fact.value.more && <MaybeLink href={more}>and more on Blockscout</MaybeLink>}
     </span>
@@ -389,10 +411,11 @@ function DeployedRow({ profile, now }: { profile: Profile; now: number }) {
         <FactView fact={deployedAt}>{(at) => `${dateText(at)} · ${ageText(at, now)}`}</FactView>
         {deployment.state === 'known' && (
           <span className="text-xs text-gray-500">
-            {deployment.value.block !== null
-              ? `block ${deployment.value.block.toLocaleString('en-US')}`
-              : `transaction ${short(deployment.value.transactionHash)}`}
-            <Mark proof={deployment.proof} source={deployment.source} />
+            <Marked proof={deployment.proof} source={deployment.source}>
+              {deployment.value.block !== null
+                ? `block ${deployment.value.block.toLocaleString('en-US')}`
+                : `transaction ${short(deployment.value.transactionHash)}`}
+            </Marked>
           </span>
         )}
       </span>
@@ -407,17 +430,29 @@ function Provenance({ sources, explorer }: { sources: string[]; explorer: string
   return (
     <p className="mt-3 border-t border-gray-100 pt-3 text-xs leading-relaxed text-gray-500">
       {checked.length > 0 && (
-        <span title="Read from the chain through Helios, with a proof">
-          <LocallyVerifiedIcon className="mr-1 inline-block h-3 w-3 align-[-1.5px]" title="Checked on this machine" />
+        <Tooltip
+          tip={
+            <>
+              <LocallyVerifiedIcon className={TIP_ICON} />
+              Read from the chain through Helios, with a proof
+            </>
+          }
+        >
           checked on this machine
-        </span>
+        </Tooltip>
       )}
       {checked.length > 0 && named.length > 0 && ' · '}
       {named.length > 0 && (
-        <span title={`Claims of ${named.join(', ')}`}>
-          <ThirdPartyIcon className="mr-1 inline-block h-3 w-3 align-[-1.5px]" title="From a third party" />
+        <Tooltip
+          tip={
+            <>
+              <ThirdPartyIcon className={TIP_ICON} />
+              Claims of {named.join(', ')}
+            </>
+          }
+        >
           third-party claims, not checked here
-        </span>
+        </Tooltip>
       )}
     </p>
   )
@@ -461,8 +496,9 @@ function AddressLine({ address, name, title }: { address: Hex; name?: Fact<strin
     <div className="flex flex-wrap items-baseline gap-x-2 pb-2">
       {claimed && (
         <span className="text-xs text-gray-700">
-          {claimed.value}
-          <Mark proof={claimed.proof} source={claimed.source} />
+          <Marked proof={claimed.proof} source={claimed.source}>
+            {claimed.value}
+          </Marked>
         </span>
       )}
       <SearchLinks address={address} />
