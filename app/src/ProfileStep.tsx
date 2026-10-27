@@ -64,10 +64,10 @@ function Mark({ proof, source }: { proof: boolean; source: string }) {
   )
 }
 
-// A row value: "…" while it waits, the reason when it is not known, else
-// the value with its mark.
+// A row value: the source it waits for, the reason when it is not known,
+// else the value with its mark.
 function FactView<T>({ fact, children }: { fact: Fact<T>; children: (value: T) => ReactNode }) {
-  if (fact.state === 'pending') return <span className="text-gray-400">…</span>
+  if (fact.state === 'pending') return <Loading>loading from {fact.source}</Loading>
   if (fact.state === 'unknown') return <span className="text-gray-400">unknown · {fact.reason}</span>
   return (
     <span>
@@ -75,6 +75,11 @@ function FactView<T>({ fact, children }: { fact: Fact<T>; children: (value: T) =
       <Mark proof={fact.proof} source={fact.source} />
     </span>
   )
+}
+
+// A value that is not here yet. The pulse says that work is in progress.
+function Loading({ children }: { children: ReactNode }) {
+  return <span className="animate-pulse text-gray-400">{children}</span>
 }
 
 // A link only to a site that the app opens. Any other shows as text.
@@ -411,7 +416,8 @@ function Provenance({ sources, explorer }: { sources: string[]; explorer: string
 
 function SummaryState({ profile, running }: { profile: Profile | AccountProfile | undefined; running: boolean }) {
   const { text, tone } = profile ? summaryState(profile, running) : { text: 'looking up', tone: 'gray' as const }
-  return <span className={`text-xs font-medium ${TONES[tone]}`}>· {text}</span>
+  const pulse = text === 'looking up' ? ' animate-pulse' : ''
+  return <span className={`text-xs font-medium ${TONES[tone]}${pulse}`}>· {text}</span>
 }
 
 function AddressLine({ address, name }: { address: Hex; name?: Fact<string | null> }) {
@@ -446,13 +452,19 @@ function ProfileCard({
   const lines = context.lines.filter((line) => line.address === contract.address && line.topic !== 'status')
   const summary = (
     <div className="flex flex-wrap items-baseline gap-x-2">
-      <ContractSummary contract={contract} contracts={contracts} />
+      <ContractSummary contract={contract} contracts={contracts} verdict={false} />
       <SummaryState profile={profile} running={running} />
     </div>
   )
   return (
     <CollapsibleCard open summary={summary}>
-      {!profile ? <p className="text-sm text-gray-400">…</p> : <ProfileBody profile={profile} explorers={explorers} />}
+      {!profile ? (
+        <p className="text-sm">
+          <Loading>looking up</Loading>
+        </p>
+      ) : (
+        <ProfileBody profile={profile} explorers={explorers} />
+      )}
       <CollapsibleLog lines={lines} />
     </CollapsibleCard>
   )
@@ -506,7 +518,9 @@ function AccountCard({
   return (
     <CollapsibleCard open summary={summary}>
       {!account ? (
-        <p className="text-sm text-gray-400">…</p>
+        <p className="text-sm">
+          <Loading>looking up</Loading>
+        </p>
       ) : (
         <>
           <BlockNotice blocked={account.blocked} goPlus={goPlusFlags(account)} />

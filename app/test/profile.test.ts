@@ -7,12 +7,14 @@ import type { BlockscoutAddress, TokenPage } from '../src/context/blockscout.ts'
 import {
   buildAccount,
   buildProfile,
+  CHAIN,
   emptyHolder,
   FEW_TRANSACTIONS,
-  young,
-  YOUNG_DAYS,
+  LISTS,
   type Fact,
   type ProfileReads,
+  young,
+  YOUNG_DAYS,
 } from '../src/context/profile.ts'
 import type { Creation } from '../src/gates/creation.ts'
 import type { Hex } from '../src/messages.ts'
@@ -205,15 +207,19 @@ test('nothing: each row is unknown with a reason', () => {
 
 test('while the run runs, a row that waits is pending, not unknown', () => {
   const profile = buildProfile(reads({ done: false }))
-  assert.equal(profile.deployment.state, 'pending')
-  assert.equal(profile.transactions.state, 'pending')
-  assert.equal(profile.deployer.address.state, 'pending')
-  assert.equal(profile.lists.state, 'pending')
+  // Each row names the source it waits for.
+  assert.deepEqual(profile.deployment, { state: 'pending', source: 'Blockscout' })
+  assert.deepEqual(profile.transactions, { state: 'pending', source: 'Blockscout' })
+  assert.deepEqual(profile.deployer.address, { state: 'pending', source: 'Blockscout' })
+  assert.deepEqual(profile.deployer.kind, { state: 'pending', source: 'Blockscout' })
+  assert.deepEqual(profile.eth, { state: 'pending', source: CHAIN })
+  assert.deepEqual(profile.lists, { state: 'pending', source: LISTS })
   // A claim waits for its read from the chain.
   const waiting = buildProfile(
     reads({ done: false, contract: { ...emptyHolder(), blockscout: { address: blockscoutAddress() } } }),
   )
-  assert.equal(waiting.deployment.state, 'pending')
+  assert.deepEqual(waiting.deployment, { state: 'pending', source: CHAIN })
+  assert.deepEqual(waiting.deployedAt, { state: 'pending', source: CHAIN })
 })
 
 test('a missing counter leaves its row unknown, the rest stays', () => {
@@ -446,7 +452,13 @@ test('an account: the lists and GoPlus only', () => {
     sources: ['OFAC sanctions'],
   })
   const waiting = buildAccount({ address: DEPLOYER, chainId: 1, done: false })
-  assert.deepEqual([waiting.lists, waiting.goPlus], [{ state: 'pending' }, { state: 'pending' }])
+  assert.deepEqual(
+    [waiting.lists, waiting.goPlus],
+    [
+      { state: 'pending', source: LISTS },
+      { state: 'pending', source: 'GoPlus' },
+    ],
+  )
 })
 
 test('young: under 30 days, or under 100 transactions', () => {
@@ -458,7 +470,10 @@ test('young: under 30 days, or under 100 transactions', () => {
     transactions: 99,
   })
   assert.equal(young({ deployedAt: at(YOUNG_DAYS), transactions: count(FEW_TRANSACTIONS) }, NOW), null)
-  assert.equal(young({ deployedAt: { state: 'pending' }, transactions: { state: 'unknown', reason: 'x' } }, NOW), null)
+  assert.equal(
+    young({ deployedAt: { state: 'pending', source: CHAIN }, transactions: { state: 'unknown', reason: 'x' } }, NOW),
+    null,
+  )
   const profile = buildProfile(
     reads({
       sourcify: { deployment, creation: creation(true), read: true },

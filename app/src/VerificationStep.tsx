@@ -229,13 +229,22 @@ function roleOf(contract: Contract, contracts: Contract[]): string {
   return `Ran as ${short(of)}`
 }
 
-// One line per contract: its verdict, role, address and name.
-export function ContractSummary({ contract, contracts }: { contract: Contract; contracts: Contract[] }) {
+// One line per contract: its verdict, role, address and name. The
+// profile card leaves the verdict out: the verification card shows it.
+export function ContractSummary({
+  contract,
+  contracts,
+  verdict = true,
+}: {
+  contract: Contract
+  contracts: Contract[]
+  verdict?: boolean
+}) {
   const [mark, color] = MARKS[verdictOf(contract)]
   const name = claimOf(contract.sourcify)?.name
   return (
     <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-      <span className={`font-medium ${color}`}>{mark}</span>
+      {verdict && <span className={`font-medium ${color}`}>{mark}</span>}
       <span className="text-xs text-gray-500">{roleOf(contract, contracts)}</span>
       <span className="font-mono text-[13px] text-gray-700" title={contract.address}>
         {short(contract.address)}

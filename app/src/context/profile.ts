@@ -28,8 +28,11 @@ const DAY = 24 * 60 * 60 * 1000
 // 'Blockscout', 'Sourcify', a list, or '{host} without proof'.
 export type Claimed<T> = { value: T; proof: boolean; source: string }
 
-// A row of the profile.
-export type Fact<T> = { state: 'pending' } | { state: 'unknown'; reason: string } | ({ state: 'known' } & Claimed<T>)
+// A row of the profile. A pending row names the source it waits for.
+export type Fact<T> =
+  | { state: 'pending'; source: string }
+  | { state: 'unknown'; reason: string }
+  | ({ state: 'known' } & Claimed<T>)
 
 export type TokenHolding = {
   token: Hex
@@ -171,16 +174,25 @@ export type ProfileReads = AccountReads & {
 
 export const emptyHolder = (): HolderReads => ({ blockscout: {}, tokenAmounts: {} })
 
-const PENDING = { state: 'pending' } as const
+const pending = (source: string): Fact<never> => ({ state: 'pending', source })
 const unknown = (reason: string): Fact<never> => ({ state: 'unknown', reason })
 const known = <T>(value: T, proof: boolean, source: string): Fact<T> => ({ state: 'known', value, proof, source })
 const NOT_READ = 'not read'
+// The source of a value that the chain gives, before the read ends.
+export const CHAIN = 'the chain'
+export const LISTS = 'the address lists'
 
 export const chainSource = (proof: boolean, rpc: string) => (proof ? 'Helios' : `${rpc} without proof`)
 
-// A lookup as a row. An absent lookup is pending while the run runs.
-function fromLookup<T, U>(lookup: Lookup<T> | undefined, done: boolean, map: (value: T) => Fact<U>): Fact<U> {
-  if (lookup === undefined) return done ? unknown(NOT_READ) : PENDING
+// A lookup as a row. An absent lookup is pending while the run runs, and
+// names the source it waits for.
+function fromLookup<T, U>(
+  lookup: Lookup<T> | undefined,
+  done: boolean,
+  source: string,
+  map: (value: T) => Fact<U>,
+): Fact<U> {
+  if (lookup === undefined) return done ? unknown(NOT_READ) : pending(source)
   return lookup.ok ? map(lookup.value) : unknown(lookup.reason)
 }
 
@@ -257,7 +269,10 @@ function deploymentFacts(reads: ProfileReads): {
   deployedAt: Fact<number>
 } {
   const claim = chooseCreation(reads)
-  if (claim === 'pending') return { deployment: PENDING, deployer: PENDING, deployedAt: PENDING }
+  if (claim === 'pending') {
+    const fact = pending('Blockscout')
+    return { deployment: fact, deployer: fact, deployedAt: fact }
+  }
   if (claim === null) {
     const etherscan = reads.etherscanCreation
     const blockscout = reads.contract.blockscout.address
@@ -267,7 +282,7 @@ function deploymentFacts(reads: ProfileReads): {
       blockscout?.ok === false ? `Blockscout: ${blockscout.reason}` : 'no source names the creation transaction'
     if (etherscan && !etherscan.ok) reason += ` · Etherscan: ${etherscan.reason}`
     // Etherscan may still answer.
-    const fact = !reads.done && etherscan === undefined ? PENDING : unknown(reason)
+    const fact = !reads.done && etherscan === undefined ? pending('Etherscan') : unknown(reason)
     return { deployment: fact, deployer: fact, deployedAt: fact }
   }
   const creation = creationOf(reads)
@@ -282,8 +297,8 @@ function deploymentFacts(reads: ProfileReads): {
     )
     deployer = known(creation.deployer.toLowerCase() as Hex, creation.verified, source)
   } else if (creationPending(reads, claim)) {
-    deployment = PENDING
-    deployer = PENDING
+    deployment = pending(CHAIN)
+    deployer = pending(CHAIN)
   } else {
     deployment = known({ transactionHash: claim.transactionHash, block: claim.block }, false, claim.source)
     deployer = claim.deployer
@@ -312,14 +327,14 @@ function deployedAtFact(reads: ProfileReads, claim: CreationClaim, deployment: F
   if (first?.ok && first.value && first.value.hash === claim.transactionHash) {
     return known(first.value.time, false, 'Blockscout')
   }
-  if (deployment.state === 'pending') return PENDING
-  if (block && time === undefined && !reads.done) return PENDING
+  if (deployment.state === 'pending') return pending(deployment.source)
+  if (block && time === undefined && !reads.done) return pending(CHAIN)
   if (time && !time.ok) return unknown(time.reason)
   return unknown(block ? NOT_READ : 'no source names the block of the deployment')
 }
 
 function holdingsOf(holder: HolderReads, reads: ProfileReads): Fact<Holdings> {
-  return fromLookup(holder.blockscout.tokens, reads.done, (page) => {
+  return fromLookup(holder.blockscout.tokens, reads.done, 'Blockscout', (page) => {
     const listed = listedOn(reads.tokenLists, reads.chainId)
     const tokens = page.tokens.map((claim): TokenHolding => {
       const lists = listed.get(claim.token)
@@ -364,15 +379,18 @@ function firstTransactionFact(holder: HolderReads, done: boolean): Fact<FirstTra
   if (blockscout?.ok) return known(blockscout.value, false, 'Blockscout')
   const etherscan = holder.etherscanFirst
   if (etherscan?.ok) return known(etherscan.value, false, 'Etherscan')
-  if (blockscout === undefined || (etherscan === undefined && !done)) return done ? unknown(NOT_READ) : PENDING
+  if (blockscout === undefined) return done ? unknown(NOT_READ) : pending('Blockscout')
+  if (etherscan === undefined && !done) return pending('Etherscan')
   return unknown(etherscan ? `${blockscout.reason} · Etherscan: ${etherscan.reason}` : blockscout.reason)
 }
 
 function activityOf(holder: HolderReads, reads: ProfileReads): Activity {
   return {
-    transactions: fromLookup(holder.blockscout.counters, reads.done, (count) => known(count, false, 'Blockscout')),
+    transactions: fromLookup(holder.blockscout.counters, reads.done, 'Blockscout', (count) =>
+      known(count, false, 'Blockscout'),
+    ),
     firstTransaction: firstTransactionFact(holder, reads.done),
-    eth: fromLookup(holder.balance, reads.done, (wei) =>
+    eth: fromLookup(holder.balance, reads.done, CHAIN, (wei) =>
       known(wei.value, wei.proof, chainSource(wei.proof, reads.rpc)),
     ),
     tokens: holdingsOf(holder, reads),
@@ -388,17 +406,20 @@ const unknownActivity = (fact: Fact<never>): Activity => ({
 
 function deployerOf(reads: ProfileReads, address: Fact<Hex>): DeployerProfile {
   if (address.state !== 'known') {
-    const fact = address.state === 'pending' ? PENDING : unknown('the deployer is not known')
+    const fact = address.state === 'pending' ? pending(address.source) : unknown('the deployer is not known')
     return { address, kind: fact, name: fact, lists: fact, ...unknownActivity(fact) }
   }
   const { deployer } = reads
   const label = deployer.hits?.ok ? deployer.hits.value.hits.find((hit) => hit.kind === 'allow') : undefined
   let name: Fact<string | null>
   if (label) name = known(label.label, false, label.list)
-  else name = fromLookup(deployer.blockscout.address, reads.done, (claim) => known(claim.name, false, 'Blockscout'))
+  else
+    name = fromLookup(deployer.blockscout.address, reads.done, 'Blockscout', (claim) =>
+      known(claim.name, false, 'Blockscout'),
+    )
   return {
     address,
-    kind: fromLookup(deployer.kind, reads.done, (kind) =>
+    kind: fromLookup(deployer.kind, reads.done, CHAIN, (kind) =>
       known(kind.value, kind.proof, chainSource(kind.proof, reads.rpc)),
     ),
     name,
@@ -408,7 +429,7 @@ function deployerOf(reads: ProfileReads, address: Fact<Hex>): DeployerProfile {
 }
 
 const listsFact = (hits: Lookup<ListAnswer> | undefined, done: boolean): Fact<ListAnswer> =>
-  fromLookup(hits, done, (answer) => known(answer, false, 'address lists'))
+  fromLookup(hits, done, LISTS, (answer) => known(answer, false, 'address lists'))
 
 function blockedOf(lists: Fact<ListAnswer>, of: Blocked['of']): Blocked[] {
   if (lists.state !== 'known') return []
@@ -420,7 +441,7 @@ function blockedOf(lists: Fact<ListAnswer>, of: Blocked['of']): Blocked[] {
 function goPlusOf(reads: AccountReads): GoPlusFact {
   return reads.goPlus === 'off'
     ? { state: 'off' }
-    : fromLookup(reads.goPlus, reads.done, (result) => known(result, false, 'GoPlus'))
+    : fromLookup(reads.goPlus, reads.done, 'GoPlus', (result) => known(result, false, 'GoPlus'))
 }
 
 export function young(profile: Pick<Profile, 'deployedAt' | 'transactions'>, now: number): Young | null {
@@ -468,7 +489,7 @@ export function buildProfile(reads: ProfileReads): Profile {
   const profile: Omit<Profile, 'sources'> = {
     address: reads.address,
     chainId: reads.chainId,
-    name: fromLookup(blockscoutAddress, reads.done, (claim) => known(claim.name, false, 'Blockscout')),
+    name: fromLookup(blockscoutAddress, reads.done, 'Blockscout', (claim) => known(claim.name, false, 'Blockscout')),
     deployment,
     deployedAt,
     deployer: deployerProfile,
@@ -476,7 +497,7 @@ export function buildProfile(reads: ProfileReads): Profile {
     lists,
     blocked,
     security: {
-      blockscout: fromLookup(blockscoutAddress, reads.done, (claim) =>
+      blockscout: fromLookup(blockscoutAddress, reads.done, 'Blockscout', (claim) =>
         known(claim.scam ? ('scam' as const) : ('ok' as const), false, 'Blockscout'),
       ),
       goPlus: goPlusOf(reads),
