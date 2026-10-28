@@ -2,7 +2,7 @@
 // claims, and what the app reproduced.
 
 import { useState } from 'react'
-import { verdictOf, type Contract, type Verdict } from './gates/contracts.ts'
+import { verdictOf, type Contract } from './gates/contracts.ts'
 import { delegateOf } from './gates/simulation.ts'
 import { claimOf, claimText, describeCompiler, failureOf, type Found } from './gates/sourcify.ts'
 import type { Verification } from './gates/verification.ts'
@@ -11,6 +11,7 @@ import { short } from './gates/words.ts'
 import { ThirdPartyIcon } from './Icons.tsx'
 import { CollapsibleLog } from './Log.tsx'
 import { CollapsibleCard, InfoTip, Notice, Row, Step } from './Step.tsx'
+import { MARKS } from './marks.ts'
 
 function SourcifyRow({ contract }: { contract: Contract }) {
   const claim = claimOf(contract.sourcify)
@@ -151,13 +152,6 @@ function roleOf(contract: Contract, contracts: Contract[]): string {
   const confirmed = claim?.implementations.some((impl) => impl.address === contract.address) ?? false
   if (confirmed && claim) return `Implementation of ${short(of)} · ${claim.proxyType} proxy per Sourcify`
   return `Ran as ${short(of)}`
-}
-
-const MARKS: Record<Verdict, [string, string]> = {
-  pending: ['…', 'text-gray-400'],
-  passed: ['✓', 'text-green-700'],
-  flagged: ['⚠', 'text-amber-700'],
-  failed: ['✕', 'text-light-coral-700'],
 }
 
 // One line per contract: its verdict, role, address and name.

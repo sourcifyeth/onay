@@ -7,7 +7,7 @@ import { LocallyVerifiedIcon } from './Icons.tsx'
 import { Cursor, LogBox, LogLineView, ProgressIcon } from './Log.tsx'
 import { SimulationStep } from './SimulationStep.tsx'
 import { VerificationStep } from './VerificationStep.tsx'
-import { progressOf, progressOfSimulation, type Progress } from './gates/contracts.ts'
+import { progressOf, progressOfSimulation, progressShown, type Progress } from './gates/contracts.ts'
 import { verificationFor, type TimedLine, type Verification } from './gates/verification.ts'
 
 // The log shows at most one new line in this time, so that you can read it.
@@ -161,10 +161,8 @@ function GateLog({
   const sourcify = visible.filter((line) => line.source === 'sourcify' || line.source === 'solc')
   const chainLines = visible.filter((line) => line.source === mode)
   const target = contracts.length === 1 ? contracts[0].address : `${contracts.length} contracts`
-  // The log plays at its own pace. Until it caught up, a gate that ended
-  // still shows as running, so its icon does not get ahead of its lines.
   const settled = shown === verification.lines.length
-  const progress = (gate: Progress) => (settled || gate === 'waiting' ? gate : 'running')
+  const progress = (gate: Progress, lines: TimedLine[]) => progressShown(gate, settled, lines.length > 0)
   return (
     <div className="font-mono text-xs leading-relaxed">
       {asked.map((line, index) => (
@@ -175,7 +173,7 @@ function GateLog({
           title={mode}
           color={mode === 'helios' ? 'text-cerulean-blue-500' : 'text-amber-600'}
           subtitle={chainId === null ? target : `${target} on ${chainName(chainId)}`}
-          progress={progress(progressOf(contracts, 'helios'))}
+          progress={progress(progressOf(contracts, 'helios'), chainLines)}
           lines={chainLines}
         />
       ) : (
@@ -186,7 +184,7 @@ function GateLog({
           title="evm"
           color="text-cerulean-blue-500"
           subtitle={`local simulation · state from ${mode}`}
-          progress={progress(progressOfSimulation(verification.simulation))}
+          progress={progress(progressOfSimulation(verification.simulation), evm)}
           lines={evm}
         />
       )}
@@ -195,7 +193,7 @@ function GateLog({
           title="sourcify"
           color="text-cerulean-blue-500"
           subtitle={`${target} · sources from sourcify.dev, compiled here`}
-          progress={progress(progressOf(contracts, 'sourcify'))}
+          progress={progress(progressOf(contracts, 'sourcify'), sourcify)}
           lines={sourcify}
         />
       )}

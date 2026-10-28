@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Progress } from './gates/contracts.ts'
 import type { TimedLine } from './gates/verification.ts'
-import { LocallyVerifiedIcon, SpinnerIcon, ThirdPartyIcon } from './Icons.tsx'
+import { LocallyVerifiedIcon, ThirdPartyIcon } from './Icons.tsx'
+import { MARKS } from './marks.ts'
 
 // The trust icon of a line, or a blank of the same width.
 function Proof({ proof }: { proof: boolean | undefined }) {
@@ -32,9 +33,9 @@ export function LogLineView({ line, tag = false }: { line: TimedLine; tag?: bool
   )
 }
 
-// The state of a gate, in the header of its log. The icons of the ends
-// are the ones of the review: the local check, the cross of a failed
-// line, the warning sign of a notice.
+// The state of a gate, in the header of its log. An end uses the marks
+// of the review. A trust icon is not correct here: in RPC mode a gate
+// passes on data without proof.
 const PROGRESS_TITLE: Record<Progress, string> = {
   waiting: 'Waiting',
   running: 'Running',
@@ -52,32 +53,44 @@ export function ProgressIcon({ progress }: { progress: Progress }) {
       return <span className={`${box} rounded-full border-2 border-gray-300`} title={title} />
     case 'running':
       return <SpinnerIcon className={box} title={title} />
-    case 'passed':
-      return <LocallyVerifiedIcon className={box} title={title} />
-    case 'flagged':
-      return (
-        <span className={`${box} text-sm leading-none text-amber-600`} title={title}>
-          ⚠
-        </span>
-      )
-    case 'failed':
-      return (
-        <span className={`${box} text-sm leading-none text-light-coral-700`} title={title}>
-          ✕
-        </span>
-      )
     case 'skipped':
       return (
         <span className={`${box} text-sm leading-none text-gray-400`} title={title}>
           –
         </span>
       )
+    default: {
+      const [mark, color] = MARKS[progress]
+      return (
+        <span className={`${box} text-sm leading-none font-medium ${color}`} title={title}>
+          {mark}
+        </span>
+      )
+    }
   }
 }
 
-// The lines of one gate while it runs, in a box of five lines. The box
-// follows the newest line until you scroll up, and follows again when
-// you scroll back to the bottom.
+// An open ring that turns: a gate is running.
+function SpinnerIcon({ className, title }: { className: string; title: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`animate-spin ${className}`} role="img">
+      <title>{title}</title>
+      <circle cx="12" cy="12" r="8.5" className="stroke-cerulean-blue-200" strokeWidth="3" fill="none" />
+      <path
+        d="M12 3.5A8.5 8.5 0 0 1 20.5 12"
+        className="stroke-cerulean-blue-500"
+        strokeWidth="3"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
+  )
+}
+
+// The lines of one gate while it runs, in a box of five lines. The
+// cursor takes one more line under them. The box follows the newest line
+// until you scroll up, and follows again when you scroll back to the
+// bottom.
 const BOX_LINES = 5
 
 export function LogBox({ lines }: { lines: TimedLine[] }) {
@@ -97,7 +110,7 @@ export function LogBox({ lines }: { lines: TimedLine[] }) {
     <div
       ref={box}
       onScroll={onScroll}
-      style={{ maxHeight: `calc(${BOX_LINES} * 1.625em)` }}
+      style={{ maxHeight: `calc(${BOX_LINES + 1} * 1.625em)` }}
       className="mt-1 overflow-y-auto rounded-md bg-gray-50 px-2 leading-relaxed"
     >
       {lines.map((line, index) => (
