@@ -5,9 +5,10 @@ import { ChainDataStep } from './ChainDataStep.tsx'
 import { ClearSigningStep } from './ClearSigningStep.tsx'
 import { CompareStep } from './CompareStep.tsx'
 import { LocallyVerifiedIcon } from './Icons.tsx'
-import { Cursor, LogLineView } from './Log.tsx'
+import { Cursor, LogBox, LogLineView, ProgressIcon } from './Log.tsx'
 import { SimulationStep } from './SimulationStep.tsx'
 import { VerificationStep } from './VerificationStep.tsx'
+import { progressOf, progressOfSimulation, progressShown, type Progress } from './gates/contracts.ts'
 import { clearSigningFor, type ClearSigning } from './clear-signing/store.ts'
 import { stepsOf, stepVerdicts } from './gates/verdict.ts'
 import { verificationFor, type TimedLine, type Verification } from './gates/verification.ts'
@@ -120,35 +121,28 @@ function Summary({ request, verification }: { request: SigningRequest; verificat
   )
 }
 
-// The lines of one gate under its header. The log shows only while the
-// run goes on, so the header always has the running dot.
+// The lines of one gate under its header, with the progress of the gate.
 function Section({
   title,
   color,
   subtitle,
+  progress,
   lines,
 }: {
   title: string
   color: string
   subtitle: string
+  progress: Progress
   lines: TimedLine[]
 }) {
   return (
     <section className="pt-3">
       <div className="flex items-center gap-2">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-300 opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-yellow-400" />
-        </span>
+        <ProgressIcon progress={progress} />
         <span className={color}>{title}</span>
         <span className="truncate text-gray-500">· {subtitle}</span>
       </div>
-      <div className="pt-1 pl-4">
-        {lines.map((line, index) => (
-          <LogLineView key={index} line={line} />
-        ))}
-        <Cursor />
-      </div>
+      <LogBox lines={lines} />
     </section>
   )
 }
@@ -170,6 +164,8 @@ function GateLog({
   const sourcify = visible.filter((line) => line.source === 'sourcify' || line.source === 'solc')
   const chainLines = visible.filter((line) => line.source === mode)
   const target = contracts.length === 1 ? contracts[0].address : `${contracts.length} contracts`
+  const settled = shown === verification.lines.length
+  const progress = (gate: Progress, lines: TimedLine[]) => progressShown(gate, settled, lines.length > 0)
   return (
     <div className="font-mono text-xs leading-relaxed">
       {asked.map((line, index) => (
@@ -180,6 +176,7 @@ function GateLog({
           title={mode}
           color={mode === 'helios' ? 'text-cerulean-blue-500' : 'text-amber-600'}
           subtitle={chainId === null ? target : `${target} on ${chainName(chainId)}`}
+          progress={progress(progressOf(contracts, 'helios'), chainLines)}
           lines={chainLines}
         />
       ) : (
@@ -190,6 +187,7 @@ function GateLog({
           title="evm"
           color="text-cerulean-blue-500"
           subtitle={`local simulation · state from ${mode}`}
+          progress={progress(progressOfSimulation(verification.simulation), evm)}
           lines={evm}
         />
       )}
@@ -198,6 +196,7 @@ function GateLog({
           title="sourcify"
           color="text-cerulean-blue-500"
           subtitle={`${target} · sources from sourcify.dev, compiled here`}
+          progress={progress(progressOf(contracts, 'sourcify'), sourcify)}
           lines={sourcify}
         />
       )}
