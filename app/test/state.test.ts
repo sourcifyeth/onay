@@ -108,6 +108,38 @@ test('account writes: put, modify, delete', async () => {
   assert.equal(await state.getAccount(A), undefined)
 })
 
+test('a read at a block the node does not know yet is tried again after a pause, three times', async () => {
+  // The first two answers come from a node behind the head.
+  let lagging = 2
+  const calls: string[] = []
+  const read: ChainRead = async (method, params) => {
+    calls.push(method)
+    if (lagging-- > 0) throw new Error(`${method}: header not found`)
+    return chain()(method, params)
+  }
+  const slept: number[] = []
+  const state = new ChainStateManager(read, 255, async (ms) => void slept.push(ms))
+  assert.equal((await state.getAccount(A))?.nonce, 1n)
+  assert.deepEqual(calls, ['eth_getProof', 'eth_getProof', 'eth_getProof'])
+  assert.deepEqual(slept, [1000, 1000])
+  // A node that stays behind gives up after the third retry; any other
+  // error is not retried.
+  const behind: ChainRead = async (method) => {
+    calls.push(method)
+    throw new Error(`${method}: unknown block`)
+  }
+  calls.length = 0
+  await assert.rejects(new ChainStateManager(behind, 1, async () => {}).getCode(A), /eth_getCode: unknown block/)
+  assert.equal(calls.length, 4)
+  calls.length = 0
+  const broken: ChainRead = async (method) => {
+    calls.push(method)
+    throw new Error(`${method}: the endpoint answered HTTP 429`)
+  }
+  await assert.rejects(new ChainStateManager(broken, 1, async () => {}).getStorage(A, SLOT), /HTTP 429/)
+  assert.equal(calls.length, 1)
+})
+
 test('an answer of another shape is refused', async () => {
   const bad: ChainRead = async (method) => (method === 'eth_getProof' ? { nonce: 1 } : 42)
   const state = new ChainStateManager(bad, 1)

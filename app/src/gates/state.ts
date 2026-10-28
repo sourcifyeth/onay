@@ -27,6 +27,17 @@ export type Reads = { accounts: number; slots: number }
 
 const EMPTY_CODE_HASH = hexToBytes('0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470')
 
+// A load-balanced endpoint can answer a read at the head block from a
+// node that has not seen the head yet. The read is tried again after a
+// pause, this many times.
+const LAG_RETRIES = 3
+const LAG_PAUSE = 1000
+const LAG = /header not found|unknown block|block not found/i
+
+export type Sleep = (ms: number) => Promise<void>
+
+const sleep: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
 export class ChainStateManager implements StateManagerInterface {
   originalStorageCache: OriginalStorageCache
   readonly reads: Reads = { accounts: 0, slots: 0 }
@@ -37,11 +48,25 @@ export class ChainStateManager implements StateManagerInterface {
   private caches = new Caches({ storage: { size: 100_000 }, code: { size: 100_000 } })
   private read: ChainRead
   private block: Hex
+  private sleep: Sleep
 
-  constructor(read: ChainRead, block: number) {
+  constructor(read: ChainRead, block: number, pause: Sleep = sleep) {
     this.read = read
     this.block = `0x${block.toString(16)}`
+    this.sleep = pause
     this.originalStorageCache = new OriginalStorageCache(this.getStorage.bind(this))
+  }
+
+  // A read at the block of the request, tried again while the node lags.
+  private async readAtBlock(method: string, params: unknown[]): Promise<unknown> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.read(method, [...params, this.block])
+      } catch (error) {
+        if (attempt === LAG_RETRIES || !LAG.test(error instanceof Error ? error.message : String(error))) throw error
+        await this.sleep(LAG_PAUSE)
+      }
+    }
   }
 
   async getAccount(address: Address): Promise<Account | undefined> {
@@ -50,7 +75,7 @@ export class ChainStateManager implements StateManagerInterface {
       return cached.accountRLP !== undefined ? createAccountFromRLP(cached.accountRLP) : undefined
     }
     this.reads.accounts++
-    const proof = asRecord(await this.read('eth_getProof', [address.toString(), [], this.block]), 'eth_getProof')
+    const proof = asRecord(await this.readAtBlock('eth_getProof', [address.toString(), []]), 'eth_getProof')
     const account = createAccount({
       nonce: asQuantity(proof.nonce, 'eth_getProof'),
       balance: asQuantity(proof.balance, 'eth_getProof'),
@@ -85,7 +110,7 @@ export class ChainStateManager implements StateManagerInterface {
   async getCode(address: Address): Promise<Uint8Array> {
     const cached = this.caches.code?.get(address)?.code
     if (cached !== undefined) return cached
-    const code = asHex(await this.read('eth_getCode', [address.toString(), this.block]), 'eth_getCode')
+    const code = asHex(await this.readAtBlock('eth_getCode', [address.toString()]), 'eth_getCode')
     this.codes.set(address.toString() as Hex, code)
     const bytes = hexToBytes(code)
     this.caches.code?.put(address, bytes)
@@ -106,7 +131,7 @@ export class ChainStateManager implements StateManagerInterface {
     if (cached !== undefined) return cached
     this.reads.slots++
     const slot = `0x${Array.from(key, (byte) => byte.toString(16).padStart(2, '0')).join('')}`
-    const value = asHex(await this.read('eth_getStorageAt', [address.toString(), slot, this.block]), 'eth_getStorageAt')
+    const value = asHex(await this.readAtBlock('eth_getStorageAt', [address.toString(), slot]), 'eth_getStorageAt')
     // The EVM keeps values without leading zeros: a zero is empty.
     const bytes = unpadBytes(setLengthLeft(hexToBytes(value), 32))
     this.caches.storage?.put(address, key, bytes)
@@ -150,7 +175,7 @@ export class ChainStateManager implements StateManagerInterface {
   }
 
   shallowCopy(): StateManagerInterface {
-    return new ChainStateManager(this.read, Number(this.block))
+    return new ChainStateManager(this.read, Number(this.block), this.sleep)
   }
 }
 
