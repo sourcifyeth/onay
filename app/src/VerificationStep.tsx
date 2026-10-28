@@ -1,10 +1,11 @@
-// Step 3 of the review: the source code of each contract. What Sourcify
-// claims, and what the app reproduced.
+// The step of the review that checks the source code of each contract:
+// what Sourcify claims, and what the app reproduced.
 
 import { useState } from 'react'
 import { verdictOf, type Contract, type Verdict } from './gates/contracts.ts'
 import { delegateOf } from './gates/simulation.ts'
 import { claimOf, claimText, describeCompiler, failureOf, type Found } from './gates/sourcify.ts'
+import type { StepInfo } from './gates/verdict.ts'
 import type { Verification } from './gates/verification.ts'
 import { matchText, WITHOUT_PROOF } from './gates/verify.ts'
 import { short } from './gates/words.ts'
@@ -299,7 +300,7 @@ function CalledContracts({ contracts, verification }: { contracts: Contract[]; v
   )
 }
 
-export function VerificationStep({ verification }: { verification: Verification }) {
+export function VerificationStep({ step, verification }: { step: StepInfo; verification: Verification }) {
   // An address without code has nothing to verify, and is left out. An
   // account with a delegate (EIP-7702) has no sources either, but it
   // stays: it is what the request names, and its delegate is checked.
@@ -308,8 +309,7 @@ export function VerificationStep({ verification }: { verification: Verification 
   const called = targets.filter((contract) => contract.foundBy === 'simulation')
   return (
     <Step
-      number={3}
-      title="Source Code Verification"
+      step={step}
       explainer="A contract without verified source code is a black box: nobody can check what it does. Do not interact with one. The contracts that the transaction calls on the way are checked too."
     >
       {targets.length === 0 ? (

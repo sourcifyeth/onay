@@ -71,3 +71,9 @@ reason = "unmaintained unsafe-libyaml, via helios-ethereum > serde_yaml; parses 
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0387"
 reason = "crypto-bigint 0.5, via helios > alloy-signer > elliptic-curve 0.13; timing leaks on secret integers, and Onay holds no keys: the curve code only verifies signatures on public data; fixed in 0.7, which elliptic-curve 0.13 does not accept"
+
+# Only in the GitHub advisory database, so cargo-deny does not know it.
+
+[[IgnoredVulns]]
+id = "GHSA-qwgh-2vcv-g2f7"
+reason = "block-buffer 0.9 via helios > sha2 0.9 and sha-1 0.9, and 0.10 via digest 0.10 (sha2, hmac, k256, tauri-codegen); the buffer breaks only if a hash function panics inside it and the caller catches the panic and uses the hasher again; the hash functions do not panic there; fixed in 0.12.1, which digest 0.10 does not accept"

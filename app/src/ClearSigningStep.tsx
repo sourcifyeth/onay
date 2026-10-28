@@ -1,11 +1,11 @@
-// Step 3 of the review: what the request asks to sign, in words. An
-// ERC-7730 descriptor renders the intent and the fields; one that no
-// trusted auditor attested shows as a preview with a warning. A second
-// tab shows the calldata as the verified ABI (Application Binary
+// The step of the review that shows what the request asks to sign, in
+// words. An ERC-7730 descriptor renders the intent and the fields; one
+// that no trusted auditor attested shows as a preview with a warning. A
+// second tab shows the calldata as the verified ABI (Application Binary
 // Interface) decodes it, and a third the raw request. Taken from the
 // mock's transaction card.
 
-import { useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { DisplayField, DisplayFieldGroup, DisplayModel, Warning } from '@ethereum-sourcify/clear-signing'
 import { isFieldGroup } from '@ethereum-sourcify/clear-signing'
 import { chainById } from './chains.ts'
@@ -19,13 +19,14 @@ import {
   type DescriptorSource,
   type Rendering,
 } from './clear-signing/render.ts'
-import { chainInfoOf, clearSigningFor, type ClearSigning } from './clear-signing/store.ts'
+import { chainInfoOf, type ClearSigning } from './clear-signing/store.ts'
 import { ExternalLink } from './ExternalLink.tsx'
 import { ThirdPartyIcon } from './Icons.tsx'
+import type { StepInfo } from './gates/verdict.ts'
 import type { Verification } from './gates/verification.ts'
 import { CollapsibleLog, Cursor } from './Log.tsx'
-import type { Hex, SigningRequest } from './messages.ts'
-import { Step } from './Step.tsx'
+import type { Hex } from './messages.ts'
+import { Hint, ListRow, Step } from './Step.tsx'
 import { Tabs } from './Tabs.tsx'
 
 // The native currency of the chain, for the amounts of the request.
@@ -101,24 +102,6 @@ function Interpolated({ text, values }: { text: string; values: string[] }) {
   )
 }
 
-// A label on the left and a value on the right, as the wallets show it.
-function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-6 py-2.5">
-      <dt className="shrink-0 text-sm text-gray-500">{label}</dt>
-      <dd className="min-w-0 text-right">{children}</dd>
-    </div>
-  )
-}
-
-function Details({ open, onToggle }: { open: boolean; onToggle: () => void }) {
-  return (
-    <button onClick={onToggle} className="font-mono text-xs text-gray-400 transition-colors hover:text-gray-600">
-      {open ? 'hide details ▴' : 'details ▾'}
-    </button>
-  )
-}
-
 function IntentToggle({ pill, open, onToggle }: { pill: ReactNode; open: boolean; onToggle: () => void }) {
   return (
     <p className="flex items-center justify-between gap-4 pb-2">
@@ -138,53 +121,6 @@ function IntentToggle({ pill, open, onToggle }: { pill: ReactNode; open: boolean
 function FieldWarning({ warning }: { warning: Warning | undefined }) {
   if (!warning || warning.code === 'UNKNOWN_ADDRESS') return null
   return <p className="pt-0.5 text-right text-xs text-amber-700">⚠ {warning.message}</p>
-}
-
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch {
-    return false
-  }
-}
-
-// A value with a tooltip that shows what is behind it. A click copies
-// the tooltip's text.
-function Hint({
-  what,
-  text,
-  className,
-  children,
-}: {
-  what: string
-  text: string
-  className: string
-  children: ReactNode
-}) {
-  const [copied, setCopied] = useState(false)
-  const copy = async () => {
-    if (!(await copyText(text))) return
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-  return (
-    <span className="group/hint relative inline-block">
-      <button
-        onClick={copy}
-        className={`cursor-copy text-left underline decoration-gray-300 decoration-dotted underline-offset-4 ${className}`}
-      >
-        {children}
-      </button>
-      <span
-        role="tooltip"
-        className="pointer-events-none invisible absolute right-0 bottom-full z-20 mb-1.5 w-max max-w-[22rem] rounded-md bg-gray-800 px-2.5 py-1.5 text-left font-mono text-[11px] leading-relaxed break-all whitespace-normal text-white opacity-0 shadow-lg transition-opacity group-hover/hint:visible group-hover/hint:opacity-100"
-      >
-        <span className="block text-gray-400">{copied ? 'copied' : `${what} · click to copy`}</span>
-        {text}
-      </span>
-    </span>
-  )
 }
 
 function FieldValue({ field }: { field: DisplayField }) {
@@ -415,7 +351,7 @@ function Unattested({ state, error }: { state: ClearSigning; error: string | nul
   )
 }
 
-// A descriptor rendered the data: intent, sentence, fields.
+// A descriptor rendered the data: sentence, action, fields.
 function DisplayPane({
   display,
   source,
@@ -429,15 +365,12 @@ function DisplayPane({
   attestationError: string | null
   state: ClearSigning
 }) {
-  const [open, setOpen] = useState(false)
   // The template has no metadata: the name is the token's own, from the
   // chain.
   const contractName = display.metadata?.contractName ?? (source?.kind === 'template' ? source.name : undefined)
   const owner = display.metadata?.owner
   const intent = intentText(display.intent)
   const sentence = display.interpolatedIntent
-  // Without a sentence the fields are the intent, so they show at once.
-  const fields = sentence ? open : true
   return (
     <div>
       {!attested && (
@@ -460,22 +393,15 @@ function DisplayPane({
           'The descriptor does not name the contract.'
         )}
       </p>
-      <Interpolated text={sentence ?? intent} values={sentence ? valuesOf(display.fields) : []} />
-      {sentence && (
-        <p className="pt-2">
-          <Details open={open} onToggle={() => setOpen((v) => !v)} />
-        </p>
-      )}
-      {fields && (
-        <dl className="mt-2 divide-y divide-gray-100 border-t border-gray-100 px-4">
-          {sentence && (
-            <Row label="Intent">
-              <span className="text-sm font-semibold text-gray-900">{intent}</span>
-            </Row>
-          )}
-          <FieldRows fields={display.fields} />
-        </dl>
-      )}
+      {sentence && <Interpolated text={sentence} values={valuesOf(display.fields)} />}
+      <dl className="mt-2 divide-y divide-gray-100 px-4">
+        <ListRow label="Action">
+          <span className="inline-block rounded-lg bg-cerulean-blue-100/50 px-3 py-1 text-[15px] leading-relaxed font-semibold text-gray-900">
+            {intent}
+          </span>
+        </ListRow>
+        <FieldRows fields={display.fields} />
+      </dl>
       <Warnings warnings={display.warnings} />
       <Provenance source={source} display={display} attested={attested} />
     </div>
@@ -528,7 +454,7 @@ function RawWords({ data }: { data: Hex }) {
 }
 
 const ABI_SOURCE =
-  'The ABI (Application Binary Interface) comes from the source code verified in step 3: fetched from sourcify.dev, compiled on this machine, and matched to the code on the chain.'
+  'The ABI (Application Binary Interface) comes from the source code verified in the step before: fetched from sourcify.dev, compiled on this machine, and matched to the code on the chain.'
 
 // The calldata as the verified ABI decodes it, with the reason why no
 // descriptor rendered it.
@@ -597,10 +523,10 @@ function Transfer({ call, currency }: { call: Call; currency: Currency }) {
     <div>
       <Interpolated text={`Send ${amount} to ${to}`} values={[amount, to]} />
       <dl className="mt-2 divide-y divide-gray-100">
-        <Row label="Amount">
+        <ListRow label="Amount">
           <span className="text-sm font-medium text-gray-800">{amount}</span>
-        </Row>
-        <Row label="To">
+        </ListRow>
+        <ListRow label="To">
           {call.to ? (
             <Hint what="address" text={call.to} className="font-mono text-[13px] font-medium break-all text-gray-800">
               {call.to}
@@ -608,7 +534,7 @@ function Transfer({ call, currency }: { call: Call; currency: Currency }) {
           ) : (
             <span className="text-sm font-medium text-gray-800">{to}</span>
           )}
-        </Row>
+        </ListRow>
       </dl>
       <p className="pt-3 font-mono text-[11px] leading-relaxed text-gray-400">
         plain value transfer · no calldata · rendered by Onay
@@ -921,13 +847,21 @@ function tabsOf(state: ClearSigning, chainId: number, currency: Currency): Tab[]
 const EXPLAINER =
   'An ERC-7730 descriptor explains a call in plain words: what it does, and what each value means. A descriptor counts as reviewed only after an auditor you trust attested it; one that none did shows as a preview with a warning, since a wrong description can hide what you sign. The ABI-Decoded tab shows the call as the verified source code decodes it, with or without a descriptor.'
 
-export function ClearSigningStep({ request, verification }: { request: SigningRequest; verification: Verification }) {
-  const store = clearSigningFor(request, verification)
-  const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
+// The page starts Clear Signing and gives its state, since the verdict
+// of the review needs it too.
+export function ClearSigningStep({
+  step,
+  verification,
+  state,
+}: {
+  step: StepInfo
+  verification: Verification
+  state: ClearSigning
+}) {
   const chainId = verification.chainId ?? 0
   const currency = chainInfoOf(chainById(chainId))?.nativeCurrency ?? null
   return (
-    <Step number={4} title="Clear Signing" explainer={EXPLAINER}>
+    <Step step={step} explainer={EXPLAINER}>
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <Tabs tabs={tabsOf(state, chainId, currency)} />
         <div className="pt-3">

@@ -1,7 +1,8 @@
-// Step 1 of the review: how the chain was read. Helios checks each
-// answer with a proof. An RPC endpoint is taken on trust.
+// The step of the review that shows how the chain was read. Helios
+// checks each answer with a proof. An RPC endpoint is taken on trust.
 
 import type { Contract } from './gates/contracts.ts'
+import type { StepInfo } from './gates/verdict.ts'
 import type { Verification } from './gates/verification.ts'
 import { CollapsibleLog } from './Log.tsx'
 import { short } from './gates/words.ts'
@@ -49,14 +50,21 @@ function CodeReads({ contracts, helios }: { contracts: Contract[]; helios: boole
   )
 }
 
+// A request that Onay could not check stops before the chain is read.
+function failureText({ head, stopped }: Verification): string {
+  if (stopped) return 'The chain was not read'
+  return head === null ? 'Helios did not sync' : 'Helios could not read every contract'
+}
+
 function HeliosCard({ verification }: { verification: Verification }) {
   const { head, contracts } = verification
   const lines = verification.lines.filter((line) => line.source === 'helios')
-  const failed = head === null || contracts.some((contract) => contract.helios.status === 'failed')
+  const failed = contracts.some((contract) => contract.helios.status === 'failed')
+  // A request without a contract has nothing to read.
   const summary = failed ? (
-    <p className="text-sm font-medium text-light-coral-700">
-      ✕ {head === null ? 'Helios did not sync' : 'Helios could not read every contract'}
-    </p>
+    <p className="text-sm font-medium text-light-coral-700">✕ {failureText(verification)}</p>
+  ) : head === null ? (
+    <p className="text-sm font-medium text-gray-600">No contract to read</p>
   ) : (
     <p className="text-sm font-medium text-green-700">✓ Chain data verified by Helios</p>
   )
@@ -109,11 +117,10 @@ function RpcCard({ verification }: { verification: Verification }) {
   )
 }
 
-export function ChainDataStep({ verification }: { verification: Verification }) {
+export function ChainDataStep({ step, verification }: { step: StepInfo; verification: Verification }) {
   return (
     <Step
-      number={1}
-      title="Chain Data Verification"
+      step={step}
       explainer="Onay reads contract code and state from the blockchain through an RPC server. Helios, a light client built into Onay, checks every answer with a cryptographic proof, so a dishonest server cannot give you fake data."
     >
       {verification.chain?.mode === 'helios' ? (

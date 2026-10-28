@@ -2,10 +2,27 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import type { SigningRequest } from '../src/messages.ts'
-import { callsOf, chainOf, contractsOf, parseChainId, parseQuantity, requestProblem } from '../src/gates/request.ts'
+import {
+  authorizationsOf,
+  callsOf,
+  chainOf,
+  contractsOf,
+  messageOf,
+  parseChainId,
+  parseQuantity,
+  requestProblem,
+  signedDomain,
+  uncheckedPart,
+} from '../src/gates/request.ts'
 
 const A = '0xff75a951eeb963dd34a1712edc3c358f08e6b0aa'
 const B = '0x1111111111111111111111111111111111111111'
+const DOMAIN_TYPE = {
+  EIP712Domain: [
+    { name: 'chainId', type: 'uint256' },
+    { name: 'verifyingContract', type: 'address' },
+  ],
+}
 
 function request(method: string, params: unknown, chainId: number | null = null): SigningRequest {
   return {
@@ -39,9 +56,59 @@ test('contractsOf: the contract of each method', () => {
   assert.deepEqual(contractsOf(request('eth_sendTransaction', [{ to: A }])), [A])
   assert.deepEqual(contractsOf(request('eth_signTransaction', [{ to: A }])), [A])
   assert.deepEqual(contractsOf(request('wallet_sendCalls', [{ calls: [{ to: A }, { to: B }, { to: A }] }])), [A, B])
-  const typed = JSON.stringify({ domain: { verifyingContract: A } })
+  const typed = JSON.stringify({ types: DOMAIN_TYPE, domain: { verifyingContract: A } })
   assert.deepEqual(contractsOf(request('eth_signTypedData_v4', ['0xabc', typed])), [A])
-  assert.deepEqual(contractsOf(request('eth_signTypedData_v3', ['0xabc', { domain: { verifyingContract: B } }])), [B])
+  const object = { types: DOMAIN_TYPE, domain: { verifyingContract: B } }
+  assert.deepEqual(contractsOf(request('eth_signTypedData_v3', ['0xabc', object])), [B])
+})
+
+test('signedDomain: a field named __proto__ stays a field and does not set the prototype', () => {
+  const typed = JSON.parse(
+    '{"types": {"EIP712Domain": [{"name": "__proto__", "type": "Fake"}], "Fake": [{"name": "x", "type": "uint256"}]},' +
+      `"domain": {"__proto__": {"chainId": 1, "verifyingContract": "${B}", "x": 1}}, "primaryType": "Fake", "message": {"x": 1}}`,
+  )
+  const signed = signedDomain(typed)
+  assert.equal(Object.getPrototypeOf(signed), Object.prototype)
+  assert.deepEqual(Object.keys(signed), ['__proto__'])
+  assert.equal(signed.chainId, undefined)
+  assert.equal(signed.verifyingContract, undefined)
+  assert.deepEqual(contractsOf(request('eth_signTypedData_v4', [A, typed])), [])
+  assert.equal(chainOf(request('eth_signTypedData_v4', [A, typed])).chainId, null)
+})
+
+test('uncheckedPart: a transaction that sets a delegate (EIP-7702)', () => {
+  const tx = { from: A, to: A }
+  assert.equal(uncheckedPart(request('eth_sendTransaction', [tx])), null)
+  assert.equal(uncheckedPart(request('eth_sendTransaction', [{ ...tx, authorizationList: [] }])), null)
+  const authorizationList = [{ address: B, chainId: '0x1', nonce: '0x0' }]
+  assert.match(
+    uncheckedPart(request('eth_signTransaction', [{ ...tx, authorizationList }])) ?? '',
+    /delegate .*EIP-7702/,
+  )
+})
+
+test('signedDomain: only the domain fields that the EIP712Domain type lists', () => {
+  const domain = { name: 'USD Coin', version: '2', chainId: 1, verifyingContract: A }
+  const nameOnly = {
+    types: {
+      EIP712Domain: [
+        { name: 'name', type: 'string' },
+        { name: 'version', type: 'string' },
+      ],
+    },
+    domain,
+  }
+  assert.deepEqual(signedDomain(nameOnly), { name: 'USD Coin', version: '2' })
+  assert.deepEqual(signedDomain({ types: DOMAIN_TYPE, domain: { chainId: 1 } }), { chainId: 1 })
+  assert.deepEqual(signedDomain({ types: {}, domain }), {})
+  assert.deepEqual(signedDomain({ types: DOMAIN_TYPE, domain: 'junk' }), {})
+  assert.deepEqual(signedDomain(null), {})
+  // The gates do not take a chain or a contract that the signature does not cover.
+  assert.deepEqual(contractsOf(request('eth_signTypedData_v4', ['0xabc', nameOnly])), [])
+  assert.deepEqual(chainOf(request('eth_signTypedData_v4', ['0xabc', nameOnly])), {
+    chainId: null,
+    reason: 'the request names no chain',
+  })
 })
 
 test('contractsOf: lowercase, no duplicates, nothing for messages or bad data', () => {
@@ -69,7 +136,7 @@ test('chainOf: the wallet, the request, or both', () => {
     chainId: 42161,
     source: 'request',
   })
-  const typed = JSON.stringify({ domain: { chainId: 11155111, verifyingContract: A } })
+  const typed = JSON.stringify({ types: DOMAIN_TYPE, domain: { chainId: 11155111, verifyingContract: A } })
   assert.deepEqual(chainOf(request('eth_signTypedData_v4', ['0xabc', typed])), { chainId: 11155111, source: 'request' })
 })
 
@@ -124,6 +191,52 @@ test('requestProblem: a field that is there but does not read', () => {
   assert.match(requestProblem(request('wallet_sendCalls', [{ from: 'x', calls: [] }]))!, /sender of the batch/)
   assert.equal(requestProblem(request('eth_signTypedData_v4', [A, '{}'])), null)
   assert.equal(requestProblem(request('personal_sign', ['0x1234', A])), null)
+  assert.match(requestProblem(request('personal_sign', ['0xabc', A]))!, /message is not hex bytes/)
+  assert.match(
+    requestProblem(tx({ authorizationList: [{ address: B, chainId: 1, nonce: '0x0' }] }))!,
+    /authorization 1/,
+  )
+})
+
+test('messageOf: the bytes and the signer of personal_sign and eth_sign', () => {
+  const message = (method: string, params: unknown) => messageOf(request(method, params))
+  const hello = new TextEncoder().encode('hello')
+  assert.deepEqual(message('personal_sign', ['0x68656c6c6f', A]), { bytes: hello, signer: A })
+  assert.deepEqual(message('personal_sign', ['hello', A]), { bytes: hello, signer: A })
+  assert.deepEqual(message('personal_sign', ['0x68656C6C6F']), { bytes: hello, signer: null })
+  assert.deepEqual(message('eth_sign', [A, '0x68656c6c6f']), { bytes: hello, signer: A })
+  assert.deepEqual(message('personal_sign', ['0x', A]), { bytes: new Uint8Array(), signer: A })
+  // A message that is itself an address, with the signer after it.
+  assert.deepEqual(message('personal_sign', [B, A]), { bytes: Uint8Array.from(Array(20).fill(0x11)), signer: A })
+  assert.equal(message('eth_signTypedData_v4', [A, '{}']), null)
+})
+
+test('messageOf: a message that wallets read in different ways', () => {
+  const problem = (method: string, params: unknown) => messageOf(request(method, params))?.problem
+  assert.match(problem('personal_sign', [A, '0x68656c6c6f'])!, /first parameter is an address/)
+  assert.match(problem('personal_sign', [A])!, /first parameter is an address/)
+  assert.match(problem('personal_sign', ['0x6865z', A])!, /not hex bytes/)
+  assert.match(problem('personal_sign', ['0X6865', A])!, /not hex bytes/)
+  assert.match(problem('eth_sign', [A, 'hello'])!, /not hex bytes/)
+  assert.match(problem('personal_sign', [{ text: 'hi' }, A])!, /not a string/)
+  assert.match(problem('personal_sign', ['hello', 'me'])!, /signer is not an address/)
+  assert.match(problem('eth_sign', ['me', '0x00'])!, /signer is not an address/)
+})
+
+test('authorizationsOf: the EIP-7702 delegations of a transaction', () => {
+  const list = (authorizationList: unknown) => authorizationsOf(request('eth_sendTransaction', [{ authorizationList }]))
+  assert.deepEqual(list(undefined), [])
+  assert.deepEqual(list([{ address: `0x${A.slice(2).toUpperCase()}`, chainId: '0x0', nonce: '0x7', r: '0x1' }]), [
+    { address: A, chainId: 0n, nonce: 7n },
+  ])
+  assert.deepEqual(list({}), { problem: 'the authorization list is not a list' })
+  for (const entry of [
+    null,
+    { address: B, chainId: '1', nonce: '0x0' },
+    { address: 'x', chainId: '0x1', nonce: '0x0' },
+  ]) {
+    assert.match((list([entry]) as { problem: string }).problem, /authorization 1/)
+  }
 })
 
 test('callsOf: a transaction, with its data, value and gas', () => {

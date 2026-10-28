@@ -133,48 +133,6 @@ function Request({ request, onOpen }: { request: SigningRequest; onOpen: () => v
   )
 }
 
-function Details({ snapshot }: { snapshot: Snapshot }) {
-  return (
-    <details className="mt-8 text-xs">
-      <summary className="cursor-pointer text-sm font-semibold">Browser link</summary>
-      <dl className="mt-2 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 font-mono">
-        <dt className="text-gray-500">socket</dt>
-        <dd>{snapshot.socket}</dd>
-        <dt className="text-gray-500">relay</dt>
-        <dd>{snapshot.relay ?? 'not found'}</dd>
-        <dt className="text-gray-500">host manifests</dt>
-        <dd>
-          {snapshot.manifests.length === 0 && 'no supported browser found'}
-          {snapshot.manifests.map((m) => (
-            <div key={m.path}>
-              {m.path} {m.error ? `(failed: ${m.error})` : '(written)'}
-            </div>
-          ))}
-        </dd>
-        <dt className="text-gray-500">connections</dt>
-        <dd>
-          {snapshot.connections.length === 0 && 'none'}
-          {snapshot.connections.map((c) => (
-            <div key={c.id}>
-              {c.browser} ({c.pairingCode ? 'waits for pairing' : 'paired'})
-            </div>
-          ))}
-        </dd>
-        {snapshot.rejected.length > 0 && (
-          <>
-            <dt className="text-gray-500">refused</dt>
-            <dd>
-              {snapshot.rejected.map((reason, i) => (
-                <div key={i}>{reason}</div>
-              ))}
-            </dd>
-          </>
-        )}
-      </dl>
-    </details>
-  )
-}
-
 export default function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   // Set if the link did not start.
@@ -215,7 +173,15 @@ export default function App() {
   return (
     <main className="p-6 font-sans text-sm">
       <div className="flex items-baseline justify-between">
-        <h1 className="text-2xl font-semibold">Onay</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold">Onay</h1>
+          {connected && (
+            <span className="flex items-center gap-1.5 font-mono text-xs text-green-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+              connected
+            </span>
+          )}
+        </div>
         {!opened && !settings && (
           <button onClick={() => setSettings(true)} className="font-mono text-xs text-gray-400 hover:text-gray-600">
             settings
@@ -236,7 +202,7 @@ export default function App() {
       {opened ? (
         <GatePage key={openKey} request={opened} onBack={() => setOpenKey(null)} />
       ) : settings ? (
-        <SettingsPage onBack={() => setSettings(false)} />
+        <SettingsPage snapshot={snapshot} onBack={() => setSettings(false)} />
       ) : (
         <>
           <AttesterNotice onSettings={() => setSettings(true)} />
@@ -254,8 +220,6 @@ export default function App() {
               <Request key={requestKey(request)} request={request} onOpen={() => setOpenKey(requestKey(request))} />
             ))}
           </section>
-
-          {snapshot && <Details snapshot={snapshot} />}
         </>
       )}
     </main>

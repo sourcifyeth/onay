@@ -14,7 +14,7 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 - `app/` — the Tauri app: Vite + React + TypeScript webview in `app/src/`, Rust in `app/src-tauri/`, and the native messaging relay crate in `app/relay/`. One Cargo workspace at `app/Cargo.toml`, lockfile committed. `app/README.md` explains the architecture.
 - `extension/` — the Chrome extension (Manifest V3). Zero runtime dependencies: TypeScript compiled by `tsc` into plain ES modules in `extension/dist/`, no bundler. `inpage.ts` and `content.ts` are plain scripts, not modules: no imports or exports, types through `import('./messages.ts')`. `extension/README.md` explains the architecture.
 - `testdata/` — test vectors that the Rust and the TypeScript implementation of the encrypted channel must both match.
-- `extension/key.pem` (gitignored) is the private key behind the `key` field in `extension/manifest.json`. It fixes the extension ID to `jhopbgoicoiceialjejgojebmeijklbn`, which the app's host manifest allowlists. Back it up; never commit it.
+- `extension/key.pem` (gitignored) is the private key behind the `key` field in `extension/manifest.json`. It fixes the extension ID to `iobfgkmfcccohihielbadfbebklmbdbp`, which the app's host manifest allowlists. Back it up; never commit it.
 
 ## Rules
 
@@ -48,7 +48,9 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 - `pnpm --filter app test` — type-check and run the webview tests with `node --test` (pure modules only, no React).
 - `pnpm --filter extension build` — build the extension into `extension/dist/`; load that folder unpacked in Chrome (its ID must match the one above).
 - `pnpm --filter app bundle` — production package of the app with the relay inside (`app/target/release/bundle/`). Bundle settings live in `app/src-tauri/tauri.bundle.conf.json`, kept out of the main config so `tauri dev` needs no packaged relay.
-- `pnpm --filter extension package` — store zip of the extension (`extension/onay-extension.zip`), without the `key` field.
+- `pnpm --filter extension package` — store zip of the extension (`extension/onay-extension.zip`), without the `key` field. `pnpm --filter extension package:first` adds `key.pem` to it, for the first upload to the store only.
+- `pnpm version:set app|extension X.Y.Z` — write the version of one package into every file that holds it; `--check` before the arguments only verifies it, as the release workflow does.
+- `pnpm test` — run the tests of `scripts/` with `node --test`.
 - `pnpm --filter extension test` — build, type-check the tests, and run them with `node --test`.
 - `cargo build` in `app/` — build the Rust workspace (app and relay).
 - `cargo test` in `app/` — run the Rust tests.

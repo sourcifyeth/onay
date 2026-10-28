@@ -11,6 +11,7 @@ import type { ChainCode, Head, Target } from '../src/gates/helios.ts'
 import type { Call } from '../src/gates/request.ts'
 import { startVerification, type Deps, type Verification } from '../src/gates/run.ts'
 import type { Simulation, SimulationInput, Touched } from '../src/gates/simulation.ts'
+import { stepVerdicts } from '../src/gates/verdict.ts'
 import type { Verified } from '../src/gates/verify.ts'
 
 const FROM: Hex = '0x9f21b45c7e83a10fd4e2c11098d2ce6f4b76c04e'
@@ -19,6 +20,12 @@ const B: Hex = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 const C: Hex = '0xcccccccccccccccccccccccccccccccccccccccc'
 const CHAIN: ChainConfig = { id: 1, name: 'test', mode: 'helios', executionRpc: 'http://chain.invalid' }
 const HEAD: Head = { block: 100, checkpoint: null }
+const DOMAIN_TYPE = {
+  EIP712Domain: [
+    { name: 'chainId', type: 'uint256' },
+    { name: 'verifyingContract', type: 'address' },
+  ],
+}
 
 function request(method: string, params: unknown, chainId: number | null = 1): SigningRequest {
   return {
@@ -203,6 +210,17 @@ test('a named contract with nothing on Sourcify fails the request', async () => 
   assert.equal(v.lines.at(-1)?.ok, false)
 })
 
+test('the verdict of a failed run names the step that failed and the reason', async () => {
+  const world: World = { codes: { [A]: '0x60' }, sources: {}, touched: [A] }
+  const v = await ended(transaction(A), setup(world).deps)
+  assert.equal(v.stopped, null)
+  assert.deepEqual(stepVerdicts(v, null), [
+    { step: 'chain', status: 'passed', reason: null },
+    { step: 'simulation', status: 'passed', reason: null },
+    { step: 'verification', status: 'failed', reason: '0xaaaa…aaaa has no verified source code on Sourcify' },
+  ])
+})
+
 test('a found contract whose sources do not match fails the request', async () => {
   const world: World = {
     codes: { [A]: '0x60', [B]: '0x61' },
@@ -270,7 +288,7 @@ test('a batch without a sender: its contracts are checked, the request is flagge
 })
 
 test('typed data: the contract is checked, the simulation is skipped', async () => {
-  const typed = JSON.stringify({ domain: { chainId: 1, verifyingContract: A } })
+  const typed = JSON.stringify({ types: DOMAIN_TYPE, domain: { chainId: 1, verifyingContract: A } })
   const world: World = { codes: { [A]: '0x60' }, sources: { [A]: 'verified' } }
   const v = await ended(request('eth_signTypedData_v4', [FROM, typed], null), setup(world).deps)
   assert.equal(v.status, 'passed')
@@ -289,6 +307,30 @@ test('a request with a field that does not read fails before any gate runs', asy
   assert.match(v.lines.map((line) => line.text).join('\n'), /could not be read .* value/)
   const bare = request('eth_sendTransaction', [{ from: FROM, to: A.slice(2), data: '0x12345678' }])
   assert.equal((await ended(bare, deps)).status, 'failed')
+})
+
+test('a message or an authorization list that does not read fails before any gate runs', async () => {
+  const { deps, heliosCalls } = setup({ codes: { [A]: '0x6001' }, sources: { [A]: 'verified' } })
+  const swapped = await ended(request('personal_sign', [FROM, 'hello'], null), deps)
+  assert.equal(swapped.status, 'failed')
+  assert.match(swapped.lines.map((line) => line.text).join('\n'), /could not be read .* first parameter is an address/)
+  const authorizationList = [{ address: A, chainId: '1', nonce: '0x0' }]
+  const delegation = await ended(request('eth_sendTransaction', [{ from: FROM, to: FROM, authorizationList }]), deps)
+  assert.equal(delegation.status, 'failed')
+  assert.match(delegation.lines.map((line) => line.text).join('\n'), /could not be read .* authorization 1/)
+  assert.deepEqual(heliosCalls, [])
+})
+
+test('a transaction that sets a delegate (EIP-7702) fails before any gate runs', async () => {
+  const { deps, heliosCalls } = setup({ codes: { [A]: '0x6001' }, sources: { [A]: 'verified' } })
+  const authorizationList = [{ address: C, chainId: '0x1', nonce: '0x0' }]
+  const v = await ended(request('eth_sendTransaction', [{ from: FROM, to: A, authorizationList }]), deps)
+  assert.equal(v.status, 'failed')
+  assert.deepEqual(heliosCalls, [])
+  assert.match(v.lines.map((line) => line.text).join('\n'), /sets a delegate .*EIP-7702/)
+  // The run stopped before the first step, so the verdict has no step.
+  assert.deepEqual(stepVerdicts(v, null), [{ step: 'request', status: 'failed', reason: v.stopped }])
+  assert.match(v.stopped ?? '', /sets a delegate .*EIP-7702/)
 })
 
 test('a message names no chain: the run passes with nothing to check', async () => {
@@ -408,10 +450,16 @@ test('the chain is not ready: the chain gate fails, the other gates did not star
   assert.deepEqual(v.contracts[0].helios, { status: 'failed', reason: 'Helios did not sync' })
   assert.deepEqual(v.contracts[0].sourcify, { status: 'skipped', reason: 'the chain was not read' })
   assert.deepEqual(v.simulation, { status: 'skipped', reason: 'the chain was not read' })
+  assert.equal(v.stopped, null)
+  assert.deepEqual(stepVerdicts(v, null)[0], {
+    step: 'chain',
+    status: 'failed',
+    reason: 'the chain was not read · Helios did not sync',
+  })
 })
 
 test('typed data on an account with a delegate: the delegate is checked without a simulation', async () => {
-  const typed = JSON.stringify({ domain: { chainId: 1, verifyingContract: A } })
+  const typed = JSON.stringify({ types: DOMAIN_TYPE, domain: { chainId: 1, verifyingContract: A } })
   const world: World = { codes: { [A]: delegated, [C]: '0x62' }, sources: { [C]: 'verified' } }
   const { deps, heliosCalls } = setup(world)
   const v = await ended(request('eth_signTypedData_v4', [FROM, typed], null), deps)

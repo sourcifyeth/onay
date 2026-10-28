@@ -47,7 +47,7 @@ This builds the relay, starts the web user interface with hot reload, compiles t
 - It writes the native messaging host manifest for each installed browser, for example `~/.config/google-chrome/NativeMessagingHosts/dev.sourcify.onay.json`. The manifest points to the relay in `app/target/debug/`.
 - It opens a Unix socket at `$XDG_RUNTIME_DIR/onay/onay.sock` (Linux) or `$TMPDIR/onay/onay.sock` (macOS).
 
-The window lists both under "Browser link".
+The settings list both under "Browser link".
 
 ### 2. Load the extension
 
@@ -57,7 +57,7 @@ pnpm --filter extension build
 
 1. Open `chrome://extensions` and turn on "Developer mode".
 2. Click "Load unpacked" and select `extension/dist`.
-3. Check that the ID is `jhopbgoicoiceialjejgojebmeijklbn`. The app accepts only this ID. The `key` field in `extension/manifest.json` keeps it the same on every machine.
+3. Check that the ID is `iobfgkmfcccohihielbadfbebklmbdbp`. The app accepts only this ID. The `key` field in `extension/manifest.json` keeps it the same on every machine.
 
 After a code change, build again and click the reload icon on the extension card.
 
@@ -84,6 +84,7 @@ Run these before you push. Continuous integration (CI) runs the same commands.
 | `pnpm format:check`                         | repo root | Checks the formatting with oxfmt. `pnpm format` fixes it.                                                                                                    |
 | `pnpm -r lint`                              | repo root | Runs oxlint.                                                                                                                                                 |
 | `pnpm -r test`                              | repo root | Runs the extension and app tests with the Node.js test runner. The app tests download one compiler build on the first run and keep it in `app/test/.cache/`. |
+| `pnpm test`                                 | repo root | Runs the tests of the scripts in `scripts/`.                                                                                                                 |
 | `cargo test`                                | `app/`    | Runs the Rust tests, including one that drives the real relay binary.                                                                                        |
 | `cargo clippy --all-targets -- -D warnings` | `app/`    | Rust lints.                                                                                                                                                  |
 | `cargo fmt --all --check`                   | `app/`    | Rust formatting.                                                                                                                                             |
@@ -109,7 +110,7 @@ xvfb-run -a pnpm --filter app test:e2e   # on a virtual display; without xvfb-ru
 
 ## Production
 
-Nothing is published yet. These commands produce the same artifacts a release will ship. Signing, notarization, and the release pipeline are tracked in [issue 15](https://github.com/sourcifyeth/onay/issues/15).
+Releases are built and published only by CI, from a version tag on `main`. The commands below produce the same artifacts locally, for a check before the tag. The remaining steps of the pipeline, such as build provenance and the store upload, are tracked in [issue 15](https://github.com/sourcifyeth/onay/issues/15).
 
 ### The app package
 
@@ -120,12 +121,12 @@ pnpm --filter app bundle
 This builds the relay in release mode, copies it to where Tauri expects an extra binary, and runs `tauri build` with the settings in `app/src-tauri/tauri.bundle.conf.json`. The packages land in `app/target/release/bundle/`:
 
 - Linux: a `.deb` in `deb/` and an `.rpm` in `rpm/`.
-- macOS: `Onay.app` in `macos/` and a `.dmg` in `dmg/`.
+- macOS: `Onay.app` in `macos/` and a `.dmg` in `dmg/`. A local bundle carries an ad-hoc signature and is not notarized, so macOS blocks its first start: click "Done", then open System Settings, Privacy & Security, and click "Open Anyway" at the bottom. The release build signs with the Sourcify Developer ID and notarizes, see below.
 
 The package contains two binaries side by side: `onay` (the app) and `onay-relay`. On Linux its install script gives the relay its own group and the setgid bit, as hardening. To install and run on Debian or Ubuntu:
 
 ```
-sudo apt install ./app/target/release/bundle/deb/Onay_0.0.0_amd64.deb
+sudo apt install ./app/target/release/bundle/deb/Onay_<version>_amd64.deb
 onay
 ```
 
@@ -139,7 +140,40 @@ pnpm --filter extension package
 
 This writes `extension/onay-extension.zip` for the Chrome Web Store. It is the same code as the development build, without the `key` field in the manifest, because the store rejects it.
 
-To keep the extension ID that the app accepts, the first upload to the store must include the private key as `key.pem` in the root of the zip. That key is `extension/key.pem`, which is not in the repo. After the first upload the store holds the key, and later uploads do not need it.
+The zip is reproducible: with `SOURCE_DATE_EPOCH` set to the commit time, two builds of one commit give the same bytes. The bytes also depend on the zip tool: the store uploads are made with Info-ZIP `zip` 3.0, the `zip` of Debian, Ubuntu, and macOS, at its default compression. To compare a store submission with the commit it was built from:
+
+```
+git checkout <commit>
+SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) pnpm --filter extension package
+sha256sum extension/onay-extension.zip
+```
+
+To keep the extension ID that the app accepts, the first upload to the store must include the private key as `key.pem` in the root of the zip. `pnpm --filter extension package:first` builds that zip from `extension/key.pem`, which is not in the repo (it is in the team password manager). The first upload is done by hand in the developer dashboard. After it the store holds the key, and later uploads use `package`. For now every store upload is by hand; the store API step of the release workflow is a follow-up in issue 15.
+
+### Releasing a version
+
+The app and the extension have their own versions. The extension changes rarely, and the app states the oldest extension it works with: the two refuse each other when their channel protocol version (`VERSION` in `app/src-tauri/src/channel.rs` and `extension/src/channel.ts`) differs. A release of the app says in its notes which extension version it needs.
+
+To release app `0.2.0`:
+
+1. `pnpm version:set app 0.2.0` writes it into `app/package.json`, the Tauri config, and the Cargo workspace and lockfile. Open a pull request with the change and merge it.
+2. Tag the merge commit on `main` and push the tag: `git tag 0.2.0 && git push origin 0.2.0`.
+
+The `Release` workflow then checks that the tag is on `main` and equals the app version in the repo, builds the app packages (Linux x64, macOS arm64), and creates the GitHub release with them attached, with a `SHA256SUMS` file, and with the extension version at the tag in the first line of the notes. A tag that fails a check or a build publishes nothing.
+
+A tag push is a release, so a tag ruleset in the repository settings (Rules, Rulesets, target all tags, rule "Restrict creations", with the repository admins in the bypass list) limits who creates version tags to the maintainers.
+
+The signing secrets live in the `release` environment of the repository, whose deployment policy admits only tags matching `[0-9]*.[0-9]*.[0-9]*`. A workflow on a branch cannot use the environment, so no branch can reach the secrets, whatever its workflow files say. The workflow has no manual trigger for the same reason. The first tag after a change to the workflow is its test.
+
+The macOS build signs and notarizes when these six secrets exist in the `release` environment, and makes an ad-hoc build when none of them does. Some of them set, and some not, fails the build:
+
+- `APPLE_CERTIFICATE`: the Developer ID Application certificate with its private key, as a base64 `.p12` (`openssl base64 -A -in certificate.p12`). Only the Account Holder of the Apple Developer account can create this certificate. `APPLE_CERTIFICATE_PASSWORD` is the password of the `.p12`.
+- `APPLE_SIGNING_IDENTITY`: the name of the certificate, such as `Developer ID Application: Sourcify (TEAMID)`.
+- `APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_KEY_CONTENT`: an App Store Connect API key with Developer access, for the notarization: the Issuer ID shown above the keys table, the Key ID, and the text of the downloaded `.p8` file.
+
+The Rust compile runs before the secrets enter the environment, so no build script of the dependency tree sees them. Then Tauri imports the certificate into a keychain of its own on the runner, signs the app and the relay with the hardened runtime, sends the app to the Apple notary service, and staples the ticket.
+
+To release extension `0.1.1`: `pnpm version:set extension 0.1.1`, merge, build the zip with `package` from the merge commit, and upload it in the developer dashboard. The store refuses a version that is not higher than the last one.
 
 ### Development and production side by side
 
