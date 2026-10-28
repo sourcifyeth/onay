@@ -1,0 +1,66 @@
+{
+  "name": "Optimism Portal: deposit 0.01 ETH to OP Mainnet",
+  "params": {
+    "from": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "to": "0x49048044d57e1c92a77f79988d21fa8faf74e97e",
+    "data": "0xe9e05c42000000000000000000000000f977814e90da44bfa03b6295a0616a897441acec000000000000000000000000000000000000000000000000002386f26fc1000000000000000000000000000000000000000000000000000000000000000186a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000",
+    "value": "0x2386f26fc10000"
+  },
+  "expect": {
+    "chain": {
+      "codeBytes": 2096,
+      "creation": {
+        "transaction": "0x57c102f31c77771203f635fe7efc43166305877f89b6075e63a78f19b4f160a7",
+        "block": 17482143
+      }
+    },
+    "simulation": {
+      "frame": {
+        "name": "Proxy",
+        "selector": "0xe9e05c42"
+      },
+      "messages": 6,
+      "touched": 4,
+      "accounts": 3,
+      "slots": 6
+    },
+    "verification": {
+      "name": "Proxy",
+      "compiler": "0.8.15+commit.e14f2714",
+      "optimizer": 999999,
+      "files": 1,
+      "mainFile": "lib/optimism/packages/contracts-bedrock/contracts/universal/Proxy.sol",
+      "runtime": "perfect",
+      "creation": "perfect"
+    },
+    "clearSigning": null,
+    "decoded": {
+      "function": "depositTransaction",
+      "params": {
+        "_to": {
+          "type": "address",
+          "value": "0xF977814e90dA44bFA03b6295A0616a897441aceC"
+        },
+        "_value": {
+          "type": "uint256",
+          "value": "10000000000000000"
+        },
+        "_gasLimit": {
+          "type": "uint64",
+          "value": "100000"
+        },
+        "_isCreation": {
+          "type": "bool",
+          "value": "false"
+        },
+        "_data": {
+          "type": "bytes",
+          "value": "0x"
+        }
+      }
+    },
+    "compare": {
+      "digest": "0xaa19c44cf1b51ad3972a041a719e9e6784b087062314077544cfa630a435a2a2"
+    }
+  }
+}

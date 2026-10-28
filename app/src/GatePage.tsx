@@ -269,7 +269,11 @@ export function GatePage({ request, onBack }: { request: SigningRequest; onBack:
   // take its place, each with the lines of its own gate.
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 py-2">
-      <button onClick={onBack} className="self-start font-mono text-xs text-gray-400 hover:text-gray-600">
+      <button
+        data-action="back"
+        onClick={onBack}
+        className="self-start font-mono text-xs text-gray-400 hover:text-gray-600"
+      >
         ← all requests
       </button>
       <Summary request={request} verification={verification} />

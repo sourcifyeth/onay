@@ -5,10 +5,11 @@
 import { useState, type ReactNode } from 'react'
 import type { StepInfo } from './gates/verdict.ts'
 
-// The number and the title come from the list of the steps.
+// The number and the title come from the list of the steps. `data-step`
+// names the step for the end-to-end tests.
 export function Step({ step, explainer, children }: { step: StepInfo; explainer: string; children: ReactNode }) {
   return (
-    <section className="animate-fade-up">
+    <section data-step={step.id} className="animate-fade-up">
       <h2 className="flex items-center gap-2 pb-3 text-base font-semibold text-gray-900">
         {step.number}. {step.title}
         <InfoTip>{explainer}</InfoTip>
@@ -34,6 +35,7 @@ export function CollapsibleCard({
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
       <button
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className="flex w-full items-center justify-between gap-4 px-5 py-3 text-left"
       >
         <div className="min-w-0 flex-1">{summary}</div>

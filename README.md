@@ -92,7 +92,7 @@ Run these before you push. Continuous integration (CI) runs the same commands.
 
 ### End-to-end tests
 
-`app/e2e/` drives the real app window over WebDriver: for each transaction in `app/e2e/transactions/` it feeds the request to the app, waits for the review, and reads the four steps as a user would, checking that each shows its expected text and no failure. The run reads Ethereum mainnet, Sourcify, and the ERC-7730 registry, so it needs the network and takes minutes. It is not part of `pnpm -r test`; the `E2E` workflow runs it on a schedule and on request.
+`app/e2e/` drives the real app window over WebDriver: for each transaction in `app/e2e/transactions/` it feeds the request to the app, waits for the review, and reads the five steps as a user would, checking that each shows its expected text and no failure. The run reads Ethereum mainnet, Sourcify, and the ERC-7730 registry, so it needs the network and takes minutes. It is not part of `pnpm -r test`; the `E2E` workflow runs it on a schedule and on request.
 
 Linux only ([tauri-driver](https://v2.tauri.app/develop/tests/webdriver/) has no macOS driver). Once:
 

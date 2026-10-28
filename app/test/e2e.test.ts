@@ -125,13 +125,12 @@ test('waitFor gives the first value that is not null or false', async () => {
 
 const review: Review = {
   steps: {
-    1: { title: 'Chain Data Verification', text: '⚠ Chain data is not verified\nRPC endpoint https://rpc' },
-    2: { title: 'Transaction Simulation', text: '✓ Simulated on unverified chain state · 1 contract touched' },
-    3: { title: 'Source Code Verification', text: 'TetherToken\nSourcify ✓ verified\nLocal verification ✓ reproduced' },
-    4: {
-      title: 'Clear Signing',
-      text: 'Clear Signing ABI-Decoded Raw\nPreview: you trust no auditor yet\nSend 1 USDT',
-    },
+    chain: '⚠ Chain data is not verified\nRPC endpoint https://rpc',
+    simulation: '✓ Simulated on unverified chain state · 1 contract touched',
+    verification: 'TetherToken\nSourcify ✓ verified\nLocal verification ✓ reproduced',
+    clearSigning: 'Clear Signing ABI-Decoded Raw\nPreview: you trust no auditor yet\nSend 1 USDT',
+    compare:
+      '⚠ Onay found warnings in this request\nStep 1, Chain Data Verification: the chain data comes from an RPC endpoint, without proof\nNetwork 1 · Ethereum mainnet',
   },
   done: true,
 }
@@ -146,16 +145,17 @@ test('the sections are the steps by name, plus the rest', () => {
   assert.deepEqual(Object.keys(sections).sort(), [
     'chain',
     'clearSigning',
+    'compare',
     'decoded',
     'raw',
     'simulation',
     'verdict',
     'verification',
   ])
-  assert.equal(sections.chain, review.steps[1].text)
+  assert.equal(sections.chain, review.steps.chain)
   assert.equal(sections.verdict, 'Checks passed, with a warning.')
   // A step that is not there is left out.
-  const { 3: _, ...rest } = review.steps
+  const { verification: _, ...rest } = review.steps
   assert.equal(sectionsOf({ steps: rest, done: true }, {}).verification, undefined)
 })
 
@@ -166,9 +166,25 @@ test('a review passes when each section shows its text and none shows a failure'
     verification: ['TetherToken', '✓ reproduced'],
     clearSigning: ['Send', '1 USDT', 'Preview'],
     decoded: ['transfer(address,uint256)'],
+    compare: ['Step 1, Chain Data Verification'],
     verdict: ['Checks passed'],
+    allow: ['without proof'],
   }
   assert.deepEqual(check(sections, expected), [])
+  // A finding of the compare step that is not allowed is a problem, and
+  // so is the reason of `fail`, with the notice of the page after it.
+  const unverified =
+    'Step 3, Source Code Verification: 0x02db…2c2c is called on the way and has no verified source code'
+  const found = { ...sections, compare: `${sections.compare}\n${unverified}` }
+  assert.deepEqual(check(found, expected), [`the review found: ${unverified}`])
+  const none = {
+    ...sections,
+    clearSigning:
+      'No Clear Signing\nNo ERC-7730 descriptor is registered for this contract, so there is no reviewed description.',
+  }
+  assert.deepEqual(check(none, { ...expected, clearSigning: [], fail: 'no descriptor' }), [
+    'no descriptor · No ERC-7730 descriptor is registered for this contract',
+  ])
 })
 
 test('a review fails for a missing text, a forbidden text, and a missing section', () => {
@@ -179,19 +195,22 @@ test('a review fails for a missing text, a forbidden text, and a missing section
     verdict: 'A check failed.',
   }
   delete failing.verification
-  assert.deepEqual(check(failing, { simulation: ['✓ Simulated on'], clearSigning: ['Send'] }), [
-    'simulation does not show "✓ Simulated on"',
-    'simulation shows "⚠ The transaction"',
-    'verification is missing',
-    'clearSigning does not show "Send"',
-    'clearSigning shows "rendering failed"',
-    'verdict shows "A check failed"',
-  ])
+  assert.deepEqual(
+    check(failing, { simulation: ['✓ Simulated on'], clearSigning: ['Send'], allow: ['without proof'] }),
+    [
+      'simulation does not show "✓ Simulated on"',
+      'simulation shows "⚠ The transaction"',
+      'verification is missing',
+      'clearSigning does not show "Send"',
+      'clearSigning shows "rendering failed"',
+      'verdict shows "A check failed"',
+    ],
+  )
   // The caller can allow a text.
   assert.deepEqual(
     check(
       failing,
-      {},
+      { allow: ['without proof'] },
       FORBIDDEN.filter((text) => text !== '⚠ The transaction' && text !== 'A check failed'),
     ),
     ['verification is missing', 'clearSigning shows "rendering failed"'],
@@ -209,14 +228,19 @@ test('a line with an allowed text may show forbidden text', () => {
     ...sections,
     clearSigning: 'ABI-Decoded\nSend\nrendered as a preview · not attested ✕\nfetch failed ✕',
   }
-  assert.deepEqual(check(preview, { allow: ['not attested'] }), ['clearSigning shows "✕"'])
-  assert.deepEqual(check(preview, { allow: ['not attested', 'fetch failed'] }), [])
+  assert.deepEqual(check(preview, { allow: ['not attested', 'without proof'] }), ['clearSigning shows "✕"'])
+  assert.deepEqual(check(preview, { allow: ['not attested', 'fetch failed', 'without proof'] }), [])
 })
 
 const transaction: Transaction = {
   id: 'token-send',
   name: 'Token: send 1',
-  params: { from: '0xf1', to: '0xc0', data: '0xa9059cbb0001', value: '0x2386f26fc10000' },
+  params: {
+    from: '0xf977814e90da44bfa03b6295a0616a897441acec',
+    to: '0xdac17f958d2ee523a2206206994597c13d831ec7',
+    data: '0xa9059cbb0001',
+    value: '0x2386f26fc10000',
+  },
   expect: {
     chain: {
       codeBytes: 100,
@@ -228,7 +252,7 @@ const transaction: Transaction = {
       compiler: '0.8.20+commit.a1b2c3d4',
       optimizer: 200,
       files: 2,
-      mainFile: 'Token.sol',
+      mainFile: 'contracts/Token.sol',
       runtime: 'perfect',
       creation: 'partial',
     },
@@ -246,7 +270,7 @@ const transaction: Transaction = {
       function: 'transfer',
       params: { _to: { type: 'address', value: '0xd8dA' }, _value: { type: 'uint256', value: '1' } },
     },
-    verdict: 'All checks passed.',
+    compare: { digest: '0xd1ge57' },
   },
 }
 
@@ -259,12 +283,13 @@ test('the request of a transaction is a pasted eth_sendTransaction on mainnet', 
 })
 
 test('the texts of a transaction are the facts as the page words them', () => {
-  const texts = textsOf(transaction)
+  const texts = textsOf(transaction, 'helios')
   assert.deepEqual(texts.chain, [
+    '✓ Chain data verified by Helios',
     'chain id 1 matches ✓',
-    'eth_getCode 0xc0 · 100 bytes',
+    'eth_getCode 0xdac17f958d2ee523a2206206994597c13d831ec7 · 100 bytes',
     'creation transaction 0x2f1c…9190 · block 4,634,748',
-    '1/1 contracts verified ✓',
+    '2/2 contracts verified ✓',
   ])
   assert.deepEqual(texts.simulation, [
     '✓ Simulated on',
@@ -281,11 +306,10 @@ test('the texts of a transaction are the facts as the page words them', () => {
     'claims match',
     '✓ verified',
     '✓ reproduced',
+    'Runtime bytecode\n✓ exact match',
+    'Creation bytecode\n✓ match · the metadata hash differs',
     'solc 0.8.20+commit.a1b2c3d4 · optimizer 200 runs',
-    '2 files · Token.sol',
-    'sha256 matches the official list ✓',
-    'runtime bytecode compare · exact match ✓',
-    'creation bytecode compare · match · the metadata hash differs',
+    '2 files · contracts/\u200bToken.sol',
   ])
   assert.deepEqual(texts.clearSigning, [
     'Interacting with Token by Token Ltd',
@@ -300,7 +324,23 @@ test('the texts of a transaction are the facts as the page words them', () => {
     'name.eth · forward record matches',
   ])
   assert.deepEqual(texts.decoded, ['transfer · 0xa9059cbb', '_to address', '0xd8dA', '_value uint256', '1'])
-  assert.deepEqual(texts.raw, ['0xf1', '0xc0', '0.01 ETH', '0xa9059cbb0001'])
+  assert.deepEqual(texts.raw, [
+    '0xf977814e90da44bfa03b6295a0616a897441acec',
+    '0xdac17f958d2ee523a2206206994597c13d831ec7',
+    '0.01 ETH',
+    '0xa9059cbb0001',
+  ])
+  // Helios proved the chain and an auditor attested the descriptor: no
+  // warning. The addresses carry their checksum.
+  assert.deepEqual(texts.compare, [
+    'Check that your wallet shows the same values.',
+    'Ethereum mainnet',
+    '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+    '0.01 ETH',
+    'transfer · 0xa9059cbb',
+    '0xd1ge57',
+    '0xF977814e90dA44bFA03b6295A0616a897441aceC',
+  ])
   assert.deepEqual(texts.verdict, ['You pasted eth_sendTransaction', 'All checks passed.'])
   assert.deepEqual(texts.allow, [])
 })
@@ -308,7 +348,7 @@ test('the texts of a transaction are the facts as the page words them', () => {
 test('a preview without value, parameters, token or name words the texts so', () => {
   const preview: Transaction = {
     ...transaction,
-    params: { from: '0xf1', to: '0xc0', data: '0xd0e30db0' },
+    params: { ...transaction.params, data: '0xd0e30db0', value: undefined },
     expect: {
       ...transaction.expect,
       verification: { ...transaction.expect.verification, optimizer: false },
@@ -323,7 +363,8 @@ test('a preview without value, parameters, token or name words the texts so', ()
       decoded: { function: 'deposit', params: {} },
     },
   }
-  const texts = textsOf(preview)
+  const texts = textsOf(preview, 'rpc')
+  assert.equal(texts.chain![0], '⚠ Chain data is not verified')
   assert.ok(!texts.simulation!.includes('0 ETH'))
   assert.ok(texts.verification!.includes('solc 0.8.20+commit.a1b2c3d4 · optimizer off'))
   assert.deepEqual(texts.clearSigning, [
@@ -333,8 +374,61 @@ test('a preview without value, parameters, token or name words the texts so', ()
     'rendered with registry/w/w.json · preview',
   ])
   assert.deepEqual(texts.decoded, ['deposit · 0xd0e30db0', 'no parameters'])
-  assert.deepEqual(texts.raw, ['0xf1', '0xc0', '0 ETH', '0xd0e30db0'])
-  assert.deepEqual(texts.allow, ['not attested by a trusted auditor'])
+  assert.deepEqual(texts.raw!.slice(2), ['0 ETH', '0xd0e30db0'])
+  // The RPC endpoint and the preview are the two warnings.
+  assert.deepEqual(texts.compare!.slice(0, 3), [
+    '⚠ Onay found warnings in this request',
+    'Step 1, Chain Data Verification: the chain data comes from an RPC endpoint, without proof',
+    'Step 4, Clear Signing: the descriptor is a preview, since you trust no auditor yet',
+  ])
+  assert.deepEqual(texts.verdict, ['You pasted eth_sendTransaction', 'All checks passed.'])
+  assert.deepEqual(texts.allow, [
+    'Step 1, Chain Data Verification: the chain data comes from an RPC endpoint, without proof',
+    'Step 4, Clear Signing: the descriptor is a preview, since you trust no auditor yet',
+    'not attested by a trusted auditor',
+  ])
+  assert.equal(texts.fail, undefined)
+})
+
+test('a contract without a descriptor expects the notice of the registry, and no preview warning', () => {
+  const texts = textsOf({ ...transaction, expect: { ...transaction.expect, clearSigning: null } }, 'rpc')
+  assert.deepEqual(texts.clearSigning, ['No ERC-7730 descriptor is registered for this contract'])
+  assert.deepEqual(texts.compare!.slice(0, 3), [
+    '⚠ Onay found warnings in this request',
+    'Step 1, Chain Data Verification: the chain data comes from an RPC endpoint, without proof',
+    'Ethereum mainnet',
+  ])
+  assert.deepEqual(texts.allow, [
+    'Step 1, Chain Data Verification: the chain data comes from an RPC endpoint, without proof',
+    'not rendered · No descriptor found',
+  ])
+  assert.equal(texts.fail, 'no ERC-7730 descriptor in the registry for this contract')
+  assert.deepEqual(check({ ...sections, compare: 'x' }, texts).slice(0, 1), [texts.fail])
+})
+
+test('a contract that another contract created has no creation block and no creation compare', () => {
+  const internal: Transaction = {
+    ...transaction,
+    expect: {
+      ...transaction.expect,
+      chain: { ...transaction.expect.chain, creation: { ...transaction.expect.chain.creation, block: null } },
+      verification: { ...transaction.expect.verification, creation: null },
+    },
+  }
+  const texts = textsOf(internal, 'helios')
+  assert.ok(texts.chain!.includes('creation transaction 0x2f1c…9190 · not read · created by another contract'))
+  assert.ok(texts.verification!.includes('claims exact match'))
+  assert.ok(texts.verification!.includes('Creation bytecode\nnot compared · created by another contract'))
+  const none = {
+    ...internal,
+    expect: { ...internal.expect, verification: { ...internal.expect.verification, creation: 'none' as const } },
+  }
+  assert.ok(textsOf(none, 'helios').verification!.includes('claims match'))
+  assert.ok(
+    textsOf(none, 'helios').verification!.includes(
+      'Creation bytecode\nnot compared · the input of the transaction is not the recompiled creation bytecode',
+    ),
+  )
 })
 
 test('a file parses into a transaction with the ID of its name, and a wrong shape names the file', () => {
@@ -344,10 +438,14 @@ test('a file parses into a transaction with the ID of its name, and a wrong shap
     assert.throws(() => parseTransaction('bad', { ...json, ...patch }), message)
   assert.throws(() => parseTransaction('bad', null), /transactions\/bad\.json: not an object/)
   wrong({ name: '' }, /"name" must be a string/)
-  wrong({ params: { ...json.params, to: 'c0' } }, /"params.to" must be hex/)
+  wrong({ params: { ...json.params, to: 'dac1' } }, /"params.to" must be hex/)
   wrong({ params: { ...json.params, value: 12 } }, /"params.value" must be hex/)
   wrong({ expect: { ...json.expect, decoded: undefined } }, /"expect.decoded" must be an object/)
-  wrong({ expect: { ...json.expect, verdict: 1 } }, /"expect.verdict" must be a string/)
+  wrong({ expect: { ...json.expect, clearSigning: 'none' } }, /"expect.clearSigning" must be an object or null/)
+  assert.equal(
+    parseTransaction('none', { ...json, expect: { ...json.expect, clearSigning: null } }).expect.clearSigning,
+    null,
+  )
 })
 
 test('the files of the suite load, sorted by name', () => {

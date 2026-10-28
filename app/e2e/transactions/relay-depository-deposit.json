@@ -1,0 +1,54 @@
+{
+  "name": "Relay Depository: deposit 0.01 ETH",
+  "params": {
+    "from": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "to": "0x4cd00e387622c35bddb9b4c962c136462338bc31",
+    "data": "0x49290c1c000000000000000000000000f977814e90da44bfa03b6295a0616a897441acec0000000000000000000000000000000000000000000000000000000000000001",
+    "value": "0x2386f26fc10000"
+  },
+  "expect": {
+    "chain": {
+      "codeBytes": 8628,
+      "creation": {
+        "transaction": "0x69339f6e8ef5afc6e64b5cb7c2b362ea723e94cd2e0c485c064411ba376c8011",
+        "block": null
+      }
+    },
+    "simulation": {
+      "frame": {
+        "name": "RelayDepository",
+        "selector": "0x49290c1c"
+      },
+      "messages": 1,
+      "touched": 1,
+      "accounts": 2,
+      "slots": 0
+    },
+    "verification": {
+      "name": "RelayDepository",
+      "compiler": "0.8.28+commit.7893614a",
+      "optimizer": false,
+      "files": 7,
+      "mainFile": "src/RelayDepository.sol",
+      "runtime": "partial",
+      "creation": null
+    },
+    "clearSigning": null,
+    "decoded": {
+      "function": "depositNative",
+      "params": {
+        "depositor": {
+          "type": "address",
+          "value": "0xF977814e90dA44bFA03b6295A0616a897441aceC"
+        },
+        "id": {
+          "type": "bytes32",
+          "value": "0x0000000000000000000000000000000000000000000000000000000000000001"
+        }
+      }
+    },
+    "compare": {
+      "digest": "0x2a271be5354d63f0695e837aaecd0c855349bc70fb91f4591f4d5759624fb689"
+    }
+  }
+}

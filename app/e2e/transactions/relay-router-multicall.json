@@ -1,0 +1,61 @@
+{
+  "name": "Relay Router: an empty multicall",
+  "params": {
+    "from": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "to": "0x0729e2a4716d9f7dd17858d5d504426d228697f7",
+    "data": "0xcd6e13f70000000000000000000000000000000000000000000000000000000000000080000000000000000000000000f977814e90da44bfa03b6295a0616a897441acec000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "expect": {
+    "chain": {
+      "codeBytes": 7185,
+      "creation": {
+        "transaction": "0x1e1c8c951e27b58a0abb8e89421dda4f80dde95a3f778705b3c3c4de90ac9351",
+        "block": null
+      }
+    },
+    "simulation": {
+      "frame": {
+        "name": "RelayRouter",
+        "selector": "0xcd6e13f7"
+      },
+      "messages": 1,
+      "touched": 1,
+      "accounts": 2,
+      "slots": 0
+    },
+    "verification": {
+      "name": "RelayRouter",
+      "compiler": "0.8.28+commit.7893614a",
+      "optimizer": 1000000,
+      "files": 8,
+      "mainFile": "src/RelayRouter.sol",
+      "runtime": "partial",
+      "creation": null
+    },
+    "clearSigning": null,
+    "decoded": {
+      "function": "multicall",
+      "params": {
+        "calls": {
+          "type": "tuple[]",
+          "value": "[]"
+        },
+        "refundTo": {
+          "type": "address",
+          "value": "0xF977814e90dA44bFA03b6295A0616a897441aceC"
+        },
+        "nftRecipient": {
+          "type": "address",
+          "value": "0x0000000000000000000000000000000000000000"
+        },
+        "metadata": {
+          "type": "bytes",
+          "value": "0x"
+        }
+      }
+    },
+    "compare": {
+      "digest": "0xf983f3494d543743fec4fae2bd530e6037ec0c0644f4fc9f1f558b5f5361a371"
+    }
+  }
+}

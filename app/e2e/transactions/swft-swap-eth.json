@@ -1,0 +1,58 @@
+{
+  "name": "SWFT Swap: swap 0.01 ETH",
+  "params": {
+    "from": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "to": "0xc1d13492285eb664951e201bf7c80c7c6318a1b5",
+    "data": "0x16b3b4c2000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000017d3d88264654f00000000000000000000000000000000000000000000000000000000000000000205553445428425343297c7a76636d39327c302e30327c62726964676572737c30000000000000000000000000000000000000000000000000000000000000002a30783862443266663832353837414333364445663435446666313839353964303530363637313338373700000000000000000000000000000000000000000000",
+    "value": "0x2386f26fc10000"
+  },
+  "expect": {
+    "chain": {
+      "codeBytes": 4635,
+      "creation": {
+        "transaction": "0x76edfeb356a8eaf0f9921acf711e6c1df6ee016fc777be8cb8de034cf73e5402",
+        "block": 25292506
+      }
+    },
+    "simulation": {
+      "frame": {
+        "name": "SwftSwap",
+        "selector": "0x16b3b4c2"
+      },
+      "messages": 1,
+      "touched": 1,
+      "accounts": 2,
+      "slots": 1
+    },
+    "verification": {
+      "name": "SwftSwap",
+      "compiler": "0.8.0+commit.c7dfd78e",
+      "optimizer": 200,
+      "files": 7,
+      "mainFile": "SwftSwap.sol",
+      "runtime": "partial",
+      "creation": "none"
+    },
+    "clearSigning": null,
+    "decoded": {
+      "function": "swapEth",
+      "params": {
+        "toToken": {
+          "type": "string",
+          "value": "\"USDT(BSC)|zvcm92|0.02|bridgers|0\""
+        },
+        "destination": {
+          "type": "string",
+          "value": "\"0x8bD2ff82587AC36DEf45Dff18959d05066713877\""
+        },
+        "minReturnAmount": {
+          "type": "uint256",
+          "value": "27471263000000000000"
+        }
+      }
+    },
+    "compare": {
+      "digest": "0x6c631ff01ed9d4ea266aa5b82aeaa042d73d845e1e5293b5883e573475b8d9fd"
+    }
+  }
+}

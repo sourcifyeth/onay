@@ -13,7 +13,7 @@ import { after, before, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import type { ChainConfig } from '../src/chains.ts'
 import {
-  chainExpectation,
+  BACK,
   check,
   CLICK,
   DISMISS_FIRST_REQUEST,
@@ -25,6 +25,8 @@ import {
   READ_REVIEW,
   sectionsOf,
   SEED_SETTINGS,
+  TAB,
+  type Mode,
   type Review,
 } from './page.ts'
 import { requestOf, textsOf } from './expect.ts'
@@ -33,7 +35,7 @@ import { Session, waitFor, waitForServer } from './webdriver.ts'
 
 const APP_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const { env } = process
-const MODE = env.ONAY_E2E_MODE === 'helios' ? 'helios' : 'rpc'
+const MODE: Mode = env.ONAY_E2E_MODE === 'helios' ? 'helios' : 'rpc'
 const PORT = Number(env.ONAY_E2E_PORT ?? 4444)
 const SERVER = `http://127.0.0.1:${PORT}`
 // A review downloads a compiler build and simulates on chain state read
@@ -62,6 +64,8 @@ const DEFAULT_HELIOS_CHAINS = [1, 11155111, 560048]
 let dir: string
 let driver: ChildProcess
 let session: Session
+// The outcome of each transaction, for the report at the end.
+const report: string[] = []
 
 before(async () => {
   dir = await mkdtemp(path.join(tmpdir(), 'onay-e2e-'))
@@ -90,10 +94,16 @@ after(async () => {
   // tauri-driver ends the native driver on an interrupt.
   driver?.kill('SIGINT')
   await rm(dir, { recursive: true, force: true })
+  // One line per contract: what passed, and the first problem of the rest.
+  console.log(`\nReport\n${report.join('\n')}\n`)
 })
 
 for (const transaction of loadTransactions()) {
   test(transaction.name, { timeout: REVIEW_TIMEOUT + 60_000 }, async () => {
+    // A reload empties what the page cached from the transaction before,
+    // such as a contract it verified, so each review starts from nothing.
+    await session.refresh()
+    await waitFor(() => session.execute<boolean>(PAGE_READY), 30_000, 'the page')
     await session.execute(INJECT, [requestOf(transaction)])
     const review = await waitFor(
       async () => {
@@ -104,23 +114,23 @@ for (const transaction of loadTransactions()) {
       REVIEW_TIMEOUT,
       `the review of "${transaction.name}"`,
     )
-    // The other two tabs of the last step, then the entry on the list
-    // with its verdict. The entry goes, so the list is empty for the
-    // next transaction.
-    const tab = async (label: string) => {
-      await session.execute(CLICK, [label])
-      return (await session.execute<Review>(READ_REVIEW)).steps[4]?.text
+    // The other two tabs of the Clear Signing step, then the entry on
+    // the list with its verdict. The entry goes, so the list is empty for
+    // the next transaction.
+    const tab = async (id: 'decoded' | 'raw') => {
+      await session.execute(CLICK, [TAB(id)])
+      return (await session.execute<Review>(READ_REVIEW)).steps.clearSigning
     }
-    const decoded = await tab('ABI-Decoded')
-    const raw = await tab('Raw')
-    await session.execute(CLICK, ['← all requests'])
+    const decoded = await tab('decoded')
+    const raw = await tab('raw')
+    await session.execute(CLICK, [BACK])
     const verdict = (await session.execute<string | null>(READ_FIRST_REQUEST)) ?? undefined
     const sections = sectionsOf(review, { decoded, raw, verdict })
     await session.execute(DISMISS_FIRST_REQUEST)
     // The text the test read, to write the expectations of a new transaction.
     if (env.ONAY_E2E_DUMP) console.log(`\n${dump(sections)}\n`)
-    const texts = textsOf(transaction)
-    const problems = check(sections, { ...texts, chain: [chainExpectation(MODE), ...texts.chain!] })
+    const problems = check(sections, textsOf(transaction, MODE))
+    report.push(problems.length === 0 ? `✔ ${transaction.name}` : `✖ ${transaction.name} · ${problems[0]}`)
     assert.deepEqual(problems, [], `${transaction.name}\n${problems.join('\n')}\n\n${dump(sections)}`)
   })
 }

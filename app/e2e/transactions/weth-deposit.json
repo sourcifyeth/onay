@@ -15,7 +15,10 @@
       }
     },
     "simulation": {
-      "frame": { "name": "WETH9", "selector": "0xd0e30db0" },
+      "frame": {
+        "name": "WETH9",
+        "selector": "0xd0e30db0"
+      },
       "messages": 1,
       "touched": 1,
       "accounts": 2,
@@ -35,10 +38,17 @@
       "owner": "WETH",
       "contractName": "WETH",
       "intent": "Wrap",
-      "fields": { "Amount": "0.01 ETH" },
+      "fields": {
+        "Amount": "0.01 ETH"
+      },
       "attested": false
     },
-    "decoded": { "function": "deposit", "params": {} },
-    "verdict": "All checks passed."
+    "decoded": {
+      "function": "deposit",
+      "params": {}
+    },
+    "compare": {
+      "digest": "0x9e0e1b38823d3ef404d2bf8305dbf9a8d25df680627999452c844afce8db8319"
+    }
   }
 }

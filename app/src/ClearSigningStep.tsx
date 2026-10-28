@@ -27,7 +27,7 @@ import type { Verification } from './gates/verification.ts'
 import { CollapsibleLog, Cursor } from './Log.tsx'
 import type { Hex } from './messages.ts'
 import { Hint, ListRow, Step } from './Step.tsx'
-import { Tabs } from './Tabs.tsx'
+import { Tabs, type Tab } from './Tabs.tsx'
 
 // The native currency of the chain, for the amounts of the request.
 type Currency = { symbol: string; decimals: number } | null
@@ -822,14 +822,16 @@ function RawPane({ state, chainId, currency }: { state: ClearSigning; chainId: n
   }
 }
 
-type Tab = { label: string; content: ReactNode }
-
 // The labels say what each tab holds. The ABI tab shows for every
 // transaction, the raw tab always.
 function tabsOf(state: ClearSigning, chainId: number, currency: Currency): Tab[] {
   const { rendering } = state
-  const clear = { label: 'Clear Signing', content: <ClearSigningPane state={state} currency={currency} /> }
-  const raw = { label: 'Raw', content: <RawPane state={state} chainId={chainId} currency={currency} /> }
+  const clear = {
+    id: 'clearSigning',
+    label: 'Clear Signing',
+    content: <ClearSigningPane state={state} currency={currency} />,
+  }
+  const raw = { id: 'raw', label: 'Raw', content: <RawPane state={state} chainId={chainId} currency={currency} /> }
   if (state.status === 'running' || !rendering || rendering.kind === 'none') return [clear, raw]
   if (rendering.kind === 'typedData') {
     return [{ ...clear, label: rendered(rendering.display) ? 'Clear Signing' : 'Message' }, raw]
@@ -837,6 +839,7 @@ function tabsOf(state: ClearSigning, chainId: number, currency: Currency): Tab[]
   const calls = rendering.kind === 'batch' ? rendering.calls : [rendering.call]
   const withData = calls.filter((call) => call.to !== null && call.data !== '0x')
   const decoded = {
+    id: 'decoded',
     label: withData.some((call) => call.decoded) || withData.length === 0 ? 'ABI-Decoded' : 'No ABI-Decoding',
     content: <DecodedPane state={state} />,
   }

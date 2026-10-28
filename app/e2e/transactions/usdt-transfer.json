@@ -14,7 +14,10 @@
       }
     },
     "simulation": {
-      "frame": { "name": "TetherToken", "selector": "0xa9059cbb" },
+      "frame": {
+        "name": "TetherToken",
+        "selector": "0xa9059cbb"
+      },
       "messages": 1,
       "touched": 1,
       "accounts": 2,
@@ -34,18 +37,27 @@
       "owner": "Tether Limited",
       "contractName": "Tether USD",
       "intent": "Send",
-      "fields": { "Amount": "1 USDT", "To": "vitalik.eth" },
-      "attested": false,
-      "token": { "symbol": "USDT", "decimals": 6 },
-      "ens": "vitalik.eth"
+      "fields": {
+        "Amount": "1 USDT",
+        "To": "vitalik.eth"
+      },
+      "attested": false
     },
     "decoded": {
       "function": "transfer",
       "params": {
-        "_to": { "type": "address", "value": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" },
-        "_value": { "type": "uint256", "value": "1000000" }
+        "_to": {
+          "type": "address",
+          "value": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+        },
+        "_value": {
+          "type": "uint256",
+          "value": "1000000"
+        }
       }
     },
-    "verdict": "All checks passed."
+    "compare": {
+      "digest": "0xdd65fb8736d45c3802d197b877b074161f3115d006d10207d4c82d3c30fca9eb"
+    }
   }
 }

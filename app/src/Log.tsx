@@ -41,6 +41,7 @@ export function CollapsibleLog({ lines }: { lines: TimedLine[] }) {
     <>
       <button
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className="mt-2 font-mono text-xs text-gray-400 transition-colors hover:text-gray-600"
       >
         {open ? 'hide logs ▴' : 'show logs ▾'}
