@@ -476,7 +476,7 @@ function ProfileCard({
   const name = nameOf(contract, profile)
   const summary = <CardTitle kind="Contract" name={name} state={<SummaryState profile={profile} running={running} />} />
   return (
-    <CollapsibleCard open inset summary={summary}>
+    <CollapsibleCard open tall summary={summary}>
       {!profile ? (
         <p className="text-sm">
           <Loading>looking up</Loading>
@@ -532,7 +532,7 @@ function AccountCard({
     />
   )
   return (
-    <CollapsibleCard open inset summary={summary}>
+    <CollapsibleCard open tall summary={summary}>
       {!account ? (
         <p className="text-sm">
           <Loading>looking up</Loading>

@@ -20,31 +20,30 @@ export function Step({ step, explainer, children }: { step: StepInfo; explainer:
 
 // A card whose summary always shows. The details open with the chevron,
 // or from the start.
-// `inset` gives the title and the body more room from the border.
+// `tall` gives the title more room above and under it.
 export function CollapsibleCard({
   summary,
   open: initial = false,
-  inset = false,
+  tall = false,
   children,
 }: {
   summary: ReactNode
   open?: boolean
-  inset?: boolean
+  tall?: boolean
   children: ReactNode
 }) {
   const [open, setOpen] = useState(initial)
-  const side = inset ? 'px-7' : 'px-5'
-  const top = inset ? 'py-5' : 'py-3'
+  const top = tall ? 'py-5' : 'py-3'
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
       <button
         onClick={() => setOpen((v) => !v)}
-        className={`flex w-full items-center justify-between gap-4 ${side} ${top} text-left`}
+        className={`flex w-full items-center justify-between gap-4 px-5 ${top} text-left`}
       >
         <div className="min-w-0 flex-1">{summary}</div>
         <span className="shrink-0 text-gray-400">{open ? '▴' : '▾'}</span>
       </button>
-      {open && <div className={`${side} pb-5`}>{children}</div>}
+      {open && <div className="px-5 pb-5">{children}</div>}
     </div>
   )
 }
