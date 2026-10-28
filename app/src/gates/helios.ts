@@ -20,6 +20,7 @@ import {
   type CreationRead,
   type CreationReader,
 } from './creation.ts'
+import { explainHeliosError } from './explain.ts'
 import { errorText, type Gate, type Log } from './gate.ts'
 import { parseQuantity } from './request.ts'
 
@@ -32,7 +33,7 @@ export function chainReaderFor(chain: ChainConfig): ChainRead {
   return (method, params) =>
     invoke<unknown>('chain_request', { chainId: chain.id, method, params } satisfies ChainRequestArgs).catch(
       (error) => {
-        throw new Error(explainProofError(errorText(error), chain))
+        throw new Error(explainHeliosError(errorText(error), chain))
       },
     )
 }
@@ -62,9 +63,11 @@ export function chainReady(chain: ChainConfig, log: Log): Promise<Head> {
 
 async function heliosReady(chain: ChainConfig, log: Log): Promise<Head> {
   log({ source: 'helios', text: `waiting for the light client · ${chain.name}` })
-  const ready = heliosStarted(chain.id).then(() =>
-    invoke<ChainReady>('chain_ready', { chainId: chain.id } satisfies ChainReadyArgs),
-  )
+  const ready = heliosStarted(chain.id)
+    .then(() => invoke<ChainReady>('chain_ready', { chainId: chain.id } satisfies ChainReadyArgs))
+    .catch((error) => {
+      throw new Error(explainHeliosError(errorText(error), chain))
+    })
   const { block, checkpoint } = await withTimeout(ready, SYNC_TIMEOUT, 'Helios did not sync in time')
   log({
     source: 'helios',
@@ -171,20 +174,6 @@ export function creationReaderFor(chain: ChainConfig, read: ChainRead, log: Log)
     })
     return { creation }
   }
-}
-
-// Helios asks the execution endpoint for a proof at its own head block.
-// Some endpoints serve proofs for their newest block only, or need a key
-// for older blocks. Both errors come from the endpoint, so say so.
-function explainProofError(message: string, chain: ChainConfig): string {
-  const host = new URL(chain.executionRpc).host
-  if (/proof window/i.test(message)) {
-    return `${host} serves proofs for its newest block only, and Helios is a few blocks behind it. Choose an execution endpoint that serves eth_getProof for recent blocks, in the settings.`
-  }
-  if (/archive/i.test(message)) {
-    return `${host} needs a key for this block. Choose another execution endpoint in the settings.`
-  }
-  return message
 }
 
 let nextRpcId = 1
