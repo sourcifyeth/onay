@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- The Onay mark: a Nazar-inspired eye on a rounded navy tile. Source of app/src-tauri/icons/, see README. The tile covers 824 of 1024 like other macOS icons. -->
-  <rect x="100" y="100" width="824" height="824" rx="186" fill="#071E52"/>
-  <circle cx="512" cy="512" r="233.5" fill="#159BFA"/>
-  <circle cx="512" cy="512" r="158" fill="#fff"/>
-  <circle cx="512" cy="512" r="79" fill="#071E52"/>
-  <circle cx="484.5" cy="484.5" r="17.9" fill="#fff"/>
+  <!-- The Onay mark: a round Nazar-inspired eye. Source of app/src-tauri/icons/, see README. The eye covers 824 of 1024 like other macOS icons. -->
+  <circle cx="512" cy="512" r="412" fill="#071E52"/>
+  <circle cx="512" cy="512" r="310" fill="#159BFA"/>
+  <circle cx="512" cy="512" r="208" fill="#fff"/>
+  <circle cx="512" cy="512" r="97" fill="#071E52"/>
+  <circle cx="479.5" cy="479.5" r="21.8" fill="#fff"/>
 </svg>

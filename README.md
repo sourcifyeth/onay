@@ -134,7 +134,7 @@ To keep the extension ID that the app accepts, the first upload to the store mus
 
 ### The icon
 
-The Onay mark, a Nazar-inspired eye on a rounded navy tile, has two vector sources: `app/src-tauri/app-icon.svg` for the app and `extension/store/icon.svg` for the extension and its store listing. The app source keeps the tile at 824 of 1024 pixels, like other macOS icons; the extension source fills the canvas, because Chrome shows it small. Every raster file comes from them:
+The Onay mark, a round Nazar-inspired eye, has two vector sources: `app/src-tauri/app-icon.svg` for the app and `extension/store/icon.svg` for the extension and its store listing. The app source keeps the eye at 824 of 1024 pixels, like other macOS icons; the extension source fills the canvas, because Chrome shows it small. Every raster file comes from them:
 
 ```
 pnpm --filter app exec tauri icon -o /tmp/onay-icons app-icon.png   # app-icon.png is app-icon.svg at 1024 pixels, then copy the files that icons/ has
