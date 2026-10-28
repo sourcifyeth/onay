@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- The Onay mark: a round Nazar-inspired eye. Source of extension/icons/ and the store icon, see README. -->
+  <circle cx="128" cy="128" r="120" fill="#071E52"/>
+  <circle cx="128" cy="128" r="90.3" fill="#159BFA"/>
+  <circle cx="128" cy="128" r="60.7" fill="#fff"/>
+  <circle cx="128" cy="128" r="28.3" fill="#071E52"/>
+  <circle cx="118.6" cy="118.6" r="6.3" fill="#fff"/>
+</svg>

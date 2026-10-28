@@ -132,6 +132,17 @@ sha256sum extension/onay-extension.zip
 
 To keep the extension ID that the app accepts, the first upload to the store must include the private key as `key.pem` in the root of the zip. `pnpm --filter extension package:first` builds that zip from `extension/key.pem`, which is not in the repo (it is in the team password manager). The first upload is done by hand in the developer dashboard. After it the store holds the key, and later uploads use `package`. For now every store upload is by hand; the store API step of the release workflow is a follow-up in issue 15.
 
+### The icon
+
+The Onay mark, a round Nazar-inspired eye, has two vector sources: `app/src-tauri/app-icon.svg` for the app and `extension/store/icon.svg` for the extension and its store listing. The app source keeps the eye at 824 of 1024 pixels, like other macOS icons; the extension source fills the canvas, because Chrome shows it small. Every raster file comes from them:
+
+```
+pnpm --filter app exec tauri icon -o /tmp/onay-icons app-icon.png   # app-icon.png is app-icon.svg at 1024 pixels, then copy the files that icons/ has
+rsvg-convert -w 32 -h 32 extension/store/icon.svg -o extension/icons/icon-32.png
+rsvg-convert -w 128 -h 128 extension/store/icon.svg -o extension/icons/icon-128.png
+cp extension/icons/icon-128.png extension/store/icon-128.png
+```
+
 ### Releasing a version
 
 The app and the extension have their own versions. The extension changes rarely, and the app states the oldest extension it works with: the two refuse each other when their channel protocol version (`VERSION` in `app/src-tauri/src/channel.rs` and `extension/src/channel.ts`) differs. A release of the app says in its notes which extension version it needs.
