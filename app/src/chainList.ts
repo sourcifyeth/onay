@@ -30,15 +30,16 @@ export type ChainConfig = {
 // is not used here. Checked on 2026-10-08: dRPC and Tenderly serve proofs
 // at least 10 blocks back.
 //
-// Sepolia activated Glamsterdam (Gloas) on 2026-10-06. The Lighthouse node
-// behind publicnode makes no light-client data for Gloas blocks, so it
-// answers 404 to every bootstrap, and Helios does not sync. Lighthouse got
-// the Gloas light-client types on 2026-10-20, in no release yet. Helios
-// 0.12.0 did not sync from https://lodestar-sepolia.chainsafe.io either,
-// which serves the data; that cause is open. Checked on 2026-10-21, see
-// issue #35. Endpoints to try: that Lodestar node,
-// http://unstable.sepolia.beacon-api.nimbus.team, and
-// https://sepolia.lightclient.xyz.
+// Sepolia activated Glamsterdam (Gloas) on 2026-10-06. Checked on
+// 2026-10-28, see issue #35:
+// - publicnode runs Lighthouse 8.3.1, which makes no light-client data for
+//   Gloas blocks. It answers 404 to every bootstrap.
+// - Lodestar serves the Gloas data, and Helios syncs from it. Lodestar
+//   changes the finality update once per epoch only, as the spec says, so
+//   the head of Helios 0.12.0 falls up to 6 minutes behind. Helios needs
+//   the optimistic update for a recent head.
+// - unstable.sepolia.beacon-api.nimbus.team has no DNS record, and
+//   sepolia.lightclient.xyz closes the connection.
 export const DEFAULT_CHAINS: ChainConfig[] = [
   {
     id: 1,
@@ -52,7 +53,7 @@ export const DEFAULT_CHAINS: ChainConfig[] = [
     name: 'Sepolia',
     mode: 'helios',
     executionRpc: 'https://sepolia.gateway.tenderly.co',
-    consensusRpc: 'https://ethereum-sepolia-beacon-api.publicnode.com',
+    consensusRpc: 'https://lodestar-sepolia.chainsafe.io',
   },
   {
     id: 560048,
@@ -64,11 +65,26 @@ export const DEFAULT_CHAINS: ChainConfig[] = [
   { id: 42161, name: 'Arbitrum One', mode: 'rpc', executionRpc: 'https://arb1.arbitrum.io/rpc' },
 ]
 
+// Endpoints that were a default once, by chain id. The app saves the whole
+// list, so a saved chain can hold one that the user never chose.
+const RETIRED_CONSENSUS_RPCS: Record<number, string[]> = {
+  11155111: ['https://ethereum-sepolia-beacon-api.publicnode.com'],
+}
+
 // The built-in chains with the saved edits, then the chains that the user
-// added. A built-in chain of a newer version shows up with its defaults.
+// added. A built-in chain of a newer version shows up with its defaults, and
+// a retired default endpoint changes to the current one.
 export function mergeChains(saved: unknown): ChainConfig[] {
   const list = Array.isArray(saved) ? saved.filter(isChainConfig) : []
-  const builtIn = DEFAULT_CHAINS.map((chain) => list.find((other) => other.id === chain.id && !other.custom) ?? chain)
+  const builtIn = DEFAULT_CHAINS.map((chain) => {
+    const own = list.find((other) => other.id === chain.id && !other.custom)
+    if (!own) return chain
+    const retired = RETIRED_CONSENSUS_RPCS[chain.id] ?? []
+    if (own.consensusRpc !== undefined && retired.includes(own.consensusRpc)) {
+      return { ...own, consensusRpc: chain.consensusRpc }
+    }
+    return own
+  })
   const custom = list.filter((chain) => chain.custom && !DEFAULT_CHAINS.some((other) => other.id === chain.id))
   return [...builtIn, ...custom]
 }

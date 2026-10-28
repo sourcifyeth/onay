@@ -28,6 +28,21 @@ test('a saved built-in chain keeps the endpoints that the user set', () => {
   assert.deepEqual(mergeChains([saved]), [saved, ...DEFAULT_CHAINS.slice(1)])
 })
 
+test('a saved Sepolia with the retired publicnode endpoint takes the current default', () => {
+  const saved: ChainConfig = {
+    ...sepolia,
+    executionRpc: 'https://my.node/exec',
+    consensusRpc: 'https://ethereum-sepolia-beacon-api.publicnode.com',
+  }
+  assert.deepEqual(mergeChains([saved])[1], { ...sepolia, executionRpc: 'https://my.node/exec' })
+  assert.equal(sepolia.consensusRpc, 'https://lodestar-sepolia.chainsafe.io')
+})
+
+test('a saved Sepolia with an endpoint of the user keeps it', () => {
+  const saved: ChainConfig = { ...sepolia, consensusRpc: 'https://my.node/beacon' }
+  assert.deepEqual(mergeChains([saved])[1], saved)
+})
+
 test('custom chains follow the built-in ones; one with a built-in id, or a broken one, is dropped', () => {
   const custom: ChainConfig = { id: 10, name: 'OP Mainnet', mode: 'rpc', executionRpc: 'https://op.x/', custom: true }
   const clash: ChainConfig = { ...sepolia, mode: 'rpc', custom: true }
