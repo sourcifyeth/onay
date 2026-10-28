@@ -93,6 +93,12 @@ test('blob and EIP-7702 transactions are refused', () => {
   assert.throws(() => readPaste(setCode), /type 4 is not supported/)
 })
 
+test('a transaction as JSON that sets a delegate (EIP-7702) is refused, as its raw form is', () => {
+  const authorizationList = [{ address: USDC_OP, chainId: '0xa', nonce: '0x0' }]
+  const tx = { chainId: 10, from: ACCOUNT, to: ACCOUNT, authorizationList }
+  assert.throws(() => readPaste(JSON.stringify(tx)), /sets a delegate .*EIP-7702/)
+})
+
 test('hex that is not a transaction, such as calldata alone, is refused', () => {
   assert.throws(() => readPaste(TRANSFER), /not a raw transaction · paste calldata as JSON/)
 })

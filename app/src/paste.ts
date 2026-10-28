@@ -4,7 +4,7 @@
 
 import { toQuantity, Transaction } from 'ethers'
 import type { AddRequestArgs } from './messages.ts'
-import { chainNamedIn, isAddress, requestProblem } from './gates/request.ts'
+import { chainNamedIn, isAddress, requestProblem, uncheckedPart } from './gates/request.ts'
 
 // Same list as in extension/src/inpage.ts and extension/src/background.ts.
 const SIGNING_METHODS = new Set([
@@ -34,6 +34,8 @@ export function readPaste(text: string): AddRequestArgs {
   const request = parse(text)
   const problem = requestProblem(request)
   if (problem) throw new Error(`the request could not be read · ${problem}`)
+  const unchecked = uncheckedPart(request)
+  if (unchecked) throw new Error(unchecked)
   if (TRANSACTION_METHODS.has(request.method) && chainNamedIn(request) === null) {
     throw new Error('the transaction names no chainId')
   }

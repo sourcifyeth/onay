@@ -1,13 +1,16 @@
-import { Fragment, useEffect, useState, useSyncExternalStore } from 'react'
+import { Fragment, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { SigningRequest } from './messages.ts'
 import { chainName } from './chains.ts'
 import { ChainDataStep } from './ChainDataStep.tsx'
 import { ClearSigningStep } from './ClearSigningStep.tsx'
+import { CompareStep } from './CompareStep.tsx'
 import { LocallyVerifiedIcon } from './Icons.tsx'
 import { Cursor, LogBox, LogLineView, ProgressIcon } from './Log.tsx'
 import { SimulationStep } from './SimulationStep.tsx'
 import { VerificationStep } from './VerificationStep.tsx'
 import { progressOf, progressOfSimulation, progressShown, type Progress } from './gates/contracts.ts'
+import { clearSigningFor, type ClearSigning } from './clear-signing/store.ts'
+import { stepsOf, stepVerdicts } from './gates/verdict.ts'
 import { verificationFor, type TimedLine, type Verification } from './gates/verification.ts'
 
 // The log shows at most one new line in this time, so that you can read it.
@@ -212,6 +215,47 @@ function usePacedCount(total: number, start: number): number {
   return count
 }
 
+// A request without a chain has no Clear Signing: a store that never
+// changes.
+const NO_CLEAR_SIGNING = { subscribe: () => () => {}, getSnapshot: () => null }
+
+// The steps of the review once the run ended. Clear Signing starts here,
+// with the result of the run. The verdict of the steps is computed once,
+// and the compare step shows it.
+function Review({ request, verification }: { request: SigningRequest; verification: Verification }) {
+  const store = verification.chain ? clearSigningFor(request, verification) : NO_CLEAR_SIGNING
+  const clearSigning = useSyncExternalStore<ClearSigning | null>(store.subscribe, store.getSnapshot)
+  const verdicts = useMemo(() => stepVerdicts(verification, clearSigning), [verification, clearSigning])
+  const steps = stepsOf(verification)
+  return steps.map((step) => {
+    switch (step.id) {
+      case 'chain':
+        return <ChainDataStep key={step.id} step={step} verification={verification} />
+      case 'simulation':
+        return <SimulationStep key={step.id} step={step} verification={verification} />
+      case 'verification':
+        return <VerificationStep key={step.id} step={step} verification={verification} />
+      case 'clearSigning':
+        return (
+          clearSigning && (
+            <ClearSigningStep key={step.id} step={step} verification={verification} state={clearSigning} />
+          )
+        )
+      case 'compare':
+        return (
+          <CompareStep
+            key={step.id}
+            step={step}
+            steps={steps}
+            verdicts={verdicts}
+            request={request}
+            verification={verification}
+          />
+        )
+    }
+  })
+}
+
 export function GatePage({ request, onBack }: { request: SigningRequest; onBack: () => void }) {
   const store = verificationFor(request)
   const verification = useSyncExternalStore(store.subscribe, store.getSnapshot)
@@ -229,14 +273,7 @@ export function GatePage({ request, onBack }: { request: SigningRequest; onBack:
       </button>
       <Summary request={request} verification={verification} />
       {!done && <GateLog request={request} verification={verification} shown={shown} />}
-      {done && verification.chain && (
-        <>
-          <ChainDataStep verification={verification} />
-          <SimulationStep verification={verification} />
-          <VerificationStep verification={verification} />
-          <ClearSigningStep request={request} verification={verification} />
-        </>
-      )}
+      {done && <Review request={request} verification={verification} />}
     </div>
   )
 }
