@@ -57,6 +57,7 @@ function verification(contracts: Contract[], chain: ChainConfig | null = MAINNET
     simulation: { status: 'skipped', reason: 'test' },
     lines: [],
     status: 'passed',
+    stopped: null,
   }
 }
 

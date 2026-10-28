@@ -24,6 +24,7 @@ const verified = {
   creationNote: null,
   transformations: { runtime: { list: [], values: {} }, creation: { list: [], values: {} } },
   abi: [],
+  creation: null,
 } satisfies Verified
 const notVerified = { status: 'failed', reason: 'not verified on Sourcify', cause: { kind: 'not verified' } } as const
 const notReproduced = {
