@@ -82,7 +82,6 @@ function ChainCard({
           />
         )}
       </div>
-      {chain.notice && <p className="pt-2 text-xs text-gray-500">{chain.notice}</p>}
       <div className="flex items-center gap-3 pt-3">
         {dirty && (
           <button

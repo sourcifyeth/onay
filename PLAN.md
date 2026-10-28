@@ -58,7 +58,7 @@ The verifier is view only: it never signs and never holds a request back. The wa
 
 The design is chain-generic from day one: any EVM chain can be added with a chain id and an RPC endpoint. Source verification is always local and trustless on every chain; only the way chain state is fetched differs.
 
-- **Helios mode (automatic).** Where Helios supports the chain, state is verified by the light client. Today: Ethereum mainnet and testnets, the OP Stack family (OP Mainnet, Base, Worldchain, Zora, Unichain), and Linea. Requires an execution RPC that answers `eth_getProof` for recent blocks, not only for its newest one, because Helios asks at its own head. The mode of a built-in chain is the app's choice, not a setting: Sepolia runs in RPC mode since its Glamsterdam fork (2026-10-06), because no public Sepolia beacon node is known to serve light-client data that Helios 0.12.0 syncs from (issue #35); it goes back to Helios mode once one does.
+- **Helios mode (automatic).** Where Helios supports the chain, state is verified by the light client. Today: Ethereum mainnet and testnets, the OP Stack family (OP Mainnet, Base, Worldchain, Zora, Unichain), and Linea. Requires an execution RPC that answers `eth_getProof` for recent blocks, not only for its newest one, because Helios asks at its own head.
 - **RPC mode (any other chain).** State comes straight from an RPC endpoint the user provides. Running your own node makes this fully secure. RPC mode shows a permanent notice: **only use RPC endpoints you fully trust.**
 
 Per-chain trust details (which mechanism Helios uses, what RPC mode trusts) stay available in an info view for users who want them, without cluttering the main flow.

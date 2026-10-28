@@ -12,8 +12,6 @@ export type ChainConfig = {
   executionRpc: string
   // Helios mode only: a beacon node with the light client API.
   consensusRpc?: string
-  // Why a built-in chain runs in RPC mode. The settings show it.
-  notice?: string
   // Added by the user, so the user can remove it.
   custom?: boolean
 }
@@ -32,15 +30,14 @@ export type ChainConfig = {
 // is not used here. Checked on 2026-10-08: dRPC and Tenderly serve proofs
 // at least 10 blocks back.
 //
-// Sepolia runs in RPC mode since its Glamsterdam fork (Gloas, 2026-10-06).
-// The Lighthouse node behind publicnode makes no light-client data for
-// Gloas blocks, so it answers 404 to every bootstrap. Lighthouse got the
-// Gloas light-client types on 2026-10-20, but no release carries them yet.
-// Helios 0.12.0 did not sync from https://lodestar-sepolia.chainsafe.io
-// either, which serves the data; that cause is open. Checked on
-// 2026-10-21, see issue #35. Before Sepolia goes back to Helios mode, a
-// consensus endpoint must pass a sync in the app. Endpoints to try: the
-// Lodestar node above, http://unstable.sepolia.beacon-api.nimbus.team, and
+// Sepolia activated Glamsterdam (Gloas) on 2026-10-06. The Lighthouse node
+// behind publicnode makes no light-client data for Gloas blocks, so it
+// answers 404 to every bootstrap, and Helios does not sync. Lighthouse got
+// the Gloas light-client types on 2026-10-20, in no release yet. Helios
+// 0.12.0 did not sync from https://lodestar-sepolia.chainsafe.io either,
+// which serves the data; that cause is open. Checked on 2026-10-21, see
+// issue #35. Endpoints to try: that Lodestar node,
+// http://unstable.sepolia.beacon-api.nimbus.team, and
 // https://sepolia.lightclient.xyz.
 export const DEFAULT_CHAINS: ChainConfig[] = [
   {
@@ -53,10 +50,9 @@ export const DEFAULT_CHAINS: ChainConfig[] = [
   {
     id: 11155111,
     name: 'Sepolia',
-    mode: 'rpc',
+    mode: 'helios',
     executionRpc: 'https://sepolia.gateway.tenderly.co',
-    notice:
-      'Helios does not run on Sepolia for now. Since the Glamsterdam fork of 2026-10-06, Helios 0.12.0 syncs from no public Sepolia beacon node that we know of. The answers come from the endpoint without a check.',
+    consensusRpc: 'https://ethereum-sepolia-beacon-api.publicnode.com',
   },
   {
     id: 560048,
@@ -69,20 +65,10 @@ export const DEFAULT_CHAINS: ChainConfig[] = [
 ]
 
 // The built-in chains with the saved edits, then the chains that the user
-// added. The user edits the endpoints of a built-in chain, and nothing
-// else: its name, mode and notice come from the defaults. A built-in chain
-// whose mode changed gets the consensus endpoint of the defaults too.
+// added. A built-in chain of a newer version shows up with its defaults.
 export function mergeChains(saved: unknown): ChainConfig[] {
   const list = Array.isArray(saved) ? saved.filter(isChainConfig) : []
-  const builtIn = DEFAULT_CHAINS.map((chain) => {
-    const own = list.find((other) => other.id === chain.id && !other.custom)
-    if (!own) return chain
-    const merged: ChainConfig = { ...chain, executionRpc: own.executionRpc }
-    if (chain.mode === 'helios' && own.mode === 'helios' && own.consensusRpc !== undefined) {
-      merged.consensusRpc = own.consensusRpc
-    }
-    return merged
-  })
+  const builtIn = DEFAULT_CHAINS.map((chain) => list.find((other) => other.id === chain.id && !other.custom) ?? chain)
   const custom = list.filter((chain) => chain.custom && !DEFAULT_CHAINS.some((other) => other.id === chain.id))
   return [...builtIn, ...custom]
 }
