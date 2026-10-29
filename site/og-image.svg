@@ -1,0 +1,18 @@
+<!-- Source of public/og-image.png: rsvg-convert -w 1200 -h 630 og-image.svg -o public/og-image.png -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <rect width="1200" height="630" fill="#F6F8FC"/>
+  <g transform="translate(150 140) scale(1.1)">
+    <circle cx="150" cy="145" r="89" fill="#071E52"/>
+    <circle cx="150" cy="145" r="67" fill="#159BFA"/>
+    <circle cx="150" cy="145" r="45" fill="#fff"/>
+    <circle cx="150" cy="145" r="21" fill="#071E52"/>
+    <circle cx="143" cy="138" r="4.7" fill="#fff"/>
+    <g fill="none" stroke="#071E52" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="339" cy="145" r="38"/>
+      <path d="M 418 184 V 145 C 418 120 432 107 454 107 C 477 107 489 122 489 145 V 184"/>
+      <circle cx="561" cy="145" r="38"/>
+      <path d="M 602 145 V 184"/>
+      <path d="M 642 113 C 649 150 666 176 684 180 C 704 184 717 152 724 113 M 724 113 C 716 164 701 205 679 227"/>
+    </g>
+  </g>
+</svg>

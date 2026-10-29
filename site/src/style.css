@@ -1,0 +1,151 @@
+@import 'tailwindcss';
+@import './scene.css';
+
+/* Fonts are served from this site: the page makes no request to a third party. */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/IBMPlexSans-Regular-Latin1.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-weight: 500;
+  font-display: swap;
+  src: url('./fonts/IBMPlexSans-Medium-Latin1.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-weight: 600;
+  font-display: swap;
+  src: url('./fonts/IBMPlexSans-SemiBold-Latin1.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-weight: 700;
+  font-display: swap;
+  src: url('./fonts/IBMPlexSans-Bold-Latin1.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'VT323';
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/VT323-Regular-Latin.woff2') format('woff2');
+}
+
+/* The Onay identity: the colors of the eye, and the neutrals around it. */
+@theme {
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+
+  --color-navy: #071e52;
+  --color-navy-600: #0e2c6e;
+  --color-azure: #159bfa;
+  --color-azure-50: #f0f8ff;
+  --color-azure-100: #d7eaff;
+  --color-azure-300: #9bcfff;
+  --color-azure-700: #1767ad;
+  --color-ink: #14213b;
+  --color-muted: #65738b;
+  --color-line: #e2e8f1;
+  --color-line-soft: #edf1f6;
+  --color-paper: #f6f8fc;
+  /* Sourcify's light coral */
+  --color-light-coral: #ff858d;
+
+  --shadow-card: 0 8px 28px #132c5010;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-paper font-sans text-ink antialiased;
+}
+
+/* The wordmark: lowercase letters drawn with one round stroke. */
+.onay-letter {
+  fill: none;
+  stroke: var(--color-navy);
+  stroke-width: 24;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The eye looks around: it holds a position, then moves fast to the next one. */
+.onay-iris,
+.onay-pupil {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: 9.6s cubic-bezier(0.45, 0, 0.22, 1) infinite;
+}
+.onay-iris {
+  animation-name: onay-iris-shift;
+}
+.onay-pupil {
+  animation-name: onay-glance;
+}
+
+@keyframes onay-glance {
+  0%,
+  8% {
+    transform: translate(0, 0);
+  }
+  12%,
+  24% {
+    transform: translate(-17px, 3px);
+  }
+  29%,
+  41% {
+    transform: translate(13px, -12px);
+  }
+  46%,
+  56% {
+    transform: translate(-9px, 13px);
+  }
+  62%,
+  72% {
+    transform: translate(18px, 3px);
+  }
+  79%,
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes onay-iris-shift {
+  0%,
+  8% {
+    transform: translate(0, 0);
+  }
+  12%,
+  24% {
+    transform: translate(-3px, 1px);
+  }
+  29%,
+  41% {
+    transform: translate(2px, -3px);
+  }
+  46%,
+  56% {
+    transform: translate(-2px, 2px);
+  }
+  62%,
+  72% {
+    transform: translate(3px, 1px);
+  }
+  79%,
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .onay-iris,
+  .onay-pupil {
+    animation: none;
+  }
+}

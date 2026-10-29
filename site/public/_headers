@@ -1,0 +1,10 @@
+# Response headers for Cloudflare Pages: https://developers.cloudflare.com/pages/configuration/headers/
+# The page has no script and loads every file from this site.
+/*
+  Content-Security-Policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# Vite puts a hash of the content in each file name here.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

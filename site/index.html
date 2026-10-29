@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>Onay: a second check before you sign</title>
+    <meta
+      name="description"
+      content="A second, independent check on every transaction before you sign. A desktop app with a thin browser extension. View only: it holds no keys."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://onay.sh/" />
+    <meta property="og:title" content="Onay: a second check before you sign" />
+    <meta
+      property="og:description"
+      content="A second, independent check on every transaction before you sign. A desktop app with a thin browser extension. View only: it holds no keys."
+    />
+    <meta property="og:image" content="https://onay.sh/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/src/fonts/IBMPlexSans-Regular-Latin1.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/src/fonts/IBMPlexSans-SemiBold-Latin1.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="flex min-h-svh flex-col">
+    <div class="mx-auto flex w-full max-w-[1120px] flex-1 flex-col px-4 sm:px-6">
+      <header class="flex items-center justify-between py-6">
+        <a href="/" aria-label="Onay home">
+          <!-- The primary lockup: the eye and the wordmark. -->
+          <svg class="overflow-visible" width="145" height="44" viewBox="45 40 710 215" aria-hidden="true">
+            <circle cx="150" cy="145" r="89" fill="#071E52" />
+            <g class="onay-iris">
+              <circle cx="150" cy="145" r="67" fill="#159BFA" />
+              <circle cx="150" cy="145" r="45" fill="#fff" />
+              <g class="onay-pupil">
+                <circle cx="150" cy="145" r="21" fill="#071E52" />
+                <circle cx="143" cy="138" r="4.7" fill="#fff" />
+              </g>
+            </g>
+            <g class="onay-letter">
+              <circle cx="339" cy="145" r="38" />
+              <path d="M 418 184 V 145 C 418 120 432 107 454 107 C 477 107 489 122 489 145 V 184" />
+              <circle cx="561" cy="145" r="38" />
+              <path d="M 602 145 V 184" />
+              <path
+                d="M 642 113 C 649 150 666 176 684 180 C 704 184 717 152 724 113 M 724 113 C 716 164 701 205 679 227"
+              />
+            </g>
+          </svg>
+        </a>
+        <a
+          class="inline-flex items-center gap-2 rounded-[10px] border border-line bg-white px-3.5 py-2 text-sm font-medium text-navy transition hover:-translate-y-px hover:border-azure-300"
+          href="https://github.com/sourcifyeth/onay"
+        >
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path
+              d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"
+            />
+          </svg>
+          GitHub
+        </a>
+      </header>
+
+      <main class="flex flex-1 items-center py-4">
+        <div class="grid w-full items-center gap-10 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-20">
+          <div class="mx-auto max-w-[480px] lg:mx-0">
+            <h1
+              class="mx-auto max-w-[13ch] text-center text-4xl lg:mx-0 lg:text-left leading-[1.1] font-semibold text-navy sm:text-[44px]"
+            >
+              A second
+              <span class="sr-only">look</span>
+              <svg
+                class="inline-block h-[0.8em] w-[0.8em] overflow-visible align-[-0.06em]"
+                viewBox="61 56 178 178"
+                aria-hidden="true"
+              >
+                <circle cx="150" cy="145" r="89" fill="#071E52" />
+                <g class="onay-iris">
+                  <circle cx="150" cy="145" r="67" fill="#159BFA" />
+                  <circle cx="150" cy="145" r="45" fill="#fff" />
+                  <g class="onay-pupil">
+                    <circle cx="150" cy="145" r="21" fill="#071E52" />
+                    <circle cx="143" cy="138" r="4.7" fill="#fff" />
+                  </g>
+                </g>
+              </svg>
+              before you sign.
+            </h1>
+            <p class="mt-4 text-center text-[17px] leading-relaxed text-muted lg:text-left">
+              Onay is a signing companion for Ethereum. It checks every transaction on your computer before your wallet
+              signs it.
+            </p>
+            <ul class="mx-auto mt-4 w-fit space-y-1.5 text-sm font-medium text-navy lg:mx-0">
+              <li class="flex items-center gap-2.5">
+                <svg
+                  class="h-4 w-4 shrink-0 text-azure"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+                  <circle cx="12" cy="12" r="3" /></svg
+                >Read only
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg
+                  class="h-4 w-4 shrink-0 text-azure"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="7.5" cy="15.5" r="4.5" />
+                  <path d="m10.7 12.3 8.8-8.8M16 7l2.5 2.5M3 3l18 18" /></svg
+                >Holds no keys
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg
+                  class="h-4 w-4 shrink-0 text-azure"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="4" y="5" width="16" height="11" rx="1.5" />
+                  <path d="M2 19h20" /></svg
+                >Local first
+              </li>
+            </ul>
+
+            <section class="mt-9">
+              <div class="flex items-baseline justify-between gap-4">
+                <h2 class="text-lg font-semibold text-navy">Desktop App</h2>
+                <p class="text-sm text-muted">
+                  <!-- @version -->
+                  ·
+                  <!-- @date -->
+                </p>
+              </div>
+              <div class="mt-3 space-y-2">
+                <!-- @row dmg-arm64 -->
+                <span class="flex min-w-0 flex-1 items-center gap-3 text-sm font-medium text-ink">
+                  <span class="flex w-11 shrink-0 justify-center">
+                    <svg class="h-5 w-5 text-ink" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path
+                        d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"
+                      />
+                    </svg>
+                  </span>
+                  <span class="leading-tight"
+                    >macOS<span class="block text-xs font-normal text-muted">Apple Silicon</span></span
+                  >
+                </span>
+                <!-- @end -->
+                <!-- @row deb-x64 -->
+                <span class="flex min-w-0 flex-1 items-center gap-3 text-sm font-medium text-ink">
+                  <span class="flex w-11 shrink-0 justify-center gap-1">
+                    <svg class="h-5 w-5 text-[#A81D33]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path
+                        d="M13.88 12.685c-.4 0 .08.2.601.28.14-.1.27-.22.39-.33a3.001 3.001 0 01-.99.05m2.14-.53c.23-.33.4-.69.47-1.06-.06.27-.2.5-.33.73-.75.47-.07-.27 0-.56-.8 1.01-.11.6-.14.89m.781-2.05c.05-.721-.14-.501-.2-.221.07.04.13.5.2.22M12.38.31c.2.04.45.07.42.12.23-.05.28-.1-.43-.12m.43.12l-.15.03.14-.01V.43m6.633 9.944c.02.64-.2.95-.38 1.5l-.35.181c-.28.54.03.35-.17.78-.44.39-1.34 1.22-1.62 1.301-.201 0 .14-.25.19-.34-.591.4-.481.6-1.371.85l-.03-.06c-2.221 1.04-5.303-1.02-5.253-3.842-.03.17-.07.13-.12.2a3.551 3.552 0 012.001-3.501 3.361 3.362 0 013.732.48 3.341 3.342 0 00-2.721-1.3c-1.18.01-2.281.76-2.651 1.57-.6.38-.67 1.47-.93 1.661-.361 2.601.66 3.722 2.38 5.042.27.19.08.21.12.35a4.702 4.702 0 01-1.53-1.16c.23.33.47.66.8.91-.55-.18-1.27-1.3-1.48-1.35.93 1.66 3.78 2.921 5.261 2.3a6.203 6.203 0 01-2.33-.28c-.33-.16-.77-.51-.7-.57a5.802 5.803 0 005.902-.84c.44-.35.93-.94 1.07-.95-.2.32.04.16-.12.44.44-.72-.2-.3.46-1.24l.24.33c-.09-.6.74-1.321.66-2.262.19-.3.2.3 0 .97.29-.74.08-.85.15-1.46.08.2.18.42.23.63-.18-.7.2-1.2.28-1.6-.09-.05-.28.3-.32-.53 0-.37.1-.2.14-.28-.08-.05-.26-.32-.38-.861.08-.13.22.33.34.34-.08-.42-.2-.75-.2-1.08-.34-.68-.12.1-.4-.3-.34-1.091.3-.25.34-.74.54.77.84 1.96.981 2.46-.1-.6-.28-1.2-.49-1.76.16.07-.26-1.241.21-.37A7.823 7.824 0 0017.702 1.6c.18.17.42.39.33.42-.75-.45-.62-.48-.73-.67-.61-.25-.65.02-1.06 0C15.082.73 14.862.8 13.8.4l.05.23c-.77-.25-.9.1-1.73 0-.05-.04.27-.14.53-.18-.741.1-.701-.14-1.431.03.17-.13.36-.21.55-.32-.6.04-1.44.35-1.18.07C9.6.68 7.847 1.3 6.867 2.22L6.838 2c-.45.54-1.96 1.611-2.08 2.311l-.131.03c-.23.4-.38.85-.57 1.261-.3.52-.45.2-.4.28-.6 1.22-.9 2.251-1.16 3.102.18.27 0 1.65.07 2.76-.3 5.463 3.84 10.776 8.363 12.006.67.23 1.65.23 2.49.25-.99-.28-1.12-.15-2.08-.49-.7-.32-.85-.7-1.34-1.13l.2.35c-.971-.34-.57-.42-1.361-.67l.21-.27c-.31-.03-.83-.53-.97-.81l-.34.01c-.41-.501-.63-.871-.61-1.161l-.111.2c-.13-.21-1.52-1.901-.8-1.511-.13-.12-.31-.2-.5-.55l.14-.17c-.35-.44-.64-1.02-.62-1.2.2.24.32.3.45.33-.88-2.172-.93-.12-1.601-2.202l.15-.02c-.1-.16-.18-.34-.26-.51l.06-.6c-.63-.74-.18-3.102-.09-4.402.07-.54.53-1.1.88-1.981l-.21-.04c.4-.71 2.341-2.872 3.241-2.761.43-.55-.09 0-.18-.14.96-.991 1.26-.7 1.901-.88.7-.401-.6.16-.27-.151 1.2-.3.85-.7 2.421-.85.16.1-.39.14-.52.26 1-.49 3.151-.37 4.562.27 1.63.77 3.461 3.011 3.531 5.132l.08.02c-.04.85.13 1.821-.17 2.711l.2-.42M9.54 13.236l-.05.28c.26.35.47.73.8 1.01-.24-.47-.42-.66-.75-1.3m.62-.02c-.14-.15-.22-.34-.31-.52.08.32.26.6.43.88l-.12-.36m10.945-2.382l-.07.15c-.1.76-.34 1.511-.69 2.212.4-.73.65-1.541.75-2.362M12.45.12c.27-.1.66-.05.95-.12-.37.03-.74.05-1.1.1l.15.02M3.006 5.142c.07.57-.43.8.11.42.3-.66-.11-.18-.1-.42m-.64 2.661c.12-.39.15-.62.2-.84-.35.44-.17.53-.2.83"
+                      />
+                    </svg>
+                    <svg class="h-5 w-5 text-[#E95420]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path
+                        d="M17.61.455a3.41 3.41 0 0 0-3.41 3.41 3.41 3.41 0 0 0 3.41 3.41 3.41 3.41 0 0 0 3.41-3.41 3.41 3.41 0 0 0-3.41-3.41zM12.92.8C8.923.777 5.137 2.941 3.148 6.451a4.5 4.5 0 0 1 .26-.007 4.92 4.92 0 0 1 2.585.737A8.316 8.316 0 0 1 12.688 3.6 4.944 4.944 0 0 1 13.723.834 11.008 11.008 0 0 0 12.92.8zm9.226 4.994a4.915 4.915 0 0 1-1.918 2.246 8.36 8.36 0 0 1-.273 8.303 4.89 4.89 0 0 1 1.632 2.54 11.156 11.156 0 0 0 .559-13.089zM3.41 7.932A3.41 3.41 0 0 0 0 11.342a3.41 3.41 0 0 0 3.41 3.409 3.41 3.41 0 0 0 3.41-3.41 3.41 3.41 0 0 0-3.41-3.41zm2.027 7.866a4.908 4.908 0 0 1-2.915.358 11.1 11.1 0 0 0 7.991 6.698 11.234 11.234 0 0 0 2.422.249 4.879 4.879 0 0 1-.999-2.85 8.484 8.484 0 0 1-.836-.136 8.304 8.304 0 0 1-5.663-4.32zm11.405.928a3.41 3.41 0 0 0-3.41 3.41 3.41 3.41 0 0 0 3.41 3.41 3.41 3.41 0 0 0 3.41-3.41 3.41 3.41 0 0 0-3.41-3.41z"
+                      />
+                    </svg>
+                  </span>
+                  Debian, Ubuntu
+                </span>
+                <!-- @end -->
+                <!-- @row rpm-x64 -->
+                <span class="flex min-w-0 flex-1 items-center gap-3 text-sm font-medium text-ink">
+                  <span class="flex w-11 shrink-0 justify-center gap-1">
+                    <svg class="h-5 w-5 text-[#51A2DA]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path
+                        d="M12.001 0C5.376 0 .008 5.369.004 11.992H.002v9.287h.002A2.726 2.726 0 0 0 2.73 24h9.275c6.626-.004 11.993-5.372 11.993-11.997C23.998 5.375 18.628 0 12 0zm2.431 4.94c2.015 0 3.917 1.543 3.917 3.671 0 .197.001.395-.03.619a1.002 1.002 0 0 1-1.137.893 1.002 1.002 0 0 1-.842-1.175 2.61 2.61 0 0 0 .013-.337c0-1.207-.987-1.672-1.92-1.672-.934 0-1.775.784-1.777 1.672.016 1.027 0 2.046 0 3.07l1.732-.012c1.352-.028 1.368 2.009.016 1.998l-1.748.013c-.004.826.006.677.002 1.093 0 0 .015 1.01-.016 1.776-.209 2.25-2.124 4.046-4.424 4.046-2.438 0-4.448-1.993-4.448-4.437.073-2.515 2.078-4.492 4.603-4.469l1.409-.01v1.996l-1.409.013h-.007c-1.388.04-2.577.984-2.6 2.47a2.438 2.438 0 0 0 2.452 2.439c1.356 0 2.441-.987 2.441-2.437l-.001-7.557c0-.14.005-.252.02-.407.23-1.848 1.883-3.256 3.754-3.256z"
+                      />
+                    </svg>
+                    <svg class="h-5 w-5 text-[#73BA25]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path
+                        d="M10.724 0a12 12 0 0 0-9.448 4.623c1.464.391 2.5.727 2.81.832.005-.19.037-1.893.037-1.893s.004-.04.025-.06c.026-.026.065-.018.065-.018.385.056 8.602 1.274 12.066 3.292.427.25.638.517.902.786.958.99 2.223 5.108 2.359 5.957.005.033-.036.07-.054.083a5.177 5.177 0 0 1-.313.228c-.82.55-2.708 1.872-5.13 1.656-2.176-.193-5.018-1.44-8.445-3.699.336.79.668 1.58 1 2.371.497.258 5.287 2.7 7.651 2.651 1.904-.04 3.941-.968 4.756-1.458 0 0 .179-.108.257-.048.085.066.061.167.041.27-.05.234-.164.66-.242.863l-.065.165c-.093.25-.183.482-.356.625-.48.436-1.246.784-2.446 1.305-1.855.812-4.865 1.328-7.66 1.31-1.001-.022-1.968-.133-2.817-.232-1.743-.197-3.161-.357-4.026.269A12 12 0 0 0 10.724 24a12 12 0 0 0 12-12 12 12 0 0 0-12-12zM13.4 6.963a3.503 3.503 0 0 0-2.521.942 3.498 3.498 0 0 0-1.114 2.449 3.528 3.528 0 0 0 3.39 3.64 3.48 3.48 0 0 0 2.524-.946 3.504 3.504 0 0 0 1.114-2.446 3.527 3.527 0 0 0-3.393-3.64zm-.03 1.035a2.458 2.458 0 0 1 2.368 2.539 2.43 2.43 0 0 1-.774 1.706 2.456 2.456 0 0 1-1.762.659 2.461 2.461 0 0 1-2.364-2.542c.02-.655.3-1.26.777-1.707a2.419 2.419 0 0 1 1.756-.655zm.402 1.23c-.602 0-1.087.325-1.087.727 0 .4.485.725 1.087.725.6 0 1.088-.326 1.088-.725 0-.402-.487-.726-1.088-.726Z"
+                      />
+                    </svg>
+                  </span>
+                  Fedora, openSUSE
+                </span>
+                <!-- @end -->
+              </div>
+            </section>
+
+            <section class="mt-7 flex items-center justify-between gap-4">
+              <div>
+                <h2 class="text-lg font-semibold text-navy">Browser Extension</h2>
+                <p class="text-sm text-muted">Coming soon</p>
+              </div>
+              <span
+                class="inline-flex cursor-not-allowed items-center gap-2 rounded-lg bg-navy px-3 py-1.5 text-sm font-medium text-white opacity-25"
+                aria-disabled="true"
+              >
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path
+                    d="M12 0C8.21 0 4.831 1.757 2.632 4.501l3.953 6.848A5.454 5.454 0 0 1 12 6.545h10.691A12 12 0 0 0 12 0zM1.931 5.47A11.943 11.943 0 0 0 0 12c0 6.012 4.42 10.991 10.189 11.864l3.953-6.847a5.45 5.45 0 0 1-6.865-2.29zm13.342 2.166a5.446 5.446 0 0 1 1.45 7.09l.002.001h-.002l-5.344 9.257c.206.01.413.016.621.016 6.627 0 12-5.373 12-12 0-1.54-.29-3.011-.818-4.364zM12 16.364a4.364 4.364 0 1 1 0-8.728 4.364 4.364 0 0 1 0 8.728Z"
+                  />
+                </svg>
+                Download
+              </span>
+            </section>
+          </div>
+
+          <div
+            class="sc-wrap order-first mx-auto lg:order-none"
+            role="img"
+            aria-label="A swap on a DEX: the wallet shows only raw data and the person is lost. Onay shows the checks, the balance changes, and the meaning. Then a fake airdrop that would take your USDC for worthless tokens, which Onay flags. A pointer over the scene pauses it."
+          >
+            <div class="sc-stage" aria-hidden="true">
+              <div class="sc-scene sc-scene-good">
+                <div class="sc-window sc-browser">
+                  <div class="sc-bar">
+                    <span class="sc-dots"><i></i><i></i><i></i></span
+                    ><span class="sc-url"
+                      ><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path d="M4 7V5a4 4 0 1 1 8 0v2h1v8H3V7h1zm2 0h4V5a2 2 0 1 0-4 0v2z" /></svg
+                      >app.swap.example</span
+                    ><svg class="sc-wallet-icon" viewBox="0 0 16 16" aria-hidden="true">
+                      <rect width="16" height="16" rx="4" fill="#f6851b" />
+                      <path d="M3.5 6h8.5a.8.8 0 0 1 .8.8v4.6a.8.8 0 0 1-.8.8H4.3a.8.8 0 0 1-.8-.8z" fill="#fff" />
+                      <path
+                        d="M3.8 6 9.6 3.9l.7 2.1"
+                        fill="none"
+                        stroke="#fff"
+                        stroke-width="1"
+                        stroke-linejoin="round"
+                      />
+                      <circle cx="10.6" cy="9.1" r=".9" fill="#f6851b" />
+                    </svg>
+                  </div>
+                  <div class="sc-dex-nav">
+                    <span class="sc-dex-logo"></span><b>Trade</b><span>Explore</span><span>Pool</span>
+                    <span class="sc-dex-connect sc-mono">0xA1b2…9cD4</span>
+                  </div>
+                  <div class="sc-swap">
+                    <div class="sc-panel">
+                      <div class="sc-panel-label">Sell</div>
+                      <div class="sc-panel-row">
+                        <span class="sc-amount">1</span>
+                        <span class="sc-token"
+                          ><span class="sc-token-icon sc-eth"
+                            ><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <path
+                                d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"
+                              /></svg></span
+                          >ETH ▾</span
+                        >
+                      </div>
+                      <div class="sc-fiat">$2,332.50</div>
+                    </div>
+                    <div class="sc-panel">
+                      <div class="sc-panel-label">Buy</div>
+                      <div class="sc-panel-row">
+                        <span class="sc-amount">2,330.12</span>
+                        <span class="sc-token"><span class="sc-token-icon sc-usdc">$</span>USDC ▾</span>
+                      </div>
+                      <div class="sc-fiat">$2,330.12</div>
+                    </div>
+                    <span class="sc-flip">↓</span>
+                    <div class="sc-swap-button">Swap</div>
+                  </div>
+                </div>
+
+                <div class="sc-wallet">
+                  <div class="sc-window sc-wallet-frame">
+                    <div class="sc-wallet-head">
+                      <span class="sc-account"
+                        ><svg class="sc-wallet-icon" viewBox="0 0 16 16" aria-hidden="true">
+                          <rect width="16" height="16" rx="4" fill="#f6851b" />
+                          <path d="M3.5 6h8.5a.8.8 0 0 1 .8.8v4.6a.8.8 0 0 1-.8.8H4.3a.8.8 0 0 1-.8-.8z" fill="#fff" />
+                          <path
+                            d="M3.8 6 9.6 3.9l.7 2.1"
+                            fill="none"
+                            stroke="#fff"
+                            stroke-width="1"
+                            stroke-linejoin="round"
+                          />
+                          <circle cx="10.6" cy="9.1" r=".9" fill="#f6851b" /></svg
+                        >Account 1</span
+                      ><span class="sc-network"
+                        ><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path
+                            d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"
+                          /></svg
+                        >Ethereum</span
+                      >
+                    </div>
+                    <div class="sc-wallet-title">Transaction request</div>
+                    <div class="sc-wallet-box"><span>Request from</span>app.swap.example</div>
+                    <div class="sc-wallet-box">
+                      <span>Interacting with</span><span class="sc-mono">0x66a9893c…e1dBA8Af</span>
+                    </div>
+                    <div class="sc-wallet-box">
+                      <span>Data</span>
+                      <div class="sc-mono sc-hex">
+                        0x3593564c00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000a0000000000…
+                      </div>
+                    </div>
+                    <div class="sc-wallet-box"><span>Network fee</span>0.00041 ETH</div>
+                    <div class="sc-wallet-buttons">
+                      <span class="sc-cancel">Cancel</span><span class="sc-confirm">Confirm</span>
+                    </div>
+                  </div>
+                  <span class="sc-q sc-q1 sc-pop sc-t3_0">?</span>
+                  <span class="sc-q sc-q2 sc-pop sc-t3_2">?</span>
+                  <span class="sc-q sc-q3 sc-pop sc-t3_4">?</span>
+                </div>
+
+                <div class="sc-bubble sc-bubble-lost sc-pop sc-t2_8"><i>?</i>What am I signing?</div>
+                <div class="sc-bubble sc-bubble-calm sc-in sc-t17_0"><i>✓</i>Now I know what I sign.</div>
+
+                <div class="sc-window sc-onay sc-swing sc-t5_2">
+                  <div class="sc-onay-head">
+                    <svg class="overflow-visible" width="62" height="19" viewBox="45 40 710 215" aria-hidden="true">
+                      <circle cx="150" cy="145" r="89" fill="#071E52" />
+                      <g class="onay-iris">
+                        <circle cx="150" cy="145" r="67" fill="#159BFA" />
+                        <circle cx="150" cy="145" r="45" fill="#fff" />
+                        <g class="onay-pupil">
+                          <circle cx="150" cy="145" r="21" fill="#071E52" />
+                          <circle cx="143" cy="138" r="4.7" fill="#fff" />
+                        </g>
+                      </g>
+                      <g class="onay-letter">
+                        <circle cx="339" cy="145" r="38" />
+                        <path d="M 418 184 V 145 C 418 120 432 107 454 107 C 477 107 489 122 489 145 V 184" />
+                        <circle cx="561" cy="145" r="38" />
+                        <path d="M 602 145 V 184" />
+                        <path
+                          d="M 642 113 C 649 150 666 176 684 180 C 704 184 717 152 724 113 M 724 113 C 716 164 701 205 679 227"
+                        />
+                      </g></svg
+                    ><span class="sc-onay-chain"><i></i>Ethereum</span>
+                  </div>
+                  <div class="sc-onay-site"><b>app.swap.example</b> asks to sign</div>
+                  <div class="sc-step sc-in sc-t6_4">
+                    <span class="sc-check">✓</span>
+                    <div>
+                      <div class="sc-step-title">Chain data verified</div>
+                      <div class="sc-step-text">Proven at block 26,300,525</div>
+                    </div>
+                  </div>
+                  <div class="sc-step sc-in sc-t7_6">
+                    <span class="sc-check">✓</span>
+                    <div>
+                      <div class="sc-step-title">Simulated: your balance changes</div>
+                      <div class="sc-assets">
+                        <div class="sc-in sc-t8_1">− 1 ETH</div>
+                        <div class="sc-green sc-in sc-t8_6">+ 2,330.12 USDC</div>
+                      </div>
+                      <div class="sc-tree sc-mono">
+                        <div class="sc-in sc-t9_1">
+                          <i>0x66a9…</i>UniversalRouter <em>execute</em><span class="sc-tick sc-in sc-t11_1">✓</span>
+                        </div>
+                        <div class="sc-in sc-t9_4">
+                          <b>├</b><i>0x0000…</i>PoolManager <em>swap</em><span class="sc-tick sc-in sc-t11_3">✓</span>
+                        </div>
+                        <div class="sc-in sc-t9_7">
+                          <b>└</b><i>0xA0b8…</i>USDC <em>transfer</em><span class="sc-tick sc-in sc-t11_5">✓</span>
+                        </div>
+                        <div class="sc-l2 sc-in sc-t10_0">
+                          <b>└</b><i>0x4350…</i>FiatTokenV2_2<span class="sc-tick sc-in sc-t11_7">✓</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="sc-step sc-in sc-t10_8">
+                    <span class="sc-check">✓</span>
+                    <div>
+                      <div class="sc-step-title">UniversalRouter <span class="sc-addr sc-mono">0x66a9…A8Af</span></div>
+                      <div class="sc-known">
+                        <span class="sc-mini-check">✓</span
+                        ><svg class="sc-sourcify" viewBox="0 0 60 60" fill="none" aria-hidden="true">
+                          <path
+                            d="M0 30C0 46.5685 13.4315 60 30 60C46.5685 60 60 46.5685 60 30C60 13.4315 46.5685 0 30 0C13.4315 0 0 13.4315 0 30Z"
+                            fill="#2B50AA"
+                          />
+                          <path
+                            d="M30.0587 59.413C46.2706 59.413 59.4129 46.2707 59.4129 30.0588C59.4129 13.8469 46.2706 0.70459 30.0587 0.70459C13.8469 0.70459 0.704529 13.8469 0.704529 30.0588C0.704529 46.2707 13.8469 59.413 30.0587 59.413Z"
+                            fill="#2B50AA"
+                          />
+                          <path
+                            d="M21.9326 42.1567C22.061 42.2743 22.2215 42.3386 22.3713 42.3386C22.521 42.3386 22.6922 42.2743 22.81 42.1567L24.2865 40.7444C24.4148 40.6266 24.4897 40.4554 24.4897 40.2842C24.4897 40.113 24.4148 39.9418 24.2865 39.8242L14.0366 30.0343L24.2865 20.2446C24.4148 20.1268 24.4897 19.9556 24.4897 19.7844C24.4897 19.6132 24.4148 19.4422 24.2865 19.3244L22.81 17.9121C22.6815 17.7945 22.5318 17.7302 22.3713 17.7302C22.2108 17.7302 22.0503 17.7945 21.9326 17.9121L9.71403 29.5743C9.58563 29.6921 9.51074 29.8631 9.51074 30.0343C9.51074 30.2055 9.58563 30.3767 9.71403 30.4945L21.9326 42.1567ZM46.0808 30.0343L35.8309 39.8242C35.7026 39.9418 35.6276 40.113 35.6276 40.2842C35.6276 40.4554 35.7026 40.6266 35.8309 40.7444L37.3074 42.1567C37.4359 42.2743 37.5964 42.3386 37.7461 42.3386C37.8959 42.3386 38.0671 42.2743 38.1848 42.1567L50.4034 30.4945C50.5317 30.3767 50.6066 30.2055 50.6066 30.0343C50.6066 29.8631 50.5317 29.6921 50.4034 29.5743L38.1848 17.9121C38.0564 17.7945 37.8959 17.7302 37.7461 17.7302C37.5856 17.7302 37.4252 17.7945 37.3074 17.9121L35.8309 19.3244C35.7026 19.4422 35.6276 19.6132 35.6276 19.7844C35.6276 19.9556 35.7026 20.1268 35.8309 20.2446L46.0808 30.0343Z"
+                            fill="#C5D5EA"
+                          />
+                          <path
+                            d="M21.8471 28.8355C21.8364 29.2527 21.9969 29.6486 22.2964 29.9481L22.3071 29.9588C22.5959 30.2478 22.9705 30.4083 23.377 30.4083C23.7516 30.4083 24.1046 30.2692 24.3828 30.023L28.5447 26.3211V37.673C28.5447 38.5076 29.2295 39.1924 30.0641 39.1924C30.8986 39.1924 31.5834 38.5076 31.5834 37.673V26.3104L35.7453 30.0124C36.0236 30.2585 36.3874 30.3975 36.7511 30.3975C37.1577 30.3975 37.5429 30.2371 37.8317 29.9481L37.8424 29.9374C38.142 29.6379 38.2919 29.2527 38.2919 28.8247C38.2811 28.4075 38.1099 28.0223 37.7997 27.7334L31.0805 21.56C30.8023 21.3032 30.4386 21.1641 30.0641 21.1641C29.6896 21.1641 29.3258 21.3032 29.0476 21.56L22.3285 27.7334C22.0289 28.0329 21.8471 28.4182 21.8471 28.8355Z"
+                            fill="#C5D5EA"
+                          /></svg
+                        >Source code verified
+                      </div>
+                      <div class="sc-step-text sc-known-text">All 4 contracts recompiled here.</div>
+                      <div class="sc-known sc-in sc-t11_9">
+                        <span class="sc-mini-check">✓</span>On the Uniswap deployments list
+                      </div>
+                      <div class="sc-known sc-in sc-t12_2">
+                        <span class="sc-mini-check">✓</span>USDC on your token list
+                      </div>
+                    </div>
+                  </div>
+                  <div class="sc-step sc-in sc-t13_4">
+                    <span class="sc-check">✓</span>
+                    <div>
+                      <div class="sc-step-title">ERC-7730 Clear Signing</div>
+                      <div class="sc-intent">Swap 1 ETH for at least 2,318.47 USDC</div>
+                    </div>
+                  </div>
+                  <div class="sc-step sc-in sc-t15_0">
+                    <span class="sc-check">✓</span>
+                    <div>
+                      <div class="sc-step-title">Compare with your wallet</div>
+                      <div class="sc-compare">
+                        <div class="sc-digest sc-mono sc-lit sc-glow sc-t19_0">0x7a3f…c91e</div>
+                        <div class="sc-match sc-in sc-t19_0">✓ Same on device</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="sc-verdict sc-verdict-pass sc-in sc-t16_4">
+                    <span class="sc-check">✓</span>Every check passed.
+                  </div>
+                </div>
+
+                <div class="sc-device sc-rise sc-t17_8">
+                  <div class="sc-device-cover"></div>
+                  <div class="sc-device-body">
+                    <span class="sc-device-button sc-device-button-1"></span>
+                    <span class="sc-device-button sc-device-button-2"></span>
+                    <div class="sc-device-screen sc-lit sc-glow sc-t19_0">
+                      <span class="sc-device-arrow">‹</span>
+                      <div>
+                        <div class="sc-device-label">ERC-8213 Calldata Digest</div>
+                        <div class="sc-device-digest sc-mono">0x7a3f…c91e</div>
+                      </div>
+                      <span class="sc-device-arrow">›</span>
+                    </div>
+                  </div>
+                  <span class="sc-device-pivot"></span>
+                </div>
+
+                <svg class="sc-cursor" viewBox="0 0 18 18" aria-hidden="true">
+                  <path
+                    d="M2 1l13 7.5-5.6 1.4L12.6 16l-2.4 1.1-3.1-6.1L3 15z"
+                    fill="#111"
+                    stroke="#fff"
+                    stroke-width="1.2"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+
+              <div class="sc-scene sc-scene-bad">
+                <div class="sc-window sc-browser">
+                  <div class="sc-bar">
+                    <span class="sc-dots"><i></i><i></i><i></i></span
+                    ><span class="sc-url"
+                      ><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path d="M4 7V5a4 4 0 1 1 8 0v2h1v8H3V7h1zm2 0h4V5a2 2 0 1 0-4 0v2z" /></svg
+                      >claim-rewards.example</span
+                    ><svg class="sc-wallet-icon" viewBox="0 0 16 16" aria-hidden="true">
+                      <rect width="16" height="16" rx="4" fill="#f6851b" />
+                      <path d="M3.5 6h8.5a.8.8 0 0 1 .8.8v4.6a.8.8 0 0 1-.8.8H4.3a.8.8 0 0 1-.8-.8z" fill="#fff" />
+                      <path
+                        d="M3.8 6 9.6 3.9l.7 2.1"
+                        fill="none"
+                        stroke="#fff"
+                        stroke-width="1"
+                        stroke-linejoin="round"
+                      />
+                      <circle cx="10.6" cy="9.1" r=".9" fill="#f6851b" />
+                    </svg>
+                  </div>
+                  <div class="sc-drop">
+                    <div class="sc-drop-coin">XYZ</div>
+                    <div class="sc-drop-title">Claim your airdrop</div>
+                    <div class="sc-drop-text">2,500 XYZ is waiting for 0xA1b2…9cD4</div>
+                    <div class="sc-claim">Claim now</div>
+                  </div>
+                </div>
+
+                <div class="sc-wallet">
+                  <div class="sc-window sc-wallet-frame">
+                    <div class="sc-wallet-head">
+                      <span class="sc-account"
+                        ><svg class="sc-wallet-icon" viewBox="0 0 16 16" aria-hidden="true">
+                          <rect width="16" height="16" rx="4" fill="#f6851b" />
+                          <path d="M3.5 6h8.5a.8.8 0 0 1 .8.8v4.6a.8.8 0 0 1-.8.8H4.3a.8.8 0 0 1-.8-.8z" fill="#fff" />
+                          <path
+                            d="M3.8 6 9.6 3.9l.7 2.1"
+                            fill="none"
+                            stroke="#fff"
+                            stroke-width="1"
+                            stroke-linejoin="round"
+                          />
+                          <circle cx="10.6" cy="9.1" r=".9" fill="#f6851b" /></svg
+                        >Account 1</span
+                      ><span class="sc-network"
+                        ><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path
+                            d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"
+                          /></svg
+                        >Ethereum</span
+                      >
+                    </div>
+                    <div class="sc-wallet-title">Transaction request</div>
+                    <div class="sc-wallet-box"><span>Request from</span>claim-rewards.example</div>
+                    <div class="sc-wallet-box">
+                      <span>Interacting with</span><span class="sc-mono">0x9f2c41e7…77b0a13e</span>
+                    </div>
+                    <div class="sc-wallet-box">
+                      <span>Data</span>
+                      <div class="sc-mono sc-hex">
+                        0xac9650d80000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000…
+                      </div>
+                    </div>
+                    <div class="sc-wallet-box"><span>Network fee</span>0.00012 ETH</div>
+                    <div class="sc-wallet-buttons">
+                      <span class="sc-cancel">Cancel</span><span class="sc-confirm">Confirm</span>
+                    </div>
+                  </div>
+                  <span class="sc-q sc-q1 sc-pop sc-t29_8">?</span>
+                  <span class="sc-q sc-q2 sc-pop sc-t30_0">?</span>
+                  <span class="sc-q sc-q3 sc-pop sc-t30_2">?</span>
+                </div>
+
+                <div class="sc-bubble sc-bubble-lost sc-pop sc-t29_6"><i>?</i>What am I signing?</div>
+                <div class="sc-bubble sc-bubble-alert sc-in sc-t42_2"><i>!</i>Glad I checked first.</div>
+
+                <div class="sc-window sc-onay sc-swing sc-t32_0">
+                  <div class="sc-onay-head">
+                    <svg class="overflow-visible" width="62" height="19" viewBox="45 40 710 215" aria-hidden="true">
+                      <circle cx="150" cy="145" r="89" fill="#071E52" />
+                      <g class="onay-iris">
+                        <circle cx="150" cy="145" r="67" fill="#159BFA" />
+                        <circle cx="150" cy="145" r="45" fill="#fff" />
+                        <g class="onay-pupil">
+                          <circle cx="150" cy="145" r="21" fill="#071E52" />
+                          <circle cx="143" cy="138" r="4.7" fill="#fff" />
+                        </g>
+                      </g>
+                      <g class="onay-letter">
+                        <circle cx="339" cy="145" r="38" />
+                        <path d="M 418 184 V 145 C 418 120 432 107 454 107 C 477 107 489 122 489 145 V 184" />
+                        <circle cx="561" cy="145" r="38" />
+                        <path d="M 602 145 V 184" />
+                        <path
+                          d="M 642 113 C 649 150 666 176 684 180 C 704 184 717 152 724 113 M 724 113 C 716 164 701 205 679 227"
+                        />
+                      </g></svg
+                    ><span class="sc-onay-chain"><i></i>Ethereum</span>
+                  </div>
+                  <div class="sc-onay-site"><b>claim-rewards.example</b> asks to sign</div>
+                  <div class="sc-phishing sc-in sc-t33_0"><span class="sc-cross">!</span>A known phishing site</div>
+                  <div class="sc-step sc-in sc-t33_6">
+                    <span class="sc-check">✓</span>
+                    <div>
+                      <div class="sc-step-title">Chain data verified</div>
+                      <div class="sc-step-text">Proven at block 26,300,525</div>
+                    </div>
+                  </div>
+                  <div class="sc-step sc-in sc-t34_8">
+                    <span class="sc-cross">!</span>
+                    <div>
+                      <div class="sc-step-title">Simulated: your balance changes</div>
+                      <div class="sc-assets">
+                        <div class="sc-red sc-in sc-t35_3">− 1,850 USDC</div>
+                        <div class="sc-in sc-t35_8">+ 2,500 XYZ <em>worthless, on no list</em></div>
+                      </div>
+                      <div class="sc-tree sc-mono">
+                        <div class="sc-in sc-t36_3"><i>0x9f2c…</i><em>multicall</em></div>
+                        <div class="sc-in sc-t36_6"><b>├</b><i>0xA0b8…</i>USDC <em>transferFrom</em></div>
+                        <div class="sc-in sc-t36_9"><b>└</b><i>0x5e1f…</i>XYZ <em>transfer</em></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="sc-step sc-in sc-t38_0">
+                    <span class="sc-cross">✕</span>
+                    <div>
+                      <div class="sc-step-title">Source code not verified</div>
+                      <div class="sc-step-text">No source to recompile. What it does cannot be checked.</div>
+                    </div>
+                  </div>
+                  <div class="sc-step sc-in sc-t39_2">
+                    <span class="sc-dash"></span>
+                    <div>
+                      <div class="sc-step-title">ERC-7730 Clear Signing</div>
+                      <div class="sc-step-text">Unknown. Without source code there is nothing to decode.</div>
+                    </div>
+                  </div>
+                  <div class="sc-step sc-in sc-t40_4">
+                    <span class="sc-cross">✕</span>
+                    <div>
+                      <div class="sc-step-title">About this contract</div>
+                      <div class="sc-step-text sc-red">On a block list. Deployed 2 hours ago.</div>
+                    </div>
+                  </div>
+                  <div class="sc-verdict sc-verdict-fail sc-in sc-t41_6">
+                    Do not sign. Reject this request in your wallet.
+                  </div>
+                </div>
+
+                <svg class="sc-cursor" viewBox="0 0 18 18" aria-hidden="true">
+                  <path
+                    d="M2 1l13 7.5-5.6 1.4L12.6 16l-2.4 1.1-3.1-6.1L3 15z"
+                    fill="#111"
+                    stroke="#fff"
+                    stroke-width="1.2"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+
+              <div class="sc-progress">
+                <div class="sc-track">
+                  <div class="sc-fill"></div>
+                  <div class="sc-split"></div>
+                </div>
+                <div class="sc-chapters"><span>A swap</span><span>A fake airdrop</span><span>Paused</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <footer class="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 py-7 text-sm text-muted">
+        Made with
+        <svg class="h-4 w-4 text-light-coral" viewBox="0 0 24 24" fill="currentColor" role="img" aria-label="love">
+          <path
+            d="M12 21s-7.5-4.6-9.6-9.3C.9 8.4 2.9 4.5 6.7 4.5c2.2 0 3.6 1.2 4.3 2.3l1 1.4 1-1.4c.7-1.1 2.1-2.3 4.3-2.3 3.8 0 5.8 3.9 4.3 7.2C19.5 16.4 12 21 12 21z"
+          />
+        </svg>
+        by
+        <a class="transition hover:opacity-80" href="https://sourcify.dev">
+          <!-- The Sourcify text logo (sourcifyeth/assets logoText.svg), with ".dev" in the same font and place. -->
+          <svg width="127" height="28" viewBox="0 0 272 60" fill="none" role="img" aria-label="sourcify.dev">
+            <path
+              d="M0 30C0 46.5685 13.4315 60 30 60C46.5685 60 60 46.5685 60 30C60 13.4315 46.5685 0 30 0C13.4315 0 0 13.4315 0 30Z"
+              fill="#2B50AA"
+            />
+            <path
+              d="M30.0587 59.413C46.2706 59.413 59.4129 46.2707 59.4129 30.0588C59.4129 13.8469 46.2706 0.70459 30.0587 0.70459C13.8469 0.70459 0.704529 13.8469 0.704529 30.0588C0.704529 46.2707 13.8469 59.413 30.0587 59.413Z"
+              fill="#2B50AA"
+            />
+            <path
+              d="M21.9326 42.1567C22.061 42.2743 22.2215 42.3386 22.3713 42.3386C22.521 42.3386 22.6922 42.2743 22.81 42.1567L24.2865 40.7444C24.4148 40.6266 24.4897 40.4554 24.4897 40.2842C24.4897 40.113 24.4148 39.9418 24.2865 39.8242L14.0366 30.0343L24.2865 20.2446C24.4148 20.1268 24.4897 19.9556 24.4897 19.7844C24.4897 19.6132 24.4148 19.4422 24.2865 19.3244L22.81 17.9121C22.6815 17.7945 22.5318 17.7302 22.3713 17.7302C22.2108 17.7302 22.0503 17.7945 21.9326 17.9121L9.71403 29.5743C9.58563 29.6921 9.51074 29.8631 9.51074 30.0343C9.51074 30.2055 9.58563 30.3767 9.71403 30.4945L21.9326 42.1567ZM46.0808 30.0343L35.8309 39.8242C35.7026 39.9418 35.6276 40.113 35.6276 40.2842C35.6276 40.4554 35.7026 40.6266 35.8309 40.7444L37.3074 42.1567C37.4359 42.2743 37.5964 42.3386 37.7461 42.3386C37.8959 42.3386 38.0671 42.2743 38.1848 42.1567L50.4034 30.4945C50.5317 30.3767 50.6066 30.2055 50.6066 30.0343C50.6066 29.8631 50.5317 29.6921 50.4034 29.5743L38.1848 17.9121C38.0564 17.7945 37.8959 17.7302 37.7461 17.7302C37.5856 17.7302 37.4252 17.7945 37.3074 17.9121L35.8309 19.3244C35.7026 19.4422 35.6276 19.6132 35.6276 19.7844C35.6276 19.9556 35.7026 20.1268 35.8309 20.2446L46.0808 30.0343Z"
+              fill="#C5D5EA"
+            />
+            <path
+              d="M21.8471 28.8355C21.8364 29.2527 21.9969 29.6486 22.2964 29.9481L22.3071 29.9588C22.5959 30.2478 22.9705 30.4083 23.377 30.4083C23.7516 30.4083 24.1046 30.2692 24.3828 30.023L28.5447 26.3211V37.673C28.5447 38.5076 29.2295 39.1924 30.0641 39.1924C30.8986 39.1924 31.5834 38.5076 31.5834 37.673V26.3104L35.7453 30.0124C36.0236 30.2585 36.3874 30.3975 36.7511 30.3975C37.1577 30.3975 37.5429 30.2371 37.8317 29.9481L37.8424 29.9374C38.142 29.6379 38.2919 29.2527 38.2919 28.8247C38.2811 28.4075 38.1099 28.0223 37.7997 27.7334L31.0805 21.56C30.8023 21.3032 30.4386 21.1641 30.0641 21.1641C29.6896 21.1641 29.3258 21.3032 29.0476 21.56L22.3285 27.7334C22.0289 28.0329 21.8471 28.4182 21.8471 28.8355Z"
+              fill="#C5D5EA"
+            />
+            <text x="80" y="42" font-family="VT323" font-size="40" fill="#000" fill-opacity=".75">sourcify.dev</text>
+          </svg>
+        </a>
+      </footer>
+    </div>
+  </body>
+</html>

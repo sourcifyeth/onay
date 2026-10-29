@@ -16,7 +16,7 @@ A fully working prototype already exists (the `project-independence` repo, from 
 
 ## How we rebuild
 
-The rewrite proceeds in versions. Each version adds a small, reviewed set of features, taking inspiration from the target but never copying it blindly. The distribution model is app-first, following the password-manager pattern: you download the app, and the app guides you to install its thin browser-extension companion. Heavy logic lives in the app; the extension stays tiny, near dependency-free, and rarely updated.
+The rewrite proceeds in versions. Each version adds a small, reviewed set of features, taking inspiration from the target but never copying it blindly. The distribution model is app-first, following the password-manager pattern: you download the app, and the app guides you to install its thin browser-extension companion. Downloads live at [onay.sh](https://onay.sh), a static page that Cloudflare Pages rebuilds on each release. Heavy logic lives in the app; the extension stays tiny, near dependency-free, and rarely updated.
 
 ## Version 0 — the transaction verifier
 

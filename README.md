@@ -13,6 +13,7 @@ The plan of record is [PLAN.md](PLAN.md).
 | Folder       | What it is                                                                                                                                                                                   |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `app/`       | The desktop app (Tauri). The web user interface is in `app/src/`, the Rust side in `app/src-tauri/`. Also holds the relay (`app/relay/`) and the code that relay and app share (`app/ipc/`). |
+| `site/`      | The download page at [onay.sh](https://onay.sh). Static HTML, built with Vite and Tailwind.                                                                                                  |
 | `extension/` | The Chrome extension (Manifest V3). No runtime dependencies.                                                                                                                                 |
 
 ## Prerequisites
@@ -78,17 +79,17 @@ The app accepts a connection only from an approved browser. On Linux that browse
 
 Run these before you push. Continuous integration (CI) runs the same commands.
 
-| Command                                     | Where     | What it does                                                                                                                                                 |
-| ------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm -r build`                             | repo root | Type-checks and builds the mock, the app's web user interface, and the extension.                                                                            |
-| `pnpm format:check`                         | repo root | Checks the formatting with oxfmt. `pnpm format` fixes it.                                                                                                    |
-| `pnpm -r lint`                              | repo root | Runs oxlint.                                                                                                                                                 |
-| `pnpm -r test`                              | repo root | Runs the extension and app tests with the Node.js test runner. The app tests download one compiler build on the first run and keep it in `app/test/.cache/`. |
-| `pnpm test`                                 | repo root | Runs the tests of the scripts in `scripts/`.                                                                                                                 |
-| `cargo test`                                | `app/`    | Runs the Rust tests, including one that drives the real relay binary.                                                                                        |
-| `cargo clippy --all-targets -- -D warnings` | `app/`    | Rust lints.                                                                                                                                                  |
-| `cargo fmt --all --check`                   | `app/`    | Rust formatting.                                                                                                                                             |
-| `cargo deny check`                          | `app/`    | Advisories, licenses, and sources of the Rust dependencies. Install once with `cargo install --locked cargo-deny`.                                           |
+| Command                                     | Where     | What it does                                                                                                                                                        |
+| ------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm -r build`                             | repo root | Type-checks and builds the mock, the app's web user interface, the extension, and the site.                                                                         |
+| `pnpm format:check`                         | repo root | Checks the formatting with oxfmt. `pnpm format` fixes it.                                                                                                           |
+| `pnpm -r lint`                              | repo root | Runs oxlint.                                                                                                                                                        |
+| `pnpm -r test`                              | repo root | Runs the extension, app, and site tests with the Node.js test runner. The app tests download one compiler build on the first run and keep it in `app/test/.cache/`. |
+| `pnpm test`                                 | repo root | Runs the tests of the scripts in `scripts/`.                                                                                                                        |
+| `cargo test`                                | `app/`    | Runs the Rust tests, including one that drives the real relay binary.                                                                                               |
+| `cargo clippy --all-targets -- -D warnings` | `app/`    | Rust lints.                                                                                                                                                         |
+| `cargo fmt --all --check`                   | `app/`    | Rust formatting.                                                                                                                                                    |
+| `cargo deny check`                          | `app/`    | Advisories, licenses, and sources of the Rust dependencies. Install once with `cargo install --locked cargo-deny`.                                                  |
 
 ## Production
 
@@ -167,6 +168,27 @@ The macOS build signs and notarizes when these six secrets exist in the `release
 The Rust compile runs before the secrets enter the environment, so no build script of the dependency tree sees them. Then Tauri imports the certificate into a keychain of its own on the runner, signs the app and the relay with the hardened runtime, sends the app to the Apple notary service, and staples the ticket.
 
 To release extension `0.1.1`: `pnpm version:set extension 0.1.1`, merge, build the zip with `package` from the merge commit, and upload it in the developer dashboard. The store refuses a version that is not higher than the last one.
+
+### The website
+
+`site/` is the download page at [onay.sh](https://onay.sh). It is one static page with no script: the download links of the newest release are rendered at build time. `site/releases.mjs` reads the published releases from the GitHub API and writes `site/releases.json`, and a Vite plugin renders them into `index.html`. A failed API call fails the build, so an empty page never goes live. To run it locally:
+
+```
+pnpm --filter site dev
+```
+
+Cloudflare Pages builds and hosts the page. It builds on each push to `main` that changes `site/`, and gives each pull request that changes `site/` a preview link. The last job of the `Release` workflow calls a Pages deploy hook, so each release rebuilds the page with the new version. `site/public/_headers` sets the response headers, among them a Content Security Policy that allows no script and no inline style, so every animation lives in a stylesheet. The animation of the logo is in `site/src/style.css`. The scene next to the headline, a swap and a fake airdrop with the wallet and Onay side by side, is in `site/src/scene.css`; its first comment explains the timeline. The platform and browser icons are inline paths from [Simple Icons](https://simpleicons.org) 16.36.0 (CC0). The Sourcify mark in the footer comes from [sourcifyeth/assets](https://github.com/sourcifyeth/assets) (CC BY 4.0). `site/og-image.svg` is the source of the link preview image `site/public/og-image.png`; the command is in its first line.
+
+The Pages project was set up by hand in the Cloudflare dashboard, with these settings:
+
+1. Workers & Pages, Create, Pages, Connect to Git. The Cloudflare GitHub App has access to the `onay` repository only.
+2. Project name `onay`, production branch `main`, framework preset None, build command `pnpm install --frozen-lockfile --filter site... && pnpm --filter site build`, build output directory `site/dist`, root directory empty. The build command installs only the packages of the site, not the whole workspace.
+3. Environment variables for production and preview: `PNPM_VERSION` with the version of the `packageManager` field in `package.json` (the build image ignores that field), `NODE_VERSION` = `22`, and `SKIP_DEPENDENCY_INSTALL` = `1`, so that the build image does not install the whole workspace before the build command. If a build fails on the GitHub API rate limit, add `GITHUB_TOKEN` with a fine-grained token that can only read public repositories.
+4. Settings, Build, Build watch paths: include `site/*`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, and `package.json`. A push that changes only the app or the extension then does not rebuild the page. A deploy hook builds in any case.
+5. Custom domains: `onay.sh`. Cloudflare creates the DNS record and the certificate.
+6. Settings, Build, Deploy hooks: a hook named `release` for the branch `main`. Its URL is the secret `CLOUDFLARE_PAGES_DEPLOY_HOOK` of the `release` environment in GitHub.
+
+When the pnpm version in `package.json` changes, change `PNPM_VERSION` in the Pages project too.
 
 ### Development and production side by side
 
