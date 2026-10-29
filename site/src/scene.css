@@ -11,6 +11,10 @@
 .sc-wrap {
   --s: 1;
   position: relative;
+  /* A long press pauses the scene: no menu, no selection, no tap flash */
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
   width: calc(620px * var(--s));
   height: calc(470px * var(--s));
 }
@@ -876,12 +880,25 @@
     animation-timing-function: cubic-bezier(0.22, 0.8, 0.24, 1);
     animation-fill-mode: backwards;
   }
-  .sc-wrap:hover .sc-stage *,
-  .sc-wrap:hover .sc-scene {
-    animation-play-state: paused;
+  /* A mouse pauses the scene on hover. On a touch screen a tap leaves the hover state on, */
+  /* so there the scene pauses only while a finger presses it. */
+  @media (hover: hover) and (pointer: fine) {
+    .sc-wrap:hover .sc-stage *,
+    .sc-wrap:hover .sc-scene {
+      animation-play-state: paused;
+    }
+    .sc-wrap:hover .sc-chapters span:nth-child(3) {
+      opacity: 1;
+    }
   }
-  .sc-wrap:hover .sc-chapters span:nth-child(3) {
-    opacity: 1;
+  @media (hover: none) {
+    .sc-wrap:active .sc-stage *,
+    .sc-wrap:active .sc-scene {
+      animation-play-state: paused;
+    }
+    .sc-wrap:active .sc-chapters span:nth-child(3) {
+      opacity: 1;
+    }
   }
 
   .sc-in,
