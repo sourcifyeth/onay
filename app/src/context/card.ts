@@ -4,7 +4,14 @@
 
 import type { Hex } from '../messages.ts'
 import type { GoPlusResult } from './goplus.ts'
-import { YOUNG_DAYS, type AccountProfile, type GoPlusFact, type Profile, type TokenHolding } from './profile.ts'
+import {
+  YOUNG_DAYS,
+  type AccountProfile,
+  type Blocked,
+  type GoPlusFact,
+  type Profile,
+  type TokenHolding,
+} from './profile.ts'
 import { amountText } from './run.ts'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -96,6 +103,24 @@ export function goPlusFlags(profile: Profile | AccountProfile): GoPlusResult | n
 export function goPlusSource(result: GoPlusResult): string {
   const named = result.sources.filter((source) => source !== 'GoPlus')
   return named.length > 0 ? `GoPlus, according to ${named.join(', ')}` : 'GoPlus'
+}
+
+// The lines of the block-list notice: one for each hit, with the name of
+// its list, and one for the flags of GoPlus.
+export function blockLines(
+  blocked: Blocked[],
+  goPlus: GoPlusResult | null,
+): { text: string; proof: boolean; source: string }[] {
+  const lines = blocked.map((hit) => ({
+    text: `${hit.of === 'deployer' ? 'Its deployer, on ' : ''}${hit.source}: ${hit.value}`,
+    proof: hit.proof,
+    source: hit.source,
+  }))
+  if (goPlus) {
+    const text = `GoPlus: ${goPlus.flags.map((flag) => flag.text).join(', ')}`
+    lines.push({ text, proof: false, source: goPlusSource(goPlus) })
+  }
+  return lines
 }
 
 // The short state on the summary line of a card. A block-list hit comes

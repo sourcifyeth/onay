@@ -8,6 +8,7 @@ import {
   ageText,
   agoText,
   amountMark,
+  blockLines,
   claimedText,
   dateText,
   goPlusFlags,
@@ -111,6 +112,25 @@ const profile = (change: Partial<Profile> = {}): Profile =>
     explorer: 'eth.blockscout.com',
     ...change,
   }) as Profile
+
+test('blockLines: one line for each hit, with the name of its list', () => {
+  const blocked = [
+    { value: 'sanctioned', proof: false, source: 'OFAC sanctions', of: 'address' as const },
+    { value: 'marked as scam', proof: false, source: 'Blockscout', of: 'address' as const },
+    { value: 'sanctioned', proof: false, source: 'OFAC sanctions', of: 'deployer' as const },
+  ]
+  const flags = [
+    { id: 'phishing_activities', text: 'phishing' },
+    { id: 'mixer', text: 'mixer' },
+  ]
+  assert.deepEqual(blockLines(blocked, { flags, sources: ['GoPlus', 'SlowMist'] }), [
+    { text: 'OFAC sanctions: sanctioned', proof: false, source: 'OFAC sanctions' },
+    { text: 'Blockscout: marked as scam', proof: false, source: 'Blockscout' },
+    { text: 'Its deployer, on OFAC sanctions: sanctioned', proof: false, source: 'OFAC sanctions' },
+    { text: 'GoPlus: phishing, mixer', proof: false, source: 'GoPlus, according to SlowMist' },
+  ])
+  assert.deepEqual(blockLines([], null), [])
+})
 
 test('summaryState puts a block-list hit first', () => {
   const blocked = [{ value: 'sanctioned · ETH', proof: false, source: 'OFAC sanctions', of: 'address' as const }]

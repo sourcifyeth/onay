@@ -7,6 +7,7 @@ import { useState, type ReactNode } from 'react'
 import {
   ageText,
   amountMark,
+  blockLines,
   claimedText,
   CONTRACT_NONCE,
   dateText,
@@ -156,24 +157,15 @@ function BlockNotice({ blocked, goPlus }: { blocked: Blocked[]; goPlus: GoPlusRe
   if (blocked.length === 0 && !goPlus) return null
   return (
     <Notice tone="coral" title={blocked.length > 0 ? '⚠ On a block list' : '⚠ Flagged by GoPlus'} className="mb-3">
-      {blocked.map((hit, index) => (
-        <span key={index}>
-          {index > 0 && ' · '}
-          {hit.of === 'deployer' && 'its deployer: '}
-          <Marked proof={hit.proof} source={hit.source}>
-            {hit.value}
-          </Marked>
-        </span>
-      ))}
-      {goPlus && (
-        <span>
-          {blocked.length > 0 && ' · '}
-          <Marked proof={false} source={goPlusSource(goPlus)}>
-            {goPlus.flags.map((flag) => flag.text).join(', ')}
-          </Marked>
-        </span>
-      )}
-      <br />
+      <ul className="pb-1">
+        {blockLines(blocked, goPlus).map((line, index) => (
+          <li key={index}>
+            <Marked proof={line.proof} source={line.source}>
+              {line.text}
+            </Marked>
+          </li>
+        ))}
+      </ul>
       {blocked.length > 0 ? 'Do not interact with it.' : 'Check the address before you sign.'} Onay does not check these
       claims, so the result of the checks above stays as it is.
     </Notice>
