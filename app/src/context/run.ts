@@ -30,6 +30,7 @@ import {
   tokenDecimals,
   type ChainAccess,
   type ChainValue,
+  type CodeKind,
 } from './chain.ts'
 import * as etherscan from './etherscan.ts'
 import {
@@ -66,12 +67,14 @@ import {
 import {
   buildAccount,
   buildProfile,
+  chainSource,
   chooseCreation,
   creationOf,
   deploymentBlock,
   emptyHolder,
   type AccountProfile,
   type AccountReads,
+  type Claimed,
   type HolderReads,
   type Profile,
   type ProfileReads,
@@ -254,6 +257,21 @@ export function accountsToCheck(verification: Verification): Hex[] {
       (contract) => contract.foundBy === 'request' && !contract.implementationOf && !profiled.has(contract.address),
     )
     .map((contract) => contract.address)
+}
+
+// The code of an account as the chain gate read it. Null when the gate
+// did not read it.
+export function accountKind(
+  verification: Verification,
+  address: Hex,
+  proof: boolean,
+  rpc: string,
+): Claimed<CodeKind> | null {
+  const contract = verification.contracts.find((item) => item.address === address)
+  if (contract?.helios.status !== 'passed') return null
+  const { code } = contract.helios.value
+  const value: CodeKind = code === '0x' ? 'account' : delegateOf(code) ? 'delegated' : 'contract'
+  return { value, proof, source: chainSource(proof, rpc) }
 }
 
 // A stopped run sends no further request.
@@ -459,28 +477,10 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
       return answer
     }
 
-    const profileOf = async (address: Hex) => {
-      const log = logFor(address)
-      const contract = verification.contracts.find((item) => item.address === address)
-      const found = contract ? claimOf(contract.sourcify) : null
-      const passed = contract?.sourcify.status === 'passed' ? contract.sourcify.value : null
-      const reads: ProfileReads = {
-        address,
-        chainId: chain.id,
-        now: deps.date(),
-        rpc,
-        explorer: blockscoutApi ? new URL(blockscoutApi).host : null,
-        contract: emptyHolder(),
-        sourcify: found
-          ? { deployment: found.deployment ?? null, creation: passed?.creation ?? null, read: passed !== null }
-          : null,
-        deployer: emptyHolder(),
-        tokenLists,
-        done: false,
-      }
-      const publish = () => set({ profiles: { ...snapshot.profiles, [address]: buildProfile(reads) } })
-      publish()
-
+    // The reads of one address that a card shows: its Blockscout claims,
+    // its account state and its tokens. Each read logs on the card of
+    // `log` and publishes the card when it ends.
+    const readersFor = (log: Log, publish: () => void) => {
       // A read of the chain at the head block of the verification.
       const chainRead = async <T>(
         what: string,
@@ -582,6 +582,44 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
         publish()
       }
 
+      // The activity of one address: the claims, then the tokens and the
+      // fallback of the first transaction, with the account state.
+      const activityOf = (holder: HolderReads, target: Hex, prefix: string) =>
+        Promise.all([
+          (async () => {
+            await claimsOf(holder, target, prefix)
+            await Promise.all([amountsOf(holder, target, prefix), transactionsFallback(holder, target, prefix)])
+          })(),
+          stateOf(holder, target, prefix),
+        ])
+
+      return { chainRead, claimsOf, amountsOf, transactionsFallback, stateOf, activityOf }
+    }
+
+    const profileOf = async (address: Hex) => {
+      const log = logFor(address)
+      const contract = verification.contracts.find((item) => item.address === address)
+      const found = contract ? claimOf(contract.sourcify) : null
+      const passed = contract?.sourcify.status === 'passed' ? contract.sourcify.value : null
+      const reads: ProfileReads = {
+        address,
+        chainId: chain.id,
+        now: deps.date(),
+        rpc,
+        explorer: blockscoutApi ? new URL(blockscoutApi).host : null,
+        contract: emptyHolder(),
+        sourcify: found
+          ? { deployment: found.deployment ?? null, creation: passed?.creation ?? null, read: passed !== null }
+          : null,
+        deployer: emptyHolder(),
+        tokenLists,
+        done: false,
+      }
+      const publish = () => set({ profiles: { ...snapshot.profiles, [address]: buildProfile(reads) } })
+      publish()
+
+      const { chainRead, claimsOf, amountsOf, transactionsFallback, stateOf, activityOf } = readersFor(log, publish)
+
       const lists = async () => {
         reads.hits = await readLists(address, log, '')
         publish()
@@ -596,11 +634,7 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
         const prefix = 'deployer · '
         const holder = reads.deployer
         await Promise.all([
-          (async () => {
-            await claimsOf(holder, target, prefix)
-            await Promise.all([amountsOf(holder, target, prefix), transactionsFallback(holder, target, prefix)])
-          })(),
-          stateOf(holder, target, prefix),
+          activityOf(holder, target, prefix),
           (async () => {
             holder.kind = await chainRead(
               `${prefix}eth_getCode ${short(target)}`,
@@ -673,11 +707,21 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
     // have no code.
     const accountOf = async (address: Hex) => {
       const log = logFor(address)
-      const reads: AccountReads = { address, chainId: chain.id, done: false }
+      const reads: AccountReads = {
+        address,
+        chainId: chain.id,
+        rpc,
+        tokenLists,
+        holder: emptyHolder(),
+        kind: accountKind(verification, address, chain.mode === 'helios', rpc),
+        done: false,
+      }
       const publish = () => set({ accounts: { ...snapshot.accounts, [address]: buildAccount(reads) } })
       publish()
+      const { activityOf } = readersFor(log, publish)
       try {
         await Promise.all([
+          reads.kind ? activityOf(reads.holder, address, '') : Promise.resolve(),
           readLists(address, log, '').then((answer) => {
             reads.hits = answer
             publish()

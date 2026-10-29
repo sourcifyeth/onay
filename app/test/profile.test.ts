@@ -10,6 +10,7 @@ import {
   CHAIN,
   emptyHolder,
   LISTS,
+  type AccountReads,
   type Fact,
   type ProfileReads,
   young,
@@ -488,31 +489,67 @@ test('no creation claim: a Blockscout error is the reason, with the one of Ether
   assert.deepEqual(none.deployment, { state: 'unknown', reason: 'no source names the creation transaction' })
 })
 
-test('an account: the lists and GoPlus only', () => {
+const accountReads = (change: Partial<AccountReads> = {}): AccountReads => ({
+  address: DEPLOYER,
+  chainId: 1,
+  rpc: RPC,
+  tokenLists: [],
+  holder: emptyHolder(),
+  kind: { value: 'account', proof: true, source: 'Helios' },
+  done: true,
+  ...change,
+})
+
+test('an account: its activity, the lists, Blockscout and GoPlus', () => {
   const ofac = { list: 'OFAC sanctions', kind: 'block' as const, label: 'sanctioned · ETH', link: null }
-  const account = buildAccount({
-    address: DEPLOYER,
-    chainId: 1,
-    hits: { ok: true, value: { hits: [ofac], missing: [], asked: [] } },
-    goPlus: 'off',
-    done: true,
+  const first = { hash: HASH, block: 1, time: 5 }
+  const account = buildAccount(
+    accountReads({
+      hits: { ok: true, value: { hits: [ofac], missing: [], asked: [] } },
+      goPlus: 'off',
+      holder: {
+        ...emptyHolder(),
+        blockscout: {
+          address: blockscoutAddress({ scam: true }),
+          transactions: { ok: true, value: first },
+          tokens: { ok: true, value: { tokens: [], more: false } },
+        },
+        account: { ok: true, value: { value: { balance: 3n, nonce: 12n }, proof: true } },
+      },
+    }),
+  )
+  assert.deepEqual(account.lists, {
+    state: 'known',
+    value: { hits: [ofac], missing: [], asked: [] },
+    proof: false,
+    source: 'address lists',
   })
-  assert.deepEqual(account, {
-    address: DEPLOYER,
-    chainId: 1,
-    lists: { state: 'known', value: { hits: [ofac], missing: [], asked: [] }, proof: false, source: 'address lists' },
-    blocked: [{ value: 'sanctioned · ETH', proof: false, source: 'OFAC sanctions', of: 'address' }],
-    goPlus: { state: 'off' },
-    sources: ['OFAC sanctions'],
-  })
-  const waiting = buildAccount({ address: DEPLOYER, chainId: 1, done: false })
+  assert.deepEqual(account.blocked, [
+    { value: 'sanctioned · ETH', proof: false, source: 'OFAC sanctions', of: 'address' },
+    { value: 'marked as scam', proof: false, source: 'Blockscout', of: 'address' },
+  ])
+  assert.deepEqual(account.blockscout, { state: 'known', value: 'scam', proof: false, source: 'Blockscout' })
+  assert.deepEqual(account.goPlus, { state: 'off' })
+  assert.deepEqual(account.nonce, { state: 'known', value: 12n, proof: true, source: 'Helios' })
+  assert.deepEqual(account.eth, { state: 'known', value: 3n, proof: true, source: 'Helios' })
+  assert.deepEqual(account.firstTransaction, { state: 'known', value: first, proof: false, source: 'Blockscout' })
+  assert.deepEqual(known(account.tokens).value, { tokens: [], more: false, checked: true })
+  assert.deepEqual(account.sources, ['OFAC sanctions', 'Blockscout', 'Helios'])
+  const waiting = buildAccount(accountReads({ done: false }))
   assert.deepEqual(
-    [waiting.lists, waiting.goPlus],
+    [waiting.lists, waiting.goPlus, waiting.nonce, waiting.firstTransaction],
     [
       { state: 'pending', source: LISTS },
       { state: 'pending', source: 'GoPlus' },
+      { state: 'pending', source: CHAIN },
+      { state: 'pending', source: 'Blockscout' },
     ],
   )
+  // The chain gate did not read the address: no activity.
+  const unread = buildAccount(accountReads({ kind: null }))
+  for (const fact of [unread.nonce, unread.firstTransaction, unread.eth, unread.tokens]) {
+    assert.deepEqual(fact, { state: 'unknown', reason: 'the chain gate did not read the address' })
+  }
 })
 
 test('young: the age in days under 30 days, else null', () => {

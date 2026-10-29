@@ -249,20 +249,18 @@ function GoPlusView({ fact }: { fact: GoPlusFact }) {
   )
 }
 
-function SecurityRow({ blockscout, goPlus }: { blockscout?: Fact<'ok' | 'scam'>; goPlus: GoPlusFact }) {
+function SecurityRow({ blockscout, goPlus }: { blockscout: Fact<'ok' | 'scam'>; goPlus: GoPlusFact }) {
   return (
     <Row label="Security providers">
       <span className="flex flex-col items-start">
-        {blockscout && (
-          <span>
-            Blockscout:{' '}
-            <FactView fact={blockscout}>
-              {(value) =>
-                value === 'scam' ? <span className="text-light-coral-700">marked as scam</span> : 'no scam mark'
-              }
-            </FactView>
-          </span>
-        )}
+        <span>
+          Blockscout:{' '}
+          <FactView fact={blockscout}>
+            {(value) =>
+              value === 'scam' ? <span className="text-light-coral-700">marked as scam</span> : 'no scam mark'
+            }
+          </FactView>
+        </span>
         <span>
           GoPlus: <GoPlusView fact={goPlus} />
         </span>
@@ -326,7 +324,7 @@ function NonceView({ fact }: { fact: NonceFact }) {
   return <FactView fact={fact}>{(nonce) => nonce.toLocaleString('en-US')}</FactView>
 }
 
-// The rows of activity that a contract and its deployer share.
+// The rows of activity of a contract, its deployer, and an account.
 function ActivityRows({
   activity,
   explorers,
@@ -524,15 +522,18 @@ function ProfileBody({ profile, explorers }: { profile: Profile; explorers: Chai
   )
 }
 
-// An address without code of its own: only the lists and GoPlus know it.
+// An address without code of its own: its activity, the lists,
+// Blockscout and GoPlus.
 function AccountCard({
   contract,
   account,
   context,
+  explorers,
 }: {
   contract: Contract
   account: AccountProfile | undefined
   context: Context
+  explorers: ChainExplorers
 }) {
   const lines = context.lines.filter((line) => line.address === contract.address)
   // Without a read of the chain gate, the code of the address is not known.
@@ -554,17 +555,26 @@ function AccountCard({
       ) : (
         <>
           <BlockNotice blocked={account.blocked} goPlus={goPlusFlags(account)} />
-          <div className="divide-y divide-gray-100">
-            <AddressRow address={account.address} />
-            <Row label="Trusted lists">
-              <ListsView fact={account.lists} />
-            </Row>
-            <SecurityRow goPlus={account.goPlus} />
-          </div>
+          <AccountBody account={account} explorers={explorers} />
         </>
       )}
       <CollapsibleLog lines={lines} />
     </CollapsibleCard>
+  )
+}
+
+function AccountBody({ account, explorers }: { account: AccountProfile; explorers: ChainExplorers }) {
+  // The ages count from the time the card opened.
+  const [now] = useState(() => Date.now())
+  return (
+    <div className="divide-y divide-gray-100">
+      <AddressRow address={account.address} />
+      <ActivityRows activity={account} explorers={explorers} address={account.address} now={now} />
+      <Row label="Trusted lists">
+        <ListsView fact={account.lists} />
+      </Row>
+      <SecurityRow blockscout={account.blockscout} goPlus={account.goPlus} />
+    </div>
   )
 }
 
@@ -588,7 +598,7 @@ export function ProfileStep({
   return (
     <Step
       step={step}
-      explainer="Facts about the contract's history and what it holds help you judge it. A contract that was deployed a few days ago deserves more care. Every address the request names is also checked against the block lists. These facts come from explorers and lists; they do not change the result of the checks."
+      explainer="Facts about the history of each address and what it holds help you judge it. A contract that was deployed a few days ago deserves more care. Every address the request names is also checked against the block lists. These facts come from explorers and lists; they do not change the result of the checks."
     >
       {named.length === 0 ? (
         <p className="rounded-xl border border-gray-200 bg-white px-5 py-4 text-sm text-gray-600 shadow-sm">
@@ -611,6 +621,7 @@ export function ProfileStep({
                 contract={contract}
                 account={context.accounts[contract.address]}
                 context={context}
+                explorers={explorers}
               />
             ),
           )}

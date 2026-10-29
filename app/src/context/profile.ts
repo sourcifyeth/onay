@@ -9,7 +9,7 @@ import { listedOn } from '../clear-signing/tokenLists.ts'
 import type { Creation, CreationRead } from '../gates/creation.ts'
 import type { Deployment as SourcifyDeployment } from '../gates/sourcify.ts'
 import type { Hex } from '../messages.ts'
-import type { BlockscoutClaims, FirstTransaction } from './blockscout.ts'
+import type { BlockscoutAddress, BlockscoutClaims, FirstTransaction } from './blockscout.ts'
 import type { AccountState, ChainValue, CodeKind } from './chain.ts'
 import type { EtherscanCreation } from './etherscan.ts'
 import type { Lookup } from './explorers.ts'
@@ -86,14 +86,15 @@ export type GoPlusFact = Fact<GoPlusResult> | { state: 'off' }
 export type Blocked = Claimed<string> & { of: 'address' | 'deployer' }
 
 // The context of an address that the request names and that has no code
-// of its own: an account, or an account with a delegate (EIP-7702). Only
-// the lists and GoPlus, no deployer, activity or tokens. Not empty
+// of its own: an account, or an account with a delegate (EIP-7702). Its
+// activity, the lists, Blockscout and GoPlus; no deployer. Not empty
 // `blocked`: the review shows a notice.
-export type AccountProfile = {
+export type AccountProfile = Activity & {
   address: Hex
   chainId: number
   lists: Fact<ListAnswer>
   blocked: Blocked[]
+  blockscout: Fact<'ok' | 'scam'>
   goPlus: GoPlusFact
   sources: string[]
 }
@@ -138,21 +139,28 @@ export type HolderReads = {
   tokenDecimals: Partial<Record<Hex, Lookup<ChainValue<number>>>>
 }
 
-// The reads of an address without code. Undefined means that the read
-// did not end yet.
-export type AccountReads = {
+// The reads of each named address. Undefined means that the read did not
+// end yet.
+export type AddressReads = {
   address: Hex
   chainId: number
+  // The host of the execution endpoint.
+  rpc: string
+  tokenLists: ListEntry[]
   hits?: Lookup<ListAnswer>
   goPlus?: Lookup<GoPlusResult> | 'off'
   // True once the run ended: a read that did not end is unknown.
   done: boolean
 }
 
-export type ProfileReads = AccountReads & {
+// The reads of an address without code of its own. `kind` is what the
+// chain gate read; null when it did not read the code. Then the run reads
+// only the lists and GoPlus.
+export type AccountReads = AddressReads & { holder: HolderReads; kind: Claimed<CodeKind> | null }
+
+export type ProfileReads = AddressReads & {
   // Milliseconds since 1970.
   now: number
-  rpc: string
   explorer: string | null
   contract: HolderReads
   // What the Sourcify gate gave. Null when Sourcify has no claim.
@@ -169,7 +177,6 @@ export type ProfileReads = AccountReads & {
   creationRead?: CreationRead
   blockTime?: Lookup<ChainValue<number>>
   deployer: HolderReads & { kind?: Lookup<ChainValue<CodeKind>>; hits?: Lookup<ListAnswer> }
-  tokenLists: ListEntry[]
 }
 
 export const emptyHolder = (): HolderReads => ({ blockscout: {}, tokenAmounts: {}, tokenDecimals: {} })
@@ -357,7 +364,7 @@ function decimalsOf(
   return claimed === null ? null : { value: claimed, proof: false, source: 'Blockscout' }
 }
 
-function holdingsOf(holder: HolderReads, reads: ProfileReads): Fact<Holdings> {
+function holdingsOf(holder: HolderReads, reads: AddressReads): Fact<Holdings> {
   return fromLookup(holder.blockscout.tokens, reads.done, 'Blockscout', (page) => {
     const listed = listedOn(reads.tokenLists, reads.chainId)
     const tokens = page.tokens.map((claim): TokenHolding => {
@@ -413,7 +420,7 @@ function firstFact(holder: HolderReads, done: boolean): Fact<FirstTransaction | 
 
 // The nonce of an address whose code the chain gave. A contract has no
 // nonce row.
-function nonceOf(holder: HolderReads, reads: ProfileReads, kind: Fact<CodeKind>): NonceFact {
+function nonceOf(holder: HolderReads, reads: AddressReads, kind: Fact<CodeKind>): NonceFact {
   if (kind.state === 'pending') return pending(kind.source)
   if (kind.state === 'unknown') return unknown('the code of the address is not known')
   if (kind.value === 'contract') return { state: 'contract' }
@@ -422,7 +429,7 @@ function nonceOf(holder: HolderReads, reads: ProfileReads, kind: Fact<CodeKind>)
   )
 }
 
-function activityOf(holder: HolderReads, reads: ProfileReads, nonce: NonceFact): Activity {
+function activityOf(holder: HolderReads, reads: AddressReads, nonce: NonceFact): Activity {
   return {
     nonce,
     firstTransaction: firstFact(holder, reads.done),
@@ -475,7 +482,14 @@ function blockedOf(lists: Fact<ListAnswer>, of: Blocked['of']): Blocked[] {
     .map((hit) => ({ value: hit.label, proof: false, source: hit.list, of }))
 }
 
-function goPlusOf(reads: AccountReads): GoPlusFact {
+// The scam mark of Blockscout, as a block-list hit.
+const scamOf = (claim: Lookup<BlockscoutAddress> | undefined, of: Blocked['of']): Blocked[] =>
+  claim?.ok && claim.value.scam ? [{ value: 'marked as scam', proof: false, source: 'Blockscout', of }] : []
+
+const scamFact = (claim: Lookup<BlockscoutAddress> | undefined, done: boolean): Fact<'ok' | 'scam'> =>
+  fromLookup(claim, done, 'Blockscout', (address) => known(address.scam ? 'scam' : 'ok', false, 'Blockscout'))
+
+function goPlusOf(reads: AddressReads): GoPlusFact {
   return reads.goPlus === 'off'
     ? { state: 'off' }
     : fromLookup(reads.goPlus, reads.done, 'GoPlus', (result) => known(result, false, 'GoPlus'))
@@ -509,15 +523,12 @@ export function buildProfile(reads: ProfileReads): Profile {
   const blockscoutAddress = reads.contract.blockscout.address
   const lists = listsFact(reads.hits, reads.done)
   const deployerProfile = deployerOf(reads, deployer)
-  const blocked = blockedOf(lists, 'address')
-  if (blockscoutAddress?.ok && blockscoutAddress.value.scam) {
-    blocked.push({ value: 'marked as scam', proof: false, source: 'Blockscout', of: 'address' })
-  }
-  blocked.push(...blockedOf(deployerProfile.lists, 'deployer'))
-  const deployerAddress = reads.deployer.blockscout.address
-  if (deployer.state === 'known' && deployerAddress?.ok && deployerAddress.value.scam) {
-    blocked.push({ value: 'marked as scam', proof: false, source: 'Blockscout', of: 'deployer' })
-  }
+  const blocked = [
+    ...blockedOf(lists, 'address'),
+    ...scamOf(blockscoutAddress, 'address'),
+    ...blockedOf(deployerProfile.lists, 'deployer'),
+    ...(deployer.state === 'known' ? scamOf(reads.deployer.blockscout.address, 'deployer') : []),
+  ]
   const profile: Omit<Profile, 'sources'> = {
     address: reads.address,
     chainId: reads.chainId,
@@ -528,12 +539,7 @@ export function buildProfile(reads: ProfileReads): Profile {
     ...activity,
     lists,
     blocked,
-    security: {
-      blockscout: fromLookup(blockscoutAddress, reads.done, 'Blockscout', (claim) =>
-        known(claim.scam ? ('scam' as const) : ('ok' as const), false, 'Blockscout'),
-      ),
-      goPlus: goPlusOf(reads),
-    },
+    security: { blockscout: scamFact(blockscoutAddress, reads.done), goPlus: goPlusOf(reads) },
     young: young(deployedAt, reads.now),
     explorer: reads.explorer,
     rpc: reads.rpc,
@@ -543,12 +549,20 @@ export function buildProfile(reads: ProfileReads): Profile {
 
 export function buildAccount(reads: AccountReads): AccountProfile {
   const lists = listsFact(reads.hits, reads.done)
+  const blockscoutAddress = reads.holder.blockscout.address
+  // Without the code, the run reads no activity: the request failed
+  // before the chain gate read the address.
+  const activity = reads.kind
+    ? activityOf(reads.holder, reads, nonceOf(reads.holder, reads, { state: 'known', ...reads.kind }))
+    : unknownActivity(unknown('the chain gate did not read the address'))
   const account: Omit<AccountProfile, 'sources'> = {
     address: reads.address,
     chainId: reads.chainId,
     lists,
-    blocked: blockedOf(lists, 'address'),
+    blocked: [...blockedOf(lists, 'address'), ...scamOf(blockscoutAddress, 'address')],
+    blockscout: scamFact(blockscoutAddress, reads.done),
     goPlus: goPlusOf(reads),
+    ...activity,
   }
   return { ...account, sources: sourcesOf(account, [lists]) }
 }

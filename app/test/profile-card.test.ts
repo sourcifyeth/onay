@@ -94,7 +94,12 @@ const account = (change: Partial<AccountProfile> = {}): AccountProfile => ({
   chainId: 1,
   lists: known(answer()),
   blocked: [],
+  blockscout: known('ok' as const),
   goPlus: { state: 'off' },
+  nonce: known(1n),
+  firstTransaction: known(null),
+  eth: known(0n),
+  tokens: known({ tokens: [], more: false, checked: true }),
   sources: [],
   ...change,
 })

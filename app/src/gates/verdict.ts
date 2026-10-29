@@ -20,7 +20,7 @@ const STEPS: { id: StepId; title: string }[] = [
   { id: 'chain', title: 'Chain Data Verification' },
   { id: 'simulation', title: 'Transaction Simulation' },
   { id: 'verification', title: 'Source Code Verification' },
-  { id: 'profile', title: 'Contract Profile' },
+  { id: 'profile', title: 'Address Profile' },
   { id: 'clearSigning', title: 'Clear Signing' },
   { id: 'compare', title: 'Compare with your wallet' },
 ]

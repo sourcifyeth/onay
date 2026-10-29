@@ -209,14 +209,14 @@ test('a request that failed before the chain gate starts no lookup', async () =>
   assert.deepEqual(again.explorers, {})
 })
 
-test('no lookup for an address without code or with a delegate (EIP-7702)', async () => {
+test('no source code lookup for an address without code or with a delegate (EIP-7702)', async () => {
   const net = network(verifiedEverywhere)
   const { deps } = depsWith(net.fetch)
   const delegated = contract(A, `0xef0100${'b'.repeat(40)}` as Hex)
   const context = await ended(startContext(verification([delegated, contract(C, '0x')]), deps))
-  assert.deepEqual(net.calls, [])
+  assert.ok(net.calls.every((url) => !url.includes('/smart-contracts/')))
   assert.deepEqual(context.explorers, {})
-  // Only the lists and GoPlus look at them.
+  // Each is an account: its activity, the lists and GoPlus.
   assert.deepEqual(Object.keys(context.accounts).sort(), [A, C])
   assert.deepEqual(context.profiles, {})
 })
@@ -759,7 +759,7 @@ test('a block-list hit on the deployer is on the profile, with the deployer name
   )
 })
 
-test('a named account without code on a block list: a small result, no explorer request', async () => {
+test('a named account without code on a block list: its activity, no source code lookup', async () => {
   const net = world()
   const { deps } = profileDeps(net.fetch, { goPlus: true })
   deps.lists = async () => [ofacWith(A)]
@@ -770,8 +770,15 @@ test('a named account without code on a block list: a small result, no explorer 
     { value: 'sanctioned · ETH', proof: false, source: 'OFAC sanctions', of: 'address' },
   ])
   assert.equal(account.goPlus.state, 'known')
-  // GoPlus only: no explorer, no chain read.
-  assert.deepEqual(net.calls, [`https://api.gopluslabs.io/api/v1/address_security/${A}?chain_id=1`])
+  assert.deepEqual(account.nonce, { state: 'known', value: 5n, proof: true, source: 'Helios' })
+  assert.equal(account.firstTransaction.state, 'known')
+  // GoPlus, and the three parts of Blockscout. No source code lookup.
+  assert.deepEqual(net.calls.sort(), [
+    `https://api.gopluslabs.io/api/v1/address_security/${A}?chain_id=1`,
+    `https://eth.blockscout.com/api/v2/addresses/${A}`,
+    `https://eth.blockscout.com/api/v2/addresses/${A}/tokens?type=ERC-20`,
+    `https://eth.blockscout.com/api/v2/addresses/${A}/transactions?sort=block_number&order=asc`,
+  ])
   assert.ok(
     context.lines.some(
       (line) => line.address === A && line.text === 'on a block list · OFAC sanctions · sanctioned · ETH',

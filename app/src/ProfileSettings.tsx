@@ -1,4 +1,4 @@
-// The contract profile section of the settings: the address lists and
+// The address profile section of the settings: the address lists and
 // GoPlus.
 
 import { useState, useSyncExternalStore } from 'react'
@@ -75,7 +75,7 @@ export function ProfileSettings() {
   const settings = useSyncExternalStore(contextSettingsStore.subscribe, contextSettingsStore.getSnapshot)
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <p className="pb-1 font-medium text-gray-800">Contract profile</p>
+      <p className="pb-1 font-medium text-gray-800">Address profile</p>
       <p className="pb-2 text-xs leading-relaxed text-gray-500">
         The review shows the lists that know each address the request names. An allow list names known contracts; a
         block list names sanctioned or scam addresses, and a hit shows a loud notice. Each list is a claim of its
