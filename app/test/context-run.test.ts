@@ -458,6 +458,27 @@ function profileDeps(fetch: Fetch, settings: Partial<ContextSettings> = {}) {
   return { deps, waits, chain }
 }
 
+test('a factory deployment: the block of the transaction gives the date', async () => {
+  const net = world()
+  const { deps, chain } = profileDeps(net.fetch)
+  deps.creationReaderFor = () => async () => ({
+    creation: null,
+    reason: 'created by another contract',
+    retry: false,
+    block: 90,
+  })
+  const context = await ended(startContext(verification([contract(A)]), deps))
+  const profile = context.profiles[A]!
+  assert.deepEqual(profile.deployment, {
+    state: 'known',
+    value: { transactionHash: HASH, block: 90 },
+    proof: false,
+    source: 'Blockscout',
+  })
+  assert.equal(profile.deployedAt.state, 'known')
+  assert.ok(chain.calls.includes('eth_getBlockByNumber'))
+})
+
 test('the profile: only the named contract, each row from its source, each read with a log line', async () => {
   const net = world()
   const { deps, chain } = profileDeps(net.fetch, { goPlus: true })

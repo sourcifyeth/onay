@@ -198,6 +198,21 @@ test('Blockscout claim only: the deployer as Blockscout says, the time of its fi
   assert.deepEqual(mark(profile.name), [false, 'Blockscout'])
 })
 
+test('a factory deployment: the block of the claimed transaction, and its time, as the claim of Blockscout', () => {
+  const profile = buildProfile(
+    reads({
+      contract: { ...emptyHolder(), blockscout: { address: blockscoutAddress() } },
+      creationRead: { creation: null, reason: 'created by another contract', retry: false, block: 4634748 },
+      blockTime: blockTime(true),
+    }),
+  )
+  assert.deepEqual(known(profile.deployment).value, { transactionHash: HASH, block: 4634748 })
+  assert.deepEqual(mark(profile.deployment), [false, 'Blockscout'])
+  // The time has a proof, but the claim names the block.
+  assert.deepEqual(mark(profile.deployedAt), [false, 'Blockscout'])
+  assert.equal(known(profile.deployedAt).value, Date.parse('2017-11-28T00:41:21Z'))
+})
+
 test('Etherscan after Blockscout: its claim when Blockscout names no creation', () => {
   const profile = buildProfile(
     reads({

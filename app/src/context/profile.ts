@@ -258,10 +258,16 @@ export function deploymentBlock(reads: ProfileReads): { block: number; verified:
       source: chainSource(creation.verified, reads.rpc),
     }
   const claim = chooseCreation(reads)
-  if (claim && claim !== 'pending' && claim.block !== null)
-    return { block: claim.block, verified: false, source: claim.source }
-  return null
+  if (!claim || claim === 'pending') return null
+  const block = claimedBlock(reads, claim)
+  return block === null ? null : { block, verified: false, source: claim.source }
 }
+
+// The block of a claimed creation transaction: from the claim, else from
+// the read of the transaction. A factory deployment gives no creation,
+// but the chain still gives the block of the transaction.
+const claimedBlock = (reads: ProfileReads, claim: CreationClaim): number | null =>
+  claim.block ?? reads.creationRead?.block ?? null
 
 function deploymentFacts(reads: ProfileReads): {
   deployment: Fact<Deployment>
@@ -300,7 +306,11 @@ function deploymentFacts(reads: ProfileReads): {
     deployment = pending(CHAIN)
     deployer = pending(CHAIN)
   } else {
-    deployment = known({ transactionHash: claim.transactionHash, block: claim.block }, false, claim.source)
+    deployment = known(
+      { transactionHash: claim.transactionHash, block: claimedBlock(reads, claim) },
+      false,
+      claim.source,
+    )
     deployer = claim.deployer
       ? known(claim.deployer, false, claim.source)
       : unknown(`${claim.source} names no deployer`)

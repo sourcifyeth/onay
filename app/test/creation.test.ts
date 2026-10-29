@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import type { Hex } from '../src/messages.ts'
-import { oldBlock, parseCreation, unknownTransaction } from '../src/gates/creation.ts'
+import { oldBlock, parseCreation, transactionBlock, unknownTransaction } from '../src/gates/creation.ts'
 
 const ADDRESS: Hex = '0x1111111111111111111111111111111111111111'
 const HASH: Hex = '0xe7e0fe390354509cd08c9a0168536938600ddc552b3f7cb96030ebef62e75895'
@@ -40,6 +40,10 @@ test('a factory deployment: the transaction created no contract, or another one'
     () => parseCreation(ADDRESS, HASH, TX, { ...RECEIPT, contractAddress: DEPLOYER }, true),
     /another contract/,
   )
+  // The transaction still names its block.
+  assert.equal(transactionBlock(TX), 0x5cd3b1)
+  assert.equal(transactionBlock({ ...TX, blockNumber: 6083505 }), null)
+  assert.equal(transactionBlock(null), null)
 })
 
 test('unexpected answers', () => {
