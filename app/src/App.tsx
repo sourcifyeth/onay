@@ -179,7 +179,7 @@ export default function App() {
   const opened = requests.find((request) => requestKey(request) === openKey)
 
   return (
-    <main className="p-6 font-sans text-sm">
+    <main className="flex min-h-screen flex-col p-6 font-sans text-sm">
       <div className="flex items-baseline justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold">Onay</h1>
