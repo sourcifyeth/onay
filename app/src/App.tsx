@@ -87,7 +87,7 @@ function Request({ request, onOpen }: { request: SigningRequest; onOpen: () => v
   // The page reports the chain of eth_sendTransaction, apart from the request.
   const reportedChain = request.source === 'browser' && request.method === 'eth_sendTransaction'
   return (
-    <div className="mt-3 rounded border border-gray-300 p-4">
+    <div data-request={request.id} className="mt-3 rounded border border-gray-300 p-4">
       <div className="flex items-baseline justify-between gap-4">
         <p>
           <Asker request={request} />
@@ -124,7 +124,7 @@ function Request({ request, onOpen }: { request: SigningRequest; onOpen: () => v
           <button className="rounded bg-cerulean-blue-500 px-3 py-1 text-white" onClick={onOpen}>
             Open
           </button>
-          <button className="rounded border border-gray-400 px-3 py-1" onClick={dismiss}>
+          <button data-action="dismiss" className="rounded border border-gray-400 px-3 py-1" onClick={dismiss}>
             Dismiss
           </button>
         </div>

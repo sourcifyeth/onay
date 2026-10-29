@@ -1,0 +1,49 @@
+{
+  "name": "CoW Protocol: invalidate an order",
+  "params": {
+    "from": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "to": "0x9008d19f58aabd9ed0d60971565aa8510560ab41",
+    "data": "0x15337bc0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000380101010101010101010101010101010101010101010101010101010101010101f977814e90da44bfa03b6295a0616a897441acecffffffff0000000000000000"
+  },
+  "expect": {
+    "chain": {
+      "codeBytes": 16165,
+      "creation": {
+        "transaction": "0xf49f90aa5a268c40001d1227b76bb4dd8247f18361fcad9fffd4a7a44f1320d3",
+        "block": null
+      }
+    },
+    "simulation": {
+      "frame": {
+        "name": "GPv2Settlement",
+        "selector": "0x15337bc0"
+      },
+      "messages": 1,
+      "touched": 1,
+      "accounts": 2,
+      "slots": 1
+    },
+    "verification": {
+      "name": "GPv2Settlement",
+      "compiler": "0.7.6+commit.7338295f",
+      "optimizer": 1000000,
+      "files": 16,
+      "mainFile": "src/contracts/GPv2Settlement.sol",
+      "runtime": "perfect",
+      "creation": null
+    },
+    "clearSigning": null,
+    "decoded": {
+      "function": "invalidateOrder",
+      "params": {
+        "orderUid": {
+          "type": "bytes",
+          "value": "0x0101010101010101010101010101010101010101010101010101010101010101f977814e90da44bfa03b6295a0616a897441acecffffffff"
+        }
+      }
+    },
+    "compare": {
+      "digest": "0x917902e156db4017af7c29730b3e7ac41d93e937cfc9b59ad46c24fc5278e34c"
+    }
+  }
+}

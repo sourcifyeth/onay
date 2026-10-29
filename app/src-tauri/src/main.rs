@@ -9,6 +9,7 @@ mod link;
 mod peer;
 mod store;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use tauri::{
@@ -66,13 +67,35 @@ fn dismiss_request(link: State<'_, LinkState>, connection: u64, id: String) {
     }
 }
 
+/// The directory of the end-to-end tests. The app keeps its key store,
+/// its socket, its Helios data, and the storage of the page there, and
+/// writes no host manifest, so a test run touches nothing of the
+/// installed app.
+#[cfg(feature = "e2e")]
+fn e2e_dir() -> Option<PathBuf> {
+    std::env::var_os("ONAY_E2E_DIR").map(PathBuf::from)
+}
+
+#[cfg(not(feature = "e2e"))]
+fn e2e_dir() -> Option<PathBuf> {
+    None
+}
+
+/// Where the app keeps its files.
+fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    match e2e_dir() {
+        Some(dir) => Ok(dir),
+        None => app
+            .path()
+            .app_data_dir()
+            .map_err(|err| format!("cannot find the app data directory: {err}")),
+    }
+}
+
 /// Registers the relay with the browsers and starts to listen. Without the
 /// key store or the socket there is no link, and the window shows why.
 fn start_link(app: &AppHandle) -> LinkState {
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|err| vec![format!("cannot find the app data directory: {err}")])?;
+    let data_dir = data_dir(app).map_err(|err| vec![err])?;
     let store = Store::open(&data_dir).map_err(|err| {
         vec![format!(
             "cannot open the key store in {}: {err}",
@@ -81,7 +104,7 @@ fn start_link(app: &AppHandle) -> LinkState {
     })?;
 
     let mut setup = Setup {
-        socket: onay_ipc::socket_path(),
+        socket: e2e_dir().map_or_else(onay_ipc::socket_path, |dir| dir.join("onay.sock")),
         ..Setup::default()
     };
     // A second instance stops here, before it points the browsers at its
@@ -94,7 +117,9 @@ fn start_link(app: &AppHandle) -> LinkState {
     })?;
     match link::relay_path() {
         Ok(relay) => {
-            setup.manifests = host_manifest::install(&relay);
+            if e2e_dir().is_none() {
+                setup.manifests = host_manifest::install(&relay);
+            }
             setup.relay = Some(relay);
         }
         Err(err) => setup
@@ -144,13 +169,17 @@ fn main() {
                 "Onay/{} (+https://github.com/sourcifyeth/onay)",
                 app.package_info().version
             );
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+            let mut window = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("Onay")
                 .inner_size(960.0, 720.0)
-                .user_agent(&agent)
-                .build()?;
+                .user_agent(&agent);
+            // The page's own storage goes with the rest of the test's files.
+            if let Some(dir) = e2e_dir() {
+                window = window.data_directory(dir.join("webview"));
+            }
+            window.build()?;
             app.manage(start_link(app.handle()));
-            let helios_dir = app.path().app_data_dir()?.join("helios");
+            let helios_dir = data_dir(app.handle())?.join("helios");
             app.manage(chain::Chains::new(helios_dir));
             Ok(())
         })

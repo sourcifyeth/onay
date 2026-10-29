@@ -1,0 +1,63 @@
+{
+  "name": "USDT: transfer 1 USDT to vitalik.eth",
+  "params": {
+    "from": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "to": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "data": "0xa9059cbb000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa9604500000000000000000000000000000000000000000000000000000000000f4240"
+  },
+  "expect": {
+    "chain": {
+      "codeBytes": 11075,
+      "creation": {
+        "transaction": "0x2f1c5c2b44f771e942a8506148e256f94f1a464babc938ae0690c6e34cd79190",
+        "block": 4634748
+      }
+    },
+    "simulation": {
+      "frame": {
+        "name": "TetherToken",
+        "selector": "0xa9059cbb"
+      },
+      "messages": 1,
+      "touched": 1,
+      "accounts": 2,
+      "slots": 7
+    },
+    "verification": {
+      "name": "TetherToken",
+      "compiler": "0.4.18+commit.9cf6e910",
+      "optimizer": false,
+      "files": 1,
+      "mainFile": "TetherToken.sol",
+      "runtime": "partial",
+      "creation": "partial"
+    },
+    "clearSigning": {
+      "descriptor": "registry/tether/calldata-usdt.json",
+      "owner": "Tether Limited",
+      "contractName": "Tether USD",
+      "intent": "Send",
+      "fields": {
+        "Amount": "1 USDT",
+        "To": "vitalik.eth"
+      },
+      "attested": false
+    },
+    "decoded": {
+      "function": "transfer",
+      "params": {
+        "_to": {
+          "type": "address",
+          "value": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+        },
+        "_value": {
+          "type": "uint256",
+          "value": "1000000"
+        }
+      }
+    },
+    "compare": {
+      "digest": "0xdd65fb8736d45c3802d197b877b074161f3115d006d10207d4c82d3c30fca9eb"
+    }
+  }
+}

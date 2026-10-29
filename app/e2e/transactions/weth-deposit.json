@@ -1,0 +1,54 @@
+{
+  "name": "WETH: deposit 0.01 ETH",
+  "params": {
+    "from": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "to": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+    "data": "0xd0e30db0",
+    "value": "0x2386f26fc10000"
+  },
+  "expect": {
+    "chain": {
+      "codeBytes": 3124,
+      "creation": {
+        "transaction": "0xb95343413e459a0f97461812111254163ae53467855c0d73e0f1e7c5b8442fa3",
+        "block": 4719568
+      }
+    },
+    "simulation": {
+      "frame": {
+        "name": "WETH9",
+        "selector": "0xd0e30db0"
+      },
+      "messages": 1,
+      "touched": 1,
+      "accounts": 2,
+      "slots": 1
+    },
+    "verification": {
+      "name": "WETH9",
+      "compiler": "0.4.19+commit.c4cbbb05",
+      "optimizer": false,
+      "files": 1,
+      "mainFile": "WETH9.sol",
+      "runtime": "partial",
+      "creation": "partial"
+    },
+    "clearSigning": {
+      "descriptor": "registry/weth/calldata-weth.json",
+      "owner": "WETH",
+      "contractName": "WETH",
+      "intent": "Wrap",
+      "fields": {
+        "Amount": "0.01 ETH"
+      },
+      "attested": false
+    },
+    "decoded": {
+      "function": "deposit",
+      "params": {}
+    },
+    "compare": {
+      "digest": "0x9e0e1b38823d3ef404d2bf8305dbf9a8d25df680627999452c844afce8db8319"
+    }
+  }
+}

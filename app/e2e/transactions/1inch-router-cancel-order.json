@@ -1,0 +1,62 @@
+{
+  "name": "1inch Aggregation Router V6: cancel an order",
+  "params": {
+    "from": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "to": "0x111111125421ca6dc452d289314280a0f8842a65",
+    "data": "0xb68fb02000000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101"
+  },
+  "expect": {
+    "chain": {
+      "codeBytes": 24294,
+      "creation": {
+        "transaction": "0x044b9aa43d0e71622d5f04a515c44dfc383b4cabf503d9f24f767db7781e5f71",
+        "block": 19212918
+      }
+    },
+    "simulation": {
+      "frame": {
+        "name": "AggregationRouterV6",
+        "selector": "0xb68fb020"
+      },
+      "messages": 1,
+      "touched": 1,
+      "accounts": 2,
+      "slots": 1
+    },
+    "verification": {
+      "name": "AggregationRouterV6",
+      "compiler": "0.8.23+commit.f704f362",
+      "optimizer": false,
+      "files": 1,
+      "mainFile": "contracts/networks/AggregationRouterV6.mainnet.sol",
+      "runtime": "perfect",
+      "creation": "perfect"
+    },
+    "clearSigning": {
+      "descriptor": "registry/1inch/calldata-AggregationRouterV6.json",
+      "owner": "1inch Network",
+      "contractName": "AggregationRouterV6",
+      "intent": "Cancel limit orders",
+      "fields": {
+        "Order": "0x0101010101010101010101010101010101010101010101010101010101010101"
+      },
+      "attested": false
+    },
+    "decoded": {
+      "function": "cancelOrder",
+      "params": {
+        "makerTraits": {
+          "type": "uint256",
+          "value": "0"
+        },
+        "orderHash": {
+          "type": "bytes32",
+          "value": "0x0101010101010101010101010101010101010101010101010101010101010101"
+        }
+      }
+    },
+    "compare": {
+      "digest": "0xd3badf3b9ac406b00b3341bdaa7b183ec57e575fe6f22fb51771cc2fdd05ec8a"
+    }
+  }
+}

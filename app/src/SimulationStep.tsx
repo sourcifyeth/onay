@@ -8,7 +8,7 @@ import { claimOf } from './gates/sourcify.ts'
 import { reverted, UNKNOWN, type Frame, type Simulation } from './gates/simulation.ts'
 import type { StepInfo } from './gates/verdict.ts'
 import type { Verification } from './gates/verification.ts'
-import { formatEther, short } from './gates/words.ts'
+import { count, formatEther, short } from './gates/words.ts'
 import { CollapsibleLog } from './Log.tsx'
 import { CollapsibleCard, Notice, Row, Step } from './Step.tsx'
 
@@ -110,7 +110,8 @@ export function SimulationStep({ step, verification }: { step: StepInfo; verific
             <div className="divide-y divide-gray-100">
               <Row label="Block">{simulation.value.header.number.toLocaleString('en-US')}</Row>
               <Row label="State read">
-                {simulation.value.reads.accounts} accounts · {simulation.value.reads.slots} storage slots
+                {count(simulation.value.reads.accounts, 'account')} ·{' '}
+                {count(simulation.value.reads.slots, 'storage slot')}
                 {proof}
               </Row>
             </div>

@@ -34,8 +34,8 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 - Integration tests cover the places where real parts can disagree: the link over a socket pair, the relay binary in `relay/tests/`, the built `dist/inpage.js` inside a fake page. They run the real artifact where a fake would hide a difference.
 - Two implementations of one protocol must match shared vectors. `testdata/` holds them, and a third, independent script generates them. Both test suites check them.
 - Prefer the built-in runners: Rust's test harness, Node's `node --test` with type stripping. Add Vitest to the app only when a React component needs a test.
-- No browser-driven tests. The user tests interactive UIs by hand.
-- CI runs all of it: `cargo test`, `pnpm -r test`, clippy, rustfmt, lint, and the format check.
+- The user tests interactive UIs by hand. The one browser-driven suite is `app/e2e/`: it drives the real app over WebDriver through the transactions in `app/e2e/transactions/` and reads the review as a user would. It needs the network and the e2e build, so it stays out of `pnpm -r test`. Add a file there when a feature changes what a review shows; do not add other browser-driven tests. The suite finds the review through structural hooks, not through its text: `data-step` on each step, `data-tab` on the tabs of the Clear Signing step, `data-request` on each entry of the request list, `data-action` on the back link and the dismiss button, and `aria-expanded` on what opens. Keep them on a redesign. The words that each step must show live in `textsOf` in `app/e2e/expect.ts`: when a change rewords the review, update that function, not the transaction files.
+- CI runs all of it: `cargo test`, `pnpm -r test`, clippy, rustfmt, lint, and the format check. The `E2E` workflow runs the end-to-end suite on a schedule and on request.
 
 ## Commands
 

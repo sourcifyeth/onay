@@ -15,7 +15,7 @@ import { withDeadline, type Gate, type Log } from './gate.ts'
 import type { ChainCode, ChainRead } from './helios.ts'
 import type { Call } from './request.ts'
 import { ChainStateManager, type Reads } from './state.ts'
-import { formatEther, revertText } from './words.ts'
+import { count, formatEther, revertText } from './words.ts'
 
 // State reads in Helios mode take a proof each. A large call tree takes a
 // while.
@@ -235,8 +235,4 @@ export function describe(frame: Frame): string {
   if (frame.selector) parts.push(frame.selector)
   if (frame.value > 0n) parts.push(`${formatEther(frame.value)} ETH`)
   return parts.join(' · ')
-}
-
-function count(n: number, what: string): string {
-  return `${n.toLocaleString('en-US')} ${what}${n === 1 ? '' : 's'}`
 }

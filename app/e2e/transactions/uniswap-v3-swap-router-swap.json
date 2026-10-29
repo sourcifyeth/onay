@@ -1,0 +1,50 @@
+{
+  "name": "Uniswap V3 SwapRouter: swap 0.01 ETH for USDC",
+  "params": {
+    "from": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "to": "0xe592427a0aece92de3edee1f18e0157c05861564",
+    "data": "0x414bf389000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb4800000000000000000000000000000000000000000000000000000000000001f4000000000000000000000000f977814e90da44bfa03b6295a0616a897441acec00000000000000000000000000000000000000000000000000000000f4865700000000000000000000000000000000000000000000000000002386f26fc1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "value": "0x2386f26fc10000"
+  },
+  "expect": {
+    "chain": {
+      "codeBytes": 12070,
+      "creation": {
+        "transaction": "0xe881c43cd88063e84a1d0283f41ee5348239b259c0d17a7e2e4552da3f4b2bc7",
+        "block": 12369634
+      }
+    },
+    "simulation": {
+      "frame": {
+        "name": "SwapRouter",
+        "selector": "0x414bf389"
+      },
+      "messages": 9,
+      "touched": 5,
+      "accounts": 5,
+      "slots": 12
+    },
+    "verification": {
+      "name": "SwapRouter",
+      "compiler": "0.7.6+commit.7338295f",
+      "optimizer": 1000000,
+      "files": 225,
+      "mainFile": "contracts/SwapRouter.sol",
+      "runtime": "partial",
+      "creation": "partial"
+    },
+    "clearSigning": null,
+    "decoded": {
+      "function": "exactInputSingle",
+      "params": {
+        "params": {
+          "type": "tuple",
+          "value": "{ tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, tokenOut: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48, fee: 500, recipient: 0xF977814e90dA44bFA03b6295A0616a897441aceC, deadline: 4102444800, amountIn: 10000000000000000, amountOutMinimum: 0, sqrtPriceLimitX96: 0 }"
+        }
+      }
+    },
+    "compare": {
+      "digest": "0xba192b96dc136bf6130a35bd33669d6934dbc178f63ccbe37ce32b7733d12aad"
+    }
+  }
+}

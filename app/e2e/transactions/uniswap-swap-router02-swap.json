@@ -1,0 +1,62 @@
+{
+  "name": "Uniswap SwapRouter02: swap 0.01 ETH for USDC",
+  "params": {
+    "from": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "to": "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45",
+    "data": "0x04e45aaf000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb4800000000000000000000000000000000000000000000000000000000000001f4000000000000000000000000f977814e90da44bfa03b6295a0616a897441acec000000000000000000000000000000000000000000000000002386f26fc1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "value": "0x2386f26fc10000"
+  },
+  "expect": {
+    "chain": {
+      "codeBytes": 24497,
+      "creation": {
+        "transaction": "0x7299cca7203f60a831756e043f4c2ccb0ee6cb7cf8aed8420f0ae99a16883a2b",
+        "block": 13804681
+      }
+    },
+    "simulation": {
+      "frame": {
+        "name": "SwapRouter02",
+        "selector": "0x04e45aaf"
+      },
+      "messages": 9,
+      "touched": 5,
+      "accounts": 5,
+      "slots": 12
+    },
+    "verification": {
+      "name": "SwapRouter02",
+      "compiler": "0.7.6+commit.7338295f",
+      "optimizer": 1000000,
+      "files": 236,
+      "mainFile": "contracts/SwapRouter02.sol",
+      "runtime": "partial",
+      "creation": "partial"
+    },
+    "clearSigning": {
+      "descriptor": "registry/uniswap/calldata-UniswapV3Router02.json",
+      "owner": "Uniswap Labs",
+      "contractName": "Uniswap v3 Router 2",
+      "intent": "swap",
+      "fields": {
+        "Send": "0.01 WETH",
+        "Minimum to Receive": "0 USDC",
+        "Uniswap fee": "0.05%",
+        "Beneficiary": "0xF977814e90dA44bFA03b6295A0616a897441aceC"
+      },
+      "attested": false
+    },
+    "decoded": {
+      "function": "exactInputSingle",
+      "params": {
+        "params": {
+          "type": "tuple",
+          "value": "{ tokenIn: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, tokenOut: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48, fee: 500, recipient: 0xF977814e90dA44bFA03b6295A0616a897441aceC, amountIn: 10000000000000000, amountOutMinimum: 0, sqrtPriceLimitX96: 0 }"
+        }
+      }
+    },
+    "compare": {
+      "digest": "0xb9f79c7829783e339dd733de79f61c898ada4ae8c800e3178b1b74d366f96b25"
+    }
+  }
+}

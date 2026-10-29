@@ -1,0 +1,62 @@
+{
+  "name": "Uniswap V2 Router: swap 0.01 ETH for USDC",
+  "params": {
+    "from": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "to": "0x7a250d5630b4cf539739df2c5dacb4c659f2488d",
+    "data": "0x7ff36ab500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000f977814e90da44bfa03b6295a0616a897441acec00000000000000000000000000000000000000000000000000000000f48657000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "value": "0x2386f26fc10000"
+  },
+  "expect": {
+    "chain": {
+      "codeBytes": 21943,
+      "creation": {
+        "transaction": "0x4fc1580e7f66c58b7c26881cce0aab9c3509afe6e507527f30566fbf8039bcd0",
+        "block": 10207858
+      }
+    },
+    "simulation": {
+      "frame": {
+        "name": "UniswapV2Router02",
+        "selector": "0x7ff36ab5"
+      },
+      "messages": 10,
+      "touched": 5,
+      "accounts": 5,
+      "slots": 13
+    },
+    "verification": {
+      "name": "UniswapV2Router02",
+      "compiler": "0.6.6+commit.6c089d02",
+      "optimizer": 999999,
+      "files": 1,
+      "mainFile": "UniswapV2Router02.sol",
+      "runtime": "partial",
+      "creation": "partial"
+    },
+    "clearSigning": null,
+    "decoded": {
+      "function": "swapExactETHForTokens",
+      "params": {
+        "amountOutMin": {
+          "type": "uint256",
+          "value": "0"
+        },
+        "path": {
+          "type": "address[]",
+          "value": "[0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48]"
+        },
+        "to": {
+          "type": "address",
+          "value": "0xF977814e90dA44bFA03b6295A0616a897441aceC"
+        },
+        "deadline": {
+          "type": "uint256",
+          "value": "4102444800"
+        }
+      }
+    },
+    "compare": {
+      "digest": "0xcd5f5140589af1b31171a564fe3dcbb15d533ffa3b562a55b1e31156007ba193"
+    }
+  }
+}

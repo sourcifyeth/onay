@@ -1,0 +1,69 @@
+{
+  "name": "Relay Approval Proxy: an empty multicall",
+  "params": {
+    "from": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "to": "0x5567954cd026cebfe486062cb75848e0f1c12e58",
+    "data": "0xf9e4bab400000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000100000000000000000000000000f977814e90da44bfa03b6295a0616a897441acec000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "expect": {
+    "chain": {
+      "codeBytes": 13884,
+      "creation": {
+        "transaction": "0x19052e1d23cf33a2b7a131671e190f5e0661f38f335845e39736923751848469",
+        "block": null
+      }
+    },
+    "simulation": {
+      "frame": {
+        "name": "RelayApprovalProxy",
+        "selector": "0xf9e4bab4"
+      },
+      "messages": 2,
+      "touched": 2,
+      "accounts": 3,
+      "slots": 0
+    },
+    "verification": {
+      "name": "RelayApprovalProxy",
+      "compiler": "0.8.28+commit.7893614a",
+      "optimizer": 1000000,
+      "files": 17,
+      "mainFile": "src/RelayApprovalProxy.sol",
+      "runtime": "partial",
+      "creation": null
+    },
+    "clearSigning": null,
+    "decoded": {
+      "function": "transferAndMulticall",
+      "params": {
+        "tokens": {
+          "type": "address[]",
+          "value": "[]"
+        },
+        "amounts": {
+          "type": "uint256[]",
+          "value": "[]"
+        },
+        "calls": {
+          "type": "tuple[]",
+          "value": "[]"
+        },
+        "refundTo": {
+          "type": "address",
+          "value": "0xF977814e90dA44bFA03b6295A0616a897441aceC"
+        },
+        "nftRecipient": {
+          "type": "address",
+          "value": "0x0000000000000000000000000000000000000000"
+        },
+        "metadata": {
+          "type": "bytes",
+          "value": "0x"
+        }
+      }
+    },
+    "compare": {
+      "digest": "0x142fc5a861317e79cf9bc184fa1c545d09a1778302c944e452dd1c962f0394ee"
+    }
+  }
+}

@@ -7,6 +7,11 @@ license.workspace = true
 authors.workspace = true
 publish.workspace = true
 
+[features]
+# The build for the end-to-end tests (e2e/ in the app package): it keeps
+# every file of the app in ONAY_E2E_DIR. Never in a release.
+e2e = []
+
 [build-dependencies]
 tauri-build = { version = "=2.6.3", features = [] }
 
