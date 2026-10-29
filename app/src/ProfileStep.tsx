@@ -71,7 +71,7 @@ function Row({ label, tip, children }: { label: string; tip?: string; children: 
   return (
     <div className="flex items-baseline gap-4 py-2">
       <span className="w-32 shrink-0 text-sm text-gray-500">{tip ? <Tooltip tip={tip}>{label}</Tooltip> : label}</span>
-      <span className="min-w-0 text-sm [overflow-wrap:anywhere] text-gray-800">{children}</span>
+      <span className="min-w-0 flex-1 text-sm [overflow-wrap:anywhere] text-gray-800">{children}</span>
     </div>
   )
 }
@@ -292,7 +292,7 @@ function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
         const detail = `${token.token} · named by ${fact.source} · symbol from ${token.symbol.source}`
         const claimed = claimedText(token)
         return (
-          <span key={token.token}>
+          <span key={token.token} className="min-w-0">
             <Marked {...amountMark(token)} detail={detail}>
               {tokenAmountText(token.amount.value, token.decimals)} {symbol}
             </Marked>
