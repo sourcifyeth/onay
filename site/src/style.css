@@ -73,17 +73,17 @@ body {
 }
 
 /* The eye looks around: it holds a position, then moves fast to the next one. */
+/* Each part has its full shorthand: the minifier turns a shorthand without a name into "none". */
 .onay-iris,
 .onay-pupil {
   transform-box: fill-box;
   transform-origin: center;
-  animation: 9.6s cubic-bezier(0.45, 0, 0.22, 1) infinite;
 }
 .onay-iris {
-  animation-name: onay-iris-shift;
+  animation: onay-iris-shift 9.6s cubic-bezier(0.45, 0, 0.22, 1) infinite;
 }
 .onay-pupil {
-  animation-name: onay-glance;
+  animation: onay-glance 9.6s cubic-bezier(0.45, 0, 0.22, 1) infinite;
 }
 
 @keyframes onay-glance {
