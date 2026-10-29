@@ -69,6 +69,10 @@ export const fewText = (count: number) =>
 export const transactionsText = ({ count, atLeast }: TransactionBound) =>
   `${count.toLocaleString('en-US')}${atLeast ? '+' : ''}`
 
+// The tooltips of the labels of the count rows.
+export const TRANSACTIONS_TIP = `The transactions sent to this contract, with the one that created it. A call from another contract inside a transaction does not count. Onay reads only the first ${FEW_TRANSACTIONS}.`
+export const NONCE_TIP = 'The number of transactions that this account sent, read from the chain.'
+
 // The note on a count that is a floor.
 export const READ_LIMIT = `Onay reads only the first ${FEW_TRANSACTIONS} transactions.`
 

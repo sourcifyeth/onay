@@ -12,12 +12,14 @@ import {
   CONTRACT_NONCE,
   dateText,
   fewText,
+  NONCE_TIP,
   goPlusFlags,
   goPlusSource,
   searchLinks,
   READ_LIMIT,
   summaryState,
   tokenAmountText,
+  TRANSACTIONS_TIP,
   transactionsText,
   youngText,
   type Tone,
@@ -64,10 +66,11 @@ const TONES: Record<Tone, string> = {
 // A row of the card: the label in a fixed column, the value next to it,
 // as in the mock. The shared Row puts the value at the far right, which
 // reads badly with the short values of a profile.
-function Row({ label, children }: { label: string; children: ReactNode }) {
+// `tip` explains the label in a tooltip.
+function Row({ label, tip, children }: { label: string; tip?: string; children: ReactNode }) {
   return (
     <div className="flex items-baseline gap-4 py-2">
-      <span className="w-32 shrink-0 text-sm text-gray-500">{label}</span>
+      <span className="w-32 shrink-0 text-sm text-gray-500">{tip ? <Tooltip tip={tip}>{label}</Tooltip> : label}</span>
       <span className="min-w-0 text-sm [overflow-wrap:anywhere] text-gray-800">{children}</span>
     </div>
   )
@@ -319,7 +322,7 @@ function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
 // The nonce of a deployer or an account: the transactions it sent.
 function NonceRow({ fact }: { fact: NonceFact }) {
   return (
-    <Row label="Nonce">
+    <Row label="Nonce" tip={NONCE_TIP}>
       {fact.state === 'contract' ? (
         <Tooltip tip={CONTRACT_NONCE}>
           <span className="text-gray-400">N/A</span>
@@ -335,7 +338,7 @@ function NonceRow({ fact }: { fact: NonceFact }) {
 // low.
 function TransactionsRow({ fact, few }: { fact: Fact<TransactionBound>; few: number | null }) {
   return (
-    <Row label="Transactions">
+    <Row label="Transactions" tip={TRANSACTIONS_TIP}>
       <span className="flex flex-wrap items-baseline gap-x-2">
         {fact.state === 'known' ? (
           <Marked proof={fact.proof} source={fact.source} detail={fact.value.atLeast ? READ_LIMIT : undefined}>
