@@ -430,8 +430,11 @@ function chainReads() {
       case 'eth_getBlockByNumber':
         // A week before NOW.
         return { number: params[0], timestamp: `0x${((NOW - 7 * 24 * 3600 * 1000) / 1000).toString(16)}` }
-      case 'eth_call':
-        return `0x${25_000_000n.toString(16).padStart(64, '0')}`
+      case 'eth_call': {
+        // decimals() has no argument, balanceOf has the holder.
+        const { data } = params[0] as { data: string }
+        return `0x${(data === '0x313ce567' ? 6n : 25_000_000n).toString(16).padStart(64, '0')}`
+      }
     }
     throw new Error(`unexpected ${method}`)
   }
@@ -482,11 +485,15 @@ test('the profile: only the named contract, each row from its source, each read 
   const tokens = profile.tokens.state === 'known' ? profile.tokens.value : null
   assert.equal(tokens?.checked, true)
   assert.deepEqual(tokens?.tokens[0].amount, { value: 25_000_000n, proof: true, source: 'Helios' })
+  assert.deepEqual(tokens?.tokens[0].decimals, { value: 6, proof: true, source: 'Helios' })
   assert.equal(profile.security.goPlus.state, 'known')
   // The young warning: deployed a week before NOW.
   assert.equal(profile.young, 7)
-  // Contract and deployer: balance, code kind, block time, two token amounts.
+  // Contract and deployer: balance, code kind, block time, two token
+  // amounts and their decimals.
   assert.deepEqual(chain.calls.sort(), [
+    'eth_call',
+    'eth_call',
     'eth_call',
     'eth_call',
     'eth_getBlockByNumber',

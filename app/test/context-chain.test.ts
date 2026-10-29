@@ -9,6 +9,7 @@ import {
   blockTime,
   codeKind,
   tokenBalance,
+  tokenDecimals,
   type ChainAccess,
 } from '../src/context/chain.ts'
 import type { ChainRead } from '../src/gates/helios.ts'
@@ -101,4 +102,15 @@ test('tokenBalance: balanceOf through eth_call at the block', async () => {
   assert.deepEqual(calls, [{ method: 'eth_call', params: [{ to: USDT, data: balanceOfData(HOLDER) }, '0x64'] }])
   assert.equal(balanceOfData(HOLDER), `0x70a08231000000000000000000000000${HOLDER.slice(2)}`)
   await assert.rejects(tokenBalance(access(reader(() => '0x').read), USDT, HOLDER, 1), /no amount/)
+})
+
+test('tokenDecimals: decimals() through eth_call at the block, a uint8', async () => {
+  const word = (value: bigint) => `0x${value.toString(16).padStart(64, '0')}`
+  const { read, calls } = reader(() => word(6n))
+  assert.deepEqual(await tokenDecimals(access(read), USDT, 100), { value: 6, proof: true })
+  assert.deepEqual(calls, [{ method: 'eth_call', params: [{ to: USDT, data: '0x313ce567' }, '0x64'] }])
+  const decimals = (answer: unknown) => tokenDecimals(access(reader(() => answer).read), USDT, 1)
+  await assert.rejects(decimals(word(256n)), /over 255/)
+  await assert.rejects(decimals('0x'), /no number/)
+  await assert.rejects(decimals(`${word(6n)}00`), /no number/)
 })

@@ -361,8 +361,8 @@ export function SettingsPage({ snapshot, onBack }: { snapshot: Snapshot | null; 
         Helios is a light client: it never trusts these endpoints, it checks them. Each piece of chain state is checked
         against a cryptographic proof, so a lying RPC (Remote Procedure Call) endpoint gets caught instead of believed.
         The consensus RPC serves the beacon chain light client updates, and Helios follows the sync committee signatures
-        from there. The contract profile also asks the execution endpoint about the deployer's account and up to 10
-        token balances of the contract and of its deployer.
+        from there. The contract profile also asks the execution endpoint about the deployer's account, and the decimals
+        and the balance of up to 10 tokens of the contract and of its deployer.
       </p>
       {chains
         .filter((chain) => chain.mode === 'helios')

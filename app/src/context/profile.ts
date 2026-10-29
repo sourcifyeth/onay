@@ -38,7 +38,9 @@ export type TokenHolding = {
   // From a token list of the user if it lists the token, else from
   // Blockscout.
   symbol: Claimed<string | null>
-  decimals: number | null
+  // From the chain, else from a token list, else from Blockscout. Null
+  // when no source names them: the amount shows in the smallest unit.
+  decimals: Claimed<number> | null
   // The amount read from the chain, or the claim of Blockscout when the
   // read failed.
   amount: Claimed<bigint>
@@ -50,7 +52,7 @@ export type Holdings = {
   tokens: TokenHolding[]
   // Blockscout knows more tokens than these.
   more: boolean
-  // True when the chain gave the amount of each token.
+  // True when the chain gave the amount and the decimals of each token.
   checked: boolean
 }
 
@@ -133,6 +135,7 @@ export type HolderReads = {
   etherscanTransactions?: Lookup<FirstTransaction | null>
   account?: Lookup<ChainValue<AccountState>>
   tokenAmounts: Partial<Record<Hex, Lookup<ChainValue<bigint>>>>
+  tokenDecimals: Partial<Record<Hex, Lookup<ChainValue<number>>>>
 }
 
 // The reads of an address without code. Undefined means that the read
@@ -169,7 +172,7 @@ export type ProfileReads = AccountReads & {
   tokenLists: ListEntry[]
 }
 
-export const emptyHolder = (): HolderReads => ({ blockscout: {}, tokenAmounts: {} })
+export const emptyHolder = (): HolderReads => ({ blockscout: {}, tokenAmounts: {}, tokenDecimals: {} })
 
 const pending = (source: string): Fact<never> => ({ state: 'pending', source })
 const unknown = (reason: string): Fact<never> => ({ state: 'unknown', reason })
@@ -330,6 +333,20 @@ function deployedAtFact(reads: ProfileReads, claim: CreationClaim, deployment: F
   return unknown(block ? NOT_READ : 'no source names the block of the deployment')
 }
 
+// The decimals of a token: the read of the chain, else the token list,
+// else the claim of Blockscout.
+function decimalsOf(
+  read: Lookup<ChainValue<number>> | undefined,
+  rpc: string,
+  fromList: { decimals: number } | undefined,
+  list: string | undefined,
+  claimed: number | null,
+): Claimed<number> | null {
+  if (read?.ok) return { value: read.value.value, proof: read.value.proof, source: chainSource(read.value.proof, rpc) }
+  if (fromList) return { value: fromList.decimals, proof: false, source: list ?? 'token list' }
+  return claimed === null ? null : { value: claimed, proof: false, source: 'Blockscout' }
+}
+
 function holdingsOf(holder: HolderReads, reads: ProfileReads): Fact<Holdings> {
   return fromLookup(holder.blockscout.tokens, reads.done, 'Blockscout', (page) => {
     const listed = listedOn(reads.tokenLists, reads.chainId)
@@ -343,7 +360,7 @@ function holdingsOf(holder: HolderReads, reads: ProfileReads): Fact<Holdings> {
       const symbol: Claimed<string | null> = fromList
         ? { value: fromList.symbol, proof: false, source: lists?.[0] ?? 'token list' }
         : { value: claim.symbol, proof: false, source: 'Blockscout' }
-      const decimals = fromList ? fromList.decimals : claim.decimals
+      const decimals = decimalsOf(holder.tokenDecimals[claim.token], reads.rpc, fromList, lists?.[0], claim.decimals)
       const read = holder.tokenAmounts[claim.token]
       if (read?.ok) {
         return {
@@ -366,7 +383,9 @@ function holdingsOf(holder: HolderReads, reads: ProfileReads): Fact<Holdings> {
         claimed: null,
       }
     })
-    const checked = page.tokens.every((claim) => holder.tokenAmounts[claim.token]?.ok === true)
+    const checked = page.tokens.every(
+      (claim) => holder.tokenAmounts[claim.token]?.ok === true && holder.tokenDecimals[claim.token]?.ok === true,
+    )
     return known({ tokens, more: page.more, checked }, false, 'Blockscout')
   })
 }

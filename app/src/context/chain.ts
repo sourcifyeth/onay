@@ -100,3 +100,12 @@ export async function tokenBalance(
   if (typeof result !== 'string' || !/^0x[0-9a-fA-F]{64,}$/.test(result)) throw new Error('balanceOf gave no amount')
   return { value: BigInt(result.slice(0, 66)), proof: chain.proof }
 }
+
+// `decimals()` of an ERC-20 token. The standard returns a uint8.
+export async function tokenDecimals(chain: ChainAccess, token: Hex, block: number): Promise<ChainValue<number>> {
+  const result = await chain.read('eth_call', [{ to: token, data: '0x313ce567' }, tag(block)])
+  if (typeof result !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(result)) throw new Error('decimals gave no number')
+  const value = BigInt(result)
+  if (value > 255n) throw new Error('decimals gave a number over 255')
+  return { value: Number(value), proof: chain.proof }
+}

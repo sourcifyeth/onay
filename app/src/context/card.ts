@@ -4,7 +4,8 @@
 
 import type { Hex } from '../messages.ts'
 import type { GoPlusResult } from './goplus.ts'
-import { YOUNG_DAYS, type AccountProfile, type GoPlusFact, type Profile } from './profile.ts'
+import { YOUNG_DAYS, type AccountProfile, type GoPlusFact, type Profile, type TokenHolding } from './profile.ts'
+import { amountText } from './run.ts'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -54,6 +55,33 @@ export const youngText = (days: number) =>
 // The tooltip of the nonce of a contract.
 export const CONTRACT_NONCE =
   'A contract sends no transactions. Its nonce counts the contracts that it created, so the profile does not show it.'
+
+// An amount of a token in its unit, or in the smallest unit when no
+// source names the decimals.
+export const tokenAmountText = (value: bigint, decimals: TokenHolding['decimals']) =>
+  decimals === null ? `${amountText(value, 0)} units` : amountText(value, decimals.value)
+
+// The mark of an amount. The amount shows through its decimals, so it
+// gets the green mark only when the chain gave both.
+export function amountMark({ amount, decimals }: Pick<TokenHolding, 'amount' | 'decimals'>): {
+  proof: boolean
+  source: string
+} {
+  const source =
+    decimals === null || decimals.source === amount.source
+      ? amount.source
+      : `${amount.source}, decimals from ${decimals.source}`
+  return { proof: amount.proof && (decimals?.proof ?? true), source }
+}
+
+// The amount that Blockscout claims, when it differs from the one of the
+// chain in the text too. The balance changes with each block, so a
+// small difference can round away.
+export function claimedText({ amount, decimals, claimed }: TokenHolding): string | null {
+  if (claimed === null) return null
+  const text = tokenAmountText(claimed, decimals)
+  return text === tokenAmountText(amount.value, decimals) ? null : text
+}
 
 const goPlusOf = (profile: Profile | AccountProfile): GoPlusFact =>
   'security' in profile ? profile.security.goPlus : profile.goPlus

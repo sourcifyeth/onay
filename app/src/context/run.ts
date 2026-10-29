@@ -22,7 +22,15 @@ import {
   type BlockscoutClaims,
   type ClaimPart,
 } from './blockscout.ts'
-import { accountState, blockTime, codeKind, tokenBalance, type ChainAccess, type ChainValue } from './chain.ts'
+import {
+  accountState,
+  blockTime,
+  codeKind,
+  tokenBalance,
+  tokenDecimals,
+  type ChainAccess,
+  type ChainValue,
+} from './chain.ts'
 import * as etherscan from './etherscan.ts'
 import {
   blockscoutContract,
@@ -532,22 +540,27 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
         publish()
       }
 
-      // The amounts of the tokens that Blockscout names, read from the
-      // chain.
+      // The decimals and the amounts of the tokens that Blockscout names,
+      // read from the chain.
       const amountsOf = async (holder: HolderReads, target: Hex, prefix: string) => {
         const page = holder.blockscout.tokens
         if (!page?.ok) return
         await Promise.all(
           page.value.tokens.slice(0, MAX_TOKENS).map(async (claim) => {
             const label = claim.symbol ?? short(claim.token)
+            const same = (equal: boolean) => (equal ? 'as Blockscout says' : 'Blockscout says otherwise')
+            const read = await chainRead(
+              `${prefix}decimals ${label} ${short(claim.token)}`,
+              () => tokenDecimals(access, claim.token, block!),
+              (decimals) => `${decimals} · ${same(decimals === claim.decimals)}`,
+            )
+            holder.tokenDecimals[claim.token] = read
+            const decimals = read.ok ? read.value.value : claim.decimals
             holder.tokenAmounts[claim.token] = await chainRead(
               `${prefix}balanceOf ${label} ${short(claim.token)}`,
               () => tokenBalance(access, claim.token, target, block!),
-              (value) => {
-                const amount = claim.decimals === null ? String(value) : amountText(value, claim.decimals)
-                const same = value === claim.value ? 'as Blockscout says' : 'Blockscout says otherwise'
-                return `${amount} · ${same}`
-              },
+              (value) =>
+                `${decimals === null ? String(value) : amountText(value, decimals)} · ${same(value === claim.value)}`,
             )
             publish()
           }),

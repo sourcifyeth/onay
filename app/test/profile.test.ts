@@ -317,6 +317,10 @@ test('token amounts: from the chain when read, the claim of Blockscout when it d
           [CONTRACT]: { ok: true, value: { value: 9n, proof: true } },
           '0x0180000000000000000000000000000000004e63': { ok: false, reason: 'balanceOf gave no amount' },
         },
+        tokenDecimals: {
+          [CONTRACT]: { ok: true, value: { value: 6, proof: true } },
+          '0x0180000000000000000000000000000000004e63': { ok: false, reason: 'decimals gave no number' },
+        },
       },
       tokenLists: [
         {
@@ -340,11 +344,15 @@ test('token amounts: from the chain when read, the claim of Blockscout when it d
   const [usdc, usdt, adai] = holdings.tokens
   assert.deepEqual(usdc.symbol, { value: 'USDC.e', proof: false, source: 'Uniswap Labs Default' })
   assert.deepEqual(usdc.amount, { value: 25_000_000n, proof: true, source: 'Helios' })
+  // Not read from the chain: the decimals of the token list.
+  assert.deepEqual(usdc.decimals, { value: 6, proof: false, source: 'Uniswap Labs Default' })
   assert.equal(usdc.claimed, null)
   assert.deepEqual(usdt.symbol, { value: 'USDT', proof: false, source: 'Blockscout' })
   assert.deepEqual(usdt.amount, { value: 9n, proof: true, source: 'Helios' })
+  assert.deepEqual(usdt.decimals, { value: 6, proof: true, source: 'Helios' })
   assert.equal(usdt.claimed, 7n)
   assert.deepEqual(adai.amount, { value: 100n, proof: false, source: 'Blockscout' })
+  assert.deepEqual(adai.decimals, { value: 18, proof: false, source: 'Blockscout' })
   assert.deepEqual(profile.sources, ['Blockscout', 'Uniswap Labs Default', 'Helios'])
 })
 

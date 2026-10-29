@@ -6,12 +6,15 @@
 import { useState, type ReactNode } from 'react'
 import {
   ageText,
+  amountMark,
+  claimedText,
   CONTRACT_NONCE,
   dateText,
   goPlusFlags,
   goPlusSource,
   searchLinks,
   summaryState,
+  tokenAmountText,
   youngText,
   type Tone,
 } from './context/card.ts'
@@ -281,20 +284,19 @@ function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
   return (
     <span className="grid grid-cols-2 gap-x-6">
       {tokens.map((token) => {
-        const amount = (value: bigint) =>
-          `${amountText(value, token.decimals ?? 0)}${token.decimals === null ? ' units' : ''}`
         const symbol = token.symbol.value ?? short(token.token)
         const detail = `${token.token} · named by ${fact.source} · symbol from ${token.symbol.source}`
+        const claimed = claimedText(token)
         return (
           <span key={token.token}>
-            <Marked proof={token.amount.proof} source={token.amount.source} detail={detail}>
-              {amount(token.amount.value)} {symbol}
+            <Marked {...amountMark(token)} detail={detail}>
+              {tokenAmountText(token.amount.value, token.decimals)} {symbol}
             </Marked>
-            {token.claimed !== null && (
+            {claimed !== null && (
               <span className="text-xs text-amber-700">
                 {' '}
                 <Marked proof={false} source="Blockscout">
-                  · Blockscout says {amount(token.claimed)}
+                  · Blockscout says {claimed}
                 </Marked>
               </span>
             )}
@@ -302,7 +304,7 @@ function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
         )
       })}
       <span className="col-span-2 text-xs text-gray-500">
-        {checked ? 'amounts checked on chain' : 'not each amount read from the chain'}
+        {checked ? 'amounts and decimals checked on chain' : 'not each amount and its decimals read from the chain'}
       </span>
       {fact.value.more && (
         <span className="col-span-2">

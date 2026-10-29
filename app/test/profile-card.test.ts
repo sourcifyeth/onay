@@ -7,17 +7,20 @@ import { test } from 'node:test'
 import {
   ageText,
   agoText,
+  amountMark,
+  claimedText,
   dateText,
   goPlusFlags,
   goPlusSource,
   searchLinks,
   summaryState,
+  tokenAmountText,
   youngText,
 } from '../src/context/card.ts'
 import { linkable, LINK_PREFIXES, SEARCH_SHAPES } from '../src/context/explorers.ts'
 import { ERC7730_REPOSITORY, LIST_SOURCES } from '../src/context/lists.ts'
 import type { ListAnswer } from '../src/context/lists.ts'
-import type { AccountProfile, Profile } from '../src/context/profile.ts'
+import type { AccountProfile, Profile, TokenHolding } from '../src/context/profile.ts'
 import type { Hex } from '../src/messages.ts'
 
 const ADDRESS: Hex = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'
@@ -161,4 +164,43 @@ test('youngText says the age and the limit', () => {
   assert.equal(youngText(3), `This contract was deployed 3 days ago. ${rest}`)
   assert.equal(youngText(1), `This contract was deployed 1 day ago. ${rest}`)
   assert.equal(youngText(0), `This contract was deployed today. ${rest}`)
+})
+
+const holding = (change: Partial<TokenHolding> = {}): TokenHolding => ({
+  token: ADDRESS,
+  symbol: { value: 'USDC', proof: false, source: 'Blockscout' },
+  decimals: { value: 6, proof: true, source: 'Helios' },
+  amount: { value: 25_000_000n, proof: true, source: 'Helios' },
+  claimed: null,
+  ...change,
+})
+
+test('amountMark: green only when the chain gave the amount and the decimals', () => {
+  assert.deepEqual(amountMark(holding()), { proof: true, source: 'Helios' })
+  const listed = { value: 6, proof: false, source: 'Uniswap Labs Default' }
+  assert.deepEqual(amountMark(holding({ decimals: listed })), {
+    proof: false,
+    source: 'Helios, decimals from Uniswap Labs Default',
+  })
+  // No decimals: the amount shows in the smallest unit, as the chain gave it.
+  assert.deepEqual(amountMark(holding({ decimals: null })), { proof: true, source: 'Helios' })
+  const claimed = { value: 1n, proof: false, source: 'Blockscout' }
+  assert.deepEqual(amountMark(holding({ amount: claimed, decimals: { ...listed, source: 'Blockscout' } })), {
+    proof: false,
+    source: 'Blockscout',
+  })
+})
+
+test('tokenAmountText: the unit of the decimals, else the smallest unit', () => {
+  assert.equal(tokenAmountText(25_000_000n, { value: 6, proof: true, source: 'Helios' }), '25')
+  assert.equal(tokenAmountText(25_000_000n, null), '25,000,000 units')
+})
+
+test('claimedText: only a difference that the text shows', () => {
+  const decimals = { value: 18, proof: true, source: 'Helios' }
+  const amount = { value: 1_000_000_000_000_000_000n, proof: true, source: 'Helios' }
+  // A difference under the sixth decimal rounds away.
+  assert.equal(claimedText(holding({ decimals, amount, claimed: amount.value + 1n })), null)
+  assert.equal(claimedText(holding({ decimals, amount, claimed: 2n * amount.value })), '2')
+  assert.equal(claimedText(holding()), null)
 })
