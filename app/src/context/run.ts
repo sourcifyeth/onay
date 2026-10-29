@@ -18,6 +18,7 @@ import {
   dayText,
   isNotFound,
   MAX_TOKENS,
+  pageText,
   readBlockscoutClaims,
   type BlockscoutClaims,
   type ClaimPart,
@@ -572,10 +573,10 @@ export function startContext(verification: Verification, deps: Deps, stop?: Abor
         if (!page || page.ok || etherscanKey === '' || stop?.aborted) return
         const answer = await askEtherscan(() => etherscan.transactions(chain.id, target, etherscanKey, deps.fetch))
         holder.etherscanTransactions = answer
-        const first = answer.ok ? answer.value : null
+        const first = answer.ok ? answer.value.first : null
         const text = answer.ok
           ? first
-            ? `first transaction · ${dayText(first.time)} · ${short(first.hash)}`
+            ? `transactions · ${pageText(answer.value)} · first ${dayText(first.time)} · ${short(first.hash)}`
             : 'transactions · none'
           : `transactions · not read · ${answer.reason}`
         log({ source: 'explorer', text: `${prefix}Etherscan · ${text}`, proof: false })

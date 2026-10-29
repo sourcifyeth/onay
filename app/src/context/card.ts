@@ -5,12 +5,14 @@
 import type { Hex } from '../messages.ts'
 import type { GoPlusResult } from './goplus.ts'
 import {
+  FEW_TRANSACTIONS,
   YOUNG_DAYS,
   type AccountProfile,
   type Blocked,
   type GoPlusFact,
   type Profile,
   type TokenHolding,
+  type TransactionBound,
 } from './profile.ts'
 import { amountText } from './run.ts'
 
@@ -59,9 +61,20 @@ const deployedText = (days: number) => `deployed ${days === 0 ? 'today' : `${plu
 export const youngText = (days: number) =>
   `This contract was ${deployedText(days)}. A contract under ${YOUNG_DAYS} days old deserves more care. This is a hint, not a verdict.`
 
+// The tooltip of the warning on a contract with few transactions.
+export const fewText = (count: number) =>
+  `This contract has only ${plural(count, 'transaction')}. A contract with under ${FEW_TRANSACTIONS} transactions has seen little use and deserves more care. This is a hint, not a verdict.`
+
+// The count of transactions: exact under the limit, else a floor.
+export const transactionsText = ({ count, atLeast }: TransactionBound) =>
+  `${count.toLocaleString('en-US')}${atLeast ? '+' : ''}`
+
+// The note on a count that is a floor.
+export const READ_LIMIT = `Onay reads only the first ${FEW_TRANSACTIONS} transactions.`
+
 // The tooltip of the nonce of a contract.
 export const CONTRACT_NONCE =
-  'A contract sends no transactions. Its nonce counts the contracts that it created, so the profile does not show it.'
+  'A contract sends no transactions. Its nonce counts the contracts that it created, not transactions.'
 
 // An amount of a token in its unit, or in the smallest unit when no
 // source names the decimals.
@@ -129,6 +142,9 @@ export function summaryState(profile: Profile | AccountProfile, running: boolean
   if (profile.blocked.length > 0) return { text: 'on a block list', tone: 'coral' }
   if (goPlusFlags(profile)) return { text: 'flagged by GoPlus', tone: 'coral' }
   if ('young' in profile && profile.young !== null) return { text: deployedText(profile.young), tone: 'amber' }
+  if ('fewTransactions' in profile && profile.fewTransactions !== null) {
+    return { text: plural(profile.fewTransactions, 'transaction'), tone: 'amber' }
+  }
   const lists = profile.lists.state === 'known' ? profile.lists.value.hits.length : 0
   if (lists > 0) return { text: `on ${lists} ${lists === 1 ? 'list' : 'lists'}`, tone: 'green' }
   if (running) return { text: 'looking up', tone: 'gray' }

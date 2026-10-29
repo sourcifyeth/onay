@@ -11,11 +11,14 @@ import {
   claimedText,
   CONTRACT_NONCE,
   dateText,
+  fewText,
   goPlusFlags,
   goPlusSource,
   searchLinks,
+  READ_LIMIT,
   summaryState,
   tokenAmountText,
+  transactionsText,
   youngText,
   type Tone,
 } from './context/card.ts'
@@ -32,6 +35,7 @@ import type {
   Holdings,
   NonceFact,
   Profile,
+  TransactionBound,
 } from './context/profile.ts'
 import { accountsToCheck, amountText, contractsToProfile, type Context } from './context/run.ts'
 import { ExternalLink } from './ExternalLink.tsx'
@@ -312,25 +316,52 @@ function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
   )
 }
 
-function NonceView({ fact }: { fact: NonceFact }) {
-  if (fact.state === 'contract') {
-    return (
-      <Tooltip tip={CONTRACT_NONCE}>
-        <span className="text-gray-400">N/A</span>
-      </Tooltip>
-    )
-  }
-  return <FactView fact={fact}>{(nonce) => nonce.toLocaleString('en-US')}</FactView>
+// The nonce of a deployer or an account: the transactions it sent.
+function NonceRow({ fact }: { fact: NonceFact }) {
+  return (
+    <Row label="Nonce">
+      {fact.state === 'contract' ? (
+        <Tooltip tip={CONTRACT_NONCE}>
+          <span className="text-gray-400">N/A</span>
+        </Tooltip>
+      ) : (
+        <FactView fact={fact}>{(nonce) => nonce.toLocaleString('en-US')}</FactView>
+      )}
+    </Row>
+  )
+}
+
+// The count of transactions to a contract, with a warning when it is
+// low.
+function TransactionsRow({ fact, few }: { fact: Fact<TransactionBound>; few: number | null }) {
+  return (
+    <Row label="Transactions">
+      <span className="flex flex-wrap items-baseline gap-x-2">
+        {fact.state === 'known' ? (
+          <Marked proof={fact.proof} source={fact.source} detail={fact.value.atLeast ? READ_LIMIT : undefined}>
+            {transactionsText(fact.value)}
+          </Marked>
+        ) : (
+          <FactView fact={fact}>{() => null}</FactView>
+        )}
+        {few !== null && <Warning tip={fewText(few)}>few transactions</Warning>}
+      </span>
+    </Row>
+  )
 }
 
 // The rows of activity of a contract, its deployer, and an account.
+// `count` is the first row: the transactions of a contract, or the nonce
+// of an account.
 function ActivityRows({
   activity,
+  count,
   explorers,
   address,
   now,
 }: {
   activity: Activity
+  count: ReactNode
   explorers: ChainExplorers
   address: Hex
   now: number
@@ -338,9 +369,7 @@ function ActivityRows({
   const more = explorers.blockscout ? `${addressLink(explorers.blockscout, address)}?tab=tokens` : null
   return (
     <>
-      <Row label="Nonce">
-        <NonceView fact={activity.nonce} />
-      </Row>
+      {count}
       <Row label="First transaction">
         <FactView fact={activity.firstTransaction}>
           {(first) => (first ? `${dateText(first.time)} · ${ageText(first.time, now)}` : 'none')}
@@ -400,7 +429,13 @@ function DeployerSection({
             </p>
           )}
           <div className="divide-y divide-gray-200">
-            <ActivityRows activity={deployer} explorers={explorers} address={address} now={now} />
+            <ActivityRows
+              activity={deployer}
+              count={<NonceRow fact={deployer.nonce} />}
+              explorers={explorers}
+              address={address}
+              now={now}
+            />
             <Row label="Trusted lists">
               <ListsView fact={deployer.lists} />
             </Row>
@@ -510,7 +545,13 @@ function ProfileBody({ profile, explorers }: { profile: Profile; explorers: Chai
       <div className="divide-y divide-gray-100">
         <AddressRow address={profile.address} />
         <DeployedRow profile={profile} now={now} />
-        <ActivityRows activity={profile} explorers={explorers} address={profile.address} now={now} />
+        <ActivityRows
+          activity={profile}
+          count={<TransactionsRow fact={profile.transactions} few={profile.fewTransactions} />}
+          explorers={explorers}
+          address={profile.address}
+          now={now}
+        />
         <Row label="Trusted lists">
           <ListsView fact={profile.lists} />
         </Row>
@@ -568,7 +609,13 @@ function AccountBody({ account, explorers }: { account: AccountProfile; explorer
   return (
     <div className="divide-y divide-gray-100">
       <AddressRow address={account.address} />
-      <ActivityRows activity={account} explorers={explorers} address={account.address} now={now} />
+      <ActivityRows
+        activity={account}
+        count={<NonceRow fact={account.nonce} />}
+        explorers={explorers}
+        address={account.address}
+        now={now}
+      />
       <Row label="Trusted lists">
         <ListsView fact={account.lists} />
       </Row>
@@ -597,7 +644,7 @@ export function ProfileStep({
   return (
     <Step
       step={step}
-      explainer="Facts about the history of each address and what it holds help you judge it. A contract that was deployed a few days ago deserves more care. Every address the request names is also checked against the block lists. These facts come from explorers and lists; they do not change the result of the checks."
+      explainer="Facts about the history of each address and what it holds help you judge it. A contract that was deployed a few days ago or has few transactions deserves more care. Every address the request names is also checked against the block lists. These facts come from explorers and lists; they do not change the result of the checks."
     >
       {named.length === 0 ? (
         <p className="rounded-xl border border-gray-200 bg-white px-5 py-4 text-sm text-gray-600 shadow-sm">

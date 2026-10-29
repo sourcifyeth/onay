@@ -6,9 +6,12 @@ import { test } from 'node:test'
 import type { BlockscoutAddress, TokenPage } from '../src/context/blockscout.ts'
 import {
   buildAccount,
+  boundOf,
   buildProfile,
   CHAIN,
   emptyHolder,
+  FEW_TRANSACTIONS,
+  fewTransactions,
   LISTS,
   type AccountReads,
   type Fact,
@@ -104,10 +107,9 @@ test('Helios, in the window: the gate read of Sourcify, with proof on each row',
   assert.deepEqual(mark(profile.deployer.kind), [true, 'Helios'])
   assert.deepEqual(mark(profile.eth), [true, 'Helios'])
   assert.equal(known(profile.eth).value, 42n)
-  // The nonce of an account, with its proof. A contract has none.
+  // The nonce of the deployer, an account, with its proof.
   assert.deepEqual(mark(profile.deployer.nonce as Fact<bigint>), [true, 'Helios'])
   assert.equal(known(profile.deployer.nonce as Fact<bigint>).value, 7n)
-  assert.deepEqual(profile.nonce, { state: 'contract' })
 })
 
 test('the nonce of the deployer: none for a contract, and only once its code is known', () => {
@@ -186,7 +188,10 @@ test('Blockscout claim only: the deployer as Blockscout says, the time of its fi
         ...emptyHolder(),
         blockscout: {
           address: blockscoutAddress(),
-          transactions: { ok: true, value: { hash: HASH, block: 4634748, time: 1511829681000 } },
+          transactions: {
+            ok: true,
+            value: { first: { hash: HASH, block: 4634748, time: 1511829681000 }, seen: 1, more: false },
+          },
         },
       },
       creationRead: { creation: null, reason: 'created by another contract', retry: false },
@@ -241,6 +246,7 @@ test('nothing: each row is unknown with a reason', () => {
     profile.deployment,
     profile.deployedAt,
     profile.deployer.address,
+    profile.transactions,
     profile.firstTransaction,
     profile.eth,
   ]) {
@@ -283,24 +289,27 @@ test('a failed page of transactions leaves its rows unknown, the rest stays', ()
       },
     }),
   )
+  assert.deepEqual(profile.transactions, { state: 'unknown', reason: 'HTTP 500' })
   assert.deepEqual(profile.firstTransaction, { state: 'unknown', reason: 'HTTP 500' })
   assert.deepEqual(known(profile.tokens).value, { tokens: [], more: false, checked: true })
   assert.equal(known(profile.name).value, 'TetherToken')
 })
 
-test('the first transaction: Etherscan when Blockscout failed', () => {
+test('the transactions: Etherscan when Blockscout failed', () => {
   const first = { hash: HASH, block: 1, time: 5 }
   const profile = buildProfile(
     reads({
       contract: {
         ...emptyHolder(),
         blockscout: { transactions: { ok: false, reason: 'HTTP 500' } },
-        etherscanTransactions: { ok: true, value: first },
+        etherscanTransactions: { ok: true, value: { first, seen: FEW_TRANSACTIONS, more: true } },
       },
     }),
   )
   assert.deepEqual(mark(profile.firstTransaction), [false, 'Etherscan'])
   assert.deepEqual(known(profile.firstTransaction).value, first)
+  assert.deepEqual(known(profile.transactions).value, { count: FEW_TRANSACTIONS, atLeast: true })
+  assert.equal(profile.fewTransactions, null)
   const neither = buildProfile(
     reads({
       contract: {
@@ -511,7 +520,7 @@ test('an account: its activity, the lists, Blockscout and GoPlus', () => {
         ...emptyHolder(),
         blockscout: {
           address: blockscoutAddress({ scam: true }),
-          transactions: { ok: true, value: first },
+          transactions: { ok: true, value: { first, seen: 3, more: false } },
           tokens: { ok: true, value: { tokens: [], more: false } },
         },
         account: { ok: true, value: { value: { balance: 3n, nonce: 12n }, proof: true } },
@@ -550,6 +559,36 @@ test('an account: its activity, the lists, Blockscout and GoPlus', () => {
   for (const fact of [unread.nonce, unread.firstTransaction, unread.eth, unread.tokens]) {
     assert.deepEqual(fact, { state: 'unknown', reason: 'the chain gate did not read the address' })
   }
+})
+
+test('boundOf: an exact count when the pages ended, else a floor', () => {
+  assert.deepEqual(boundOf({ first: null, seen: 0, more: false }), { count: 0, atLeast: false })
+  assert.deepEqual(boundOf({ first: null, seen: 99, more: false }), { count: 99, atLeast: false })
+  assert.deepEqual(boundOf({ first: null, seen: 50, more: true }), { count: 50, atLeast: true })
+  assert.deepEqual(boundOf({ first: null, seen: 100, more: false }), { count: 100, atLeast: true })
+})
+
+test('fewTransactions: an exact count under 100, else null', () => {
+  const count = (count: number, atLeast = false) => ({
+    state: 'known' as const,
+    value: { count, atLeast },
+    proof: false,
+    source: 'Blockscout',
+  })
+  assert.equal(fewTransactions(count(FEW_TRANSACTIONS - 1)), 99)
+  assert.equal(fewTransactions(count(0)), 0)
+  assert.equal(fewTransactions(count(FEW_TRANSACTIONS, true)), null)
+  assert.equal(fewTransactions({ state: 'unknown', reason: 'HTTP 500' }), null)
+  const profile = buildProfile(
+    reads({
+      contract: {
+        ...emptyHolder(),
+        blockscout: { transactions: { ok: true, value: { first: null, seen: 12, more: false } } },
+      },
+    }),
+  )
+  assert.equal(profile.fewTransactions, 12)
+  assert.equal(profile.young, null)
 })
 
 test('young: the age in days under 30 days, else null', () => {

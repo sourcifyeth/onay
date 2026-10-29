@@ -8,7 +8,9 @@ import {
   blockscoutAddress,
   blockscoutTokens,
   blockscoutTransactions,
+  FEW_TRANSACTIONS,
   MAX_TOKENS,
+  pageText,
   parseAddress,
   parseTokens,
   parseTransactions,
@@ -154,31 +156,65 @@ test('the tokens: good ones kept, bad ones skipped, at most ten', () => {
   assert.throws(() => parseTokens({ message: 'Not found' }), /no list of tokens/)
 })
 
-test('the transactions: the first item of the page, null for an empty page', () => {
-  assert.deepEqual(parseTransactions(firstTransactions), {
-    hash: CREATION,
-    block: 4634748,
-    time: Date.parse('2017-11-28T00:41:21Z'),
+test('the transactions: the first item, the count of the page, and the next page', () => {
+  const { page, next } = parseTransactions(firstTransactions)
+  assert.deepEqual(page, {
+    first: { hash: CREATION, block: 4634748, time: Date.parse('2017-11-28T00:41:21Z') },
+    seen: 1,
+    more: true,
   })
-  assert.equal(parseTransactions({ items: [], next_page_params: null }), null)
+  assert.deepEqual(next, {
+    index: '181',
+    value: '0',
+    sort: 'block_number',
+    order: 'asc',
+    block_number: '4963010',
+    items_count: '50',
+  })
+  assert.deepEqual(parseTransactions({ items: [], next_page_params: null }), {
+    page: { first: null, seen: 0, more: false },
+    next: null,
+  })
   assert.throws(() => parseTransactions({ items: [{ hash: CREATION, timestamp: 'yesterday' }] }), /does not read/)
-  assert.throws(() => parseTransactions({ message: 'Not found' }), /no list of transactions/)
 })
 
-test('the transactions: one request, even when the page has a next page', async () => {
+const fullPage = (count: number, last: boolean) => ({
+  items: Array.from({ length: count }, () => firstTransactions.items[0]),
+  next_page_params: last ? null : firstTransactions.next_page_params,
+})
+
+test('the transactions: a second page only when the first is full and under the limit', async () => {
   const calls: string[] = []
-  const fetch: Fetch = async (url) => {
+  const twoPages: Fetch = async (url) => {
     calls.push(url)
-    return answer(200, firstTransactions)
+    return answer(200, url.includes('block_number=4963010') ? fullPage(30, true) : fullPage(50, false))
   }
-  const first = await blockscoutTransactions(API, USDT, fetch)
-  assert.deepEqual(first.ok && first.value?.block, 4634748)
+  const page = await blockscoutTransactions(API, USDT, twoPages)
+  assert.deepEqual(page.ok && [page.value.seen, page.value.more, page.value.first?.block], [80, false, 4634748])
+  assert.equal(calls.length, 2)
+  assert.match(calls[1], /order=asc&index=181&value=0&block_number=4963010&items_count=50$/)
+  // Two full pages: at least the limit, and more.
+  const busy: Fetch = async () => answer(200, fullPage(50, false))
+  const floor = await blockscoutTransactions(API, USDT, busy)
+  assert.deepEqual(floor.ok && [floor.value.seen, floor.value.more], [FEW_TRANSACTIONS, true])
+  // A short first page: no second request.
+  const few: Fetch = async (url) => {
+    calls.push(url)
+    return answer(200, fullPage(3, true))
+  }
+  calls.length = 0
+  const exact = await blockscoutTransactions(API, USDT, few)
+  assert.deepEqual(exact.ok && [exact.value.seen, exact.value.more], [3, false])
   assert.equal(calls.length, 1)
 })
 
-test('the URLs: the API of the instance, tokens of ERC-20 only, transactions in both directions, oldest first', () => {
+test('the URLs: the API of the instance, tokens of ERC-20 only, oldest first', () => {
   assert.equal(tokensUrl(`${API}/`, USDT), `${API}/api/v2/addresses/${USDT}/tokens?type=ERC-20`)
   assert.equal(transactionsUrl(API, USDT), `${API}/api/v2/addresses/${USDT}/transactions?sort=block_number&order=asc`)
+  assert.equal(
+    transactionsUrl(API, USDT, { block_number: '4963010', index: '181' }),
+    `${API}/api/v2/addresses/${USDT}/transactions?sort=block_number&order=asc&block_number=4963010&index=181`,
+  )
 })
 
 const answer = (status: number, body: unknown) => new Response(JSON.stringify(body), { status })
@@ -197,7 +233,7 @@ test('each lookup: 404 of Blockscout is an unknown address, other errors give a 
   })
   assert.deepEqual(await blockscoutTransactions(API, USDT, notFound), {
     ok: true,
-    value: null,
+    value: { first: null, seen: 0, more: false },
     notFound: true,
   })
   const proxy404: Fetch = async () => answer(404, { error: 'no route' })
@@ -225,6 +261,7 @@ test('readBlockscoutClaims: each part fails on its own, a known part is not aske
   const fetch: Fetch = async (url) => {
     calls.push(url)
     if (url.includes('/tokens')) return answer(500, {})
+    if (url.includes('block_number=4963010')) return answer(200, fullPage(0, true))
     if (url.includes('/transactions')) return answer(200, firstTransactions)
     return answer(200, usdtAddress)
   }
@@ -240,16 +277,16 @@ test('readBlockscoutClaims: each part fails on its own, a known part is not aske
       return request()
     },
   })
-  // The tokens and the transactions.
-  assert.equal(calls.length, 2)
-  // Each part that goes out runs through `ask`.
+  // The tokens, and two pages of transactions.
+  assert.equal(calls.length, 3)
+  // Each part that goes out runs through `ask`, with its pages inside.
   assert.equal(asked, 2)
   assert.ok(calls.every((url) => !url.endsWith(USDT)))
   assert.deepEqual(claims.tokens, { ok: false, reason: 'HTTP 500' })
   assert.deepEqual(claims.transactions.ok && claims.transactions.value, {
-    hash: CREATION,
-    block: 4634748,
-    time: Date.parse('2017-11-28T00:41:21Z'),
+    first: { hash: CREATION, block: 4634748, time: Date.parse('2017-11-28T00:41:21Z') },
+    seen: 1,
+    more: false,
   })
   assert.deepEqual(reported.sort(), ['address', 'tokens', 'transactions'])
   assert.ok(lines.every((line) => line.source === 'explorer' && line.proof === false))
@@ -260,5 +297,7 @@ test('readBlockscoutClaims: each part fails on its own, a known part is not aske
       'Blockscout · eth.blockscout.com · address · name TetherToken · creator 0x3692…7d57 · creation transaction 0x2f1c…9190 · from this session',
     ),
   )
-  assert.ok(texts.includes('Blockscout · eth.blockscout.com · first transaction · 2017-11-28 · 0x2f1c…9190'))
+  assert.ok(texts.includes('Blockscout · eth.blockscout.com · transactions · 1 · first 2017-11-28 · 0x2f1c…9190'))
+  assert.equal(pageText({ first: null, seen: 100, more: true }), '100+')
+  assert.equal(pageText({ first: null, seen: 42, more: false }), '42')
 })

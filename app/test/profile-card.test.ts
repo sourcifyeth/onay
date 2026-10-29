@@ -11,11 +11,13 @@ import {
   blockLines,
   claimedText,
   dateText,
+  fewText,
   goPlusFlags,
   goPlusSource,
   searchLinks,
   summaryState,
   tokenAmountText,
+  transactionsText,
   youngText,
 } from '../src/context/card.ts'
 import { linkable, LINK_PREFIXES, SEARCH_SHAPES } from '../src/context/explorers.ts'
@@ -109,6 +111,7 @@ const profile = (change: Partial<Profile> = {}): Profile =>
   ({
     ...account(),
     young: null,
+    fewTransactions: null,
     explorer: 'eth.blockscout.com',
     ...change,
   }) as Profile
@@ -144,6 +147,12 @@ test('summaryState puts a block-list hit first', () => {
 test('summaryState says young, lists, looking up, or no explorer', () => {
   assert.deepEqual(summaryState(profile({ young: 3 }), false), { text: 'deployed 3 days ago', tone: 'amber' })
   assert.deepEqual(summaryState(profile({ young: 0 }), false), { text: 'deployed today', tone: 'amber' })
+  // The age comes before the count.
+  assert.deepEqual(summaryState(profile({ young: 3, fewTransactions: 5 }), false), {
+    text: 'deployed 3 days ago',
+    tone: 'amber',
+  })
+  assert.deepEqual(summaryState(profile({ fewTransactions: 1 }), false), { text: '1 transaction', tone: 'amber' })
   const hit = { list: 'Safe deployments', kind: 'allow' as const, label: 'Safe v1.4.1', link: null }
   assert.deepEqual(summaryState(profile({ lists: known(answer({ hits: [hit, hit] })) }), false), {
     text: 'on 2 lists',
@@ -182,6 +191,15 @@ test('summaryState and goPlusFlags show the flags of GoPlus after a block-list h
   assert.equal(goPlusFlags(account()), null)
   assert.equal(goPlusSource(flagged.value), 'GoPlus, according to SlowMist')
   assert.equal(goPlusSource({ flags: [], sources: ['GoPlus'] }), 'GoPlus')
+})
+
+test('transactionsText and fewText: a floor ends in +, the warning says the count', () => {
+  assert.equal(transactionsText({ count: 42, atLeast: false }), '42')
+  assert.equal(transactionsText({ count: 100, atLeast: true }), '100+')
+  assert.equal(
+    fewText(1),
+    'This contract has only 1 transaction. A contract with under 100 transactions has seen little use and deserves more care. This is a hint, not a verdict.',
+  )
 })
 
 test('youngText says the age and the limit', () => {

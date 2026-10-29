@@ -500,7 +500,13 @@ test('the profile: only the named contract, each row from its source, each read 
     proof: false,
     source: 'Blockscout',
   })
-  assert.deepEqual(profile.nonce, { state: 'contract' })
+  assert.deepEqual(profile.transactions, {
+    state: 'known',
+    value: { count: 1, atLeast: false },
+    proof: false,
+    source: 'Blockscout',
+  })
+  assert.equal(profile.fewTransactions, 1)
   assert.deepEqual(profile.deployer.nonce, { state: 'known', value: 5n, proof: true, source: 'Helios' })
   assert.deepEqual(profile.eth, { state: 'known', value: 10n ** 18n, proof: true, source: 'Helios' })
   const tokens = profile.tokens.state === 'known' ? profile.tokens.value : null
