@@ -91,7 +91,7 @@ What is verified and what is a claim: each value of the profile is a `Claimed` v
 
 Session cache: an explorer answer that says verified or not verified is kept for the session. Each part of the Blockscout claims that answered is kept for 10 minutes; an answer that says Blockscout does not know the address is not kept, because a new contract can be missing from the index. So a second request for the same contract asks the explorer nothing again.
 
-Settings: the Explorers section holds the Etherscan key, saved in the local storage of the webview. The Address profile section has a switch, the kind, the license, the fetch time or the last error, and a refresh action for each list, and the switch of GoPlus.
+Settings: the Address profile group holds two cards. The Explorers card holds the Etherscan key, saved in the local storage of the webview. The Lists and GoPlus card has a switch, the kind, the license, the fetch time or the last error, and a refresh action for each list, and the switch of GoPlus.
 
 Links: the card links to the explorers, the list repositories on GitHub, and web searches for the address on Google, DuckDuckGo, GitHub and X. The `open_url` command opens only the sites in `ALLOWED` in `src-tauri/src/browser.rs`, and `linkable` in `src/context/explorers.ts` holds the same list, which a test compares. A search link opens only in the one shape that `searchLinks` makes: the quoted address and nothing else, because a free query can redirect to any site (DuckDuckGo `!ducky`, Google `btnI`). `SEARCHES` in Rust and `SEARCH_SHAPES` in TypeScript hold these shapes, and the same test compares them. A link to any other site, such as a custom explorer host or a token list, shows as text.
 

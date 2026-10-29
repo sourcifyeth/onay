@@ -216,14 +216,21 @@ function AddChain({ chains, onAdd }: { chains: ChainConfig[]; onAdd: (chain: Cha
 }
 
 // The parts of the link to the browser extension, for diagnosis.
+// The heading of a group of settings that is not a chain mode.
+function GroupHeading({ children }: { children: string }) {
+  return (
+    <h3 className="flex items-center gap-1.5 pt-4 font-mono text-xs tracking-widest text-gray-500 uppercase">
+      <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
+      {children}
+    </h3>
+  )
+}
+
 function BrowserLink({ snapshot }: { snapshot: Snapshot }) {
   const paired = snapshot.connections.filter((c) => c.pairingCode === null).length
   return (
     <>
-      <h3 className="flex items-center gap-1.5 pt-4 font-mono text-xs tracking-widest text-gray-500 uppercase">
-        <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
-        Browser link
-      </h3>
+      <GroupHeading>Browser link</GroupHeading>
       <CollapsibleCard
         summary={
           <div className="flex items-baseline justify-between gap-4">
@@ -288,23 +295,12 @@ function ExplorerSettings() {
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <p className="pb-1 font-medium text-gray-800">Explorers</p>
-      <p className="pb-2 text-xs leading-relaxed text-gray-500">
-        The review shows what Etherscan and Blockscout claim about the source code of each contract, next to the
-        Sourcify result. Onay does not check these claims, so they show with the yellow third-party mark, and they do
-        not change the result of the checks. Each chain card above holds the explorer URLs of its chain.
-      </p>
-      <p className="pb-2 text-xs leading-relaxed text-gray-500">
-        Optional. Etherscan needs a key for every request; get a free one at{' '}
+      <p className="pb-3 text-xs leading-relaxed text-gray-500">
+        Their claims show next to the checks, with the yellow mark. Etherscan needs a free key from{' '}
         <ExternalLink href="https://etherscan.io/apis" className="text-cerulean-blue-600 hover:underline">
           etherscan.io/apis ↗
         </ExternalLink>
-        . Without a key, Onay does not ask Etherscan and the row in the review says so. The key is saved in the app's
-        local storage, a plain file that other programs of your user can read; a free key is fine there. The lookups
-        tell Etherscan which contract you check and who deployed it. Powered by Etherscan.io APIs.
-      </p>
-      <p className="pb-3 text-xs leading-relaxed text-gray-500">
-        Blockscout needs no key. Set the URL of your own instance in the chain card to use it. The lookups tell the
-        instance which contract you check and who deployed it.
+        ; Blockscout needs none.
       </p>
       <div className="flex items-end gap-3">
         <label className="block min-w-0 flex-1">
@@ -337,6 +333,17 @@ function ExplorerSettings() {
         )}
       </div>
       {!valid && <p className="pt-2 text-xs text-light-coral-700">An Etherscan key has only letters and digits.</p>}
+      <details className="pt-3 text-xs leading-relaxed text-gray-500">
+        <summary className="cursor-pointer font-mono text-gray-400 hover:text-gray-600">
+          what the explorers learn
+        </summary>
+        <p className="pt-1">
+          Each lookup tells the explorer which contract you check and who deployed it. The key is saved in the app's
+          local storage, a plain file that other programs of your user can read; a free key is fine there. The explorer
+          URLs of each chain are in its chain card above; set your own Blockscout instance there.
+        </p>
+      </details>
+      <p className="pt-2 text-xs text-gray-400">Powered by Etherscan.io APIs.</p>
     </section>
   )
 }
@@ -377,7 +384,7 @@ export function SettingsPage({
         Helios is a light client: it never trusts these endpoints, it checks them. Each piece of chain state is checked
         against a cryptographic proof, so a lying RPC (Remote Procedure Call) endpoint gets caught instead of believed.
         The consensus RPC serves the beacon chain light client updates, and Helios follows the sync committee signatures
-        from there. The contract profile also asks the execution endpoint about the deployer's account, and the decimals
+        from there. The address profile also asks the execution endpoint about the deployer's account, and the decimals
         and the balance of up to 10 tokens of the contract and of its deployer.
       </p>
       {chains
@@ -406,8 +413,11 @@ export function SettingsPage({
         ))}
       <AddChain chains={chains} onAdd={(chain) => saveChains([...chains, chain])} />
 
+      <GroupHeading>Address profile</GroupHeading>
       <ExplorerSettings />
       <ProfileSettings />
+
+      <GroupHeading>Clear Signing</GroupHeading>
       <AttesterSettings />
       <TokenListSettings />
       {snapshot && <BrowserLink snapshot={snapshot} />}
