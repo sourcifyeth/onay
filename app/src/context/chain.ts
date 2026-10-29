@@ -35,10 +35,21 @@ function asBigint(value: unknown, what: string): bigint {
   return BigInt(value)
 }
 
-// The balance in wei, from the account proof. No storage slot is asked.
-export async function balance(chain: ChainAccess, address: Hex, block: number): Promise<ChainValue<bigint>> {
-  const proof = (await chain.read('eth_getProof', [address, [], tag(block)])) as { balance?: unknown } | null
-  return { value: asBigint(proof?.balance, 'the balance'), proof: chain.proof }
+// The balance in wei and the nonce: the number of transactions that an
+// account sent. The nonce of a contract counts the contracts that it
+// created.
+export type AccountState = { balance: bigint; nonce: bigint }
+
+// The state from the account proof. No storage slot is asked.
+export async function accountState(chain: ChainAccess, address: Hex, block: number): Promise<ChainValue<AccountState>> {
+  const proof = (await chain.read('eth_getProof', [address, [], tag(block)])) as {
+    balance?: unknown
+    nonce?: unknown
+  } | null
+  return {
+    value: { balance: asBigint(proof?.balance, 'the balance'), nonce: asBigint(proof?.nonce, 'the nonce') },
+    proof: chain.proof,
+  }
 }
 
 export async function codeKind(chain: ChainAccess, address: Hex, block: number): Promise<ChainValue<CodeKind>> {

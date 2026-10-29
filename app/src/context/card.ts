@@ -4,7 +4,7 @@
 
 import type { Hex } from '../messages.ts'
 import type { GoPlusResult } from './goplus.ts'
-import type { AccountProfile, GoPlusFact, Profile, TransactionBound, Young } from './profile.ts'
+import { YOUNG_DAYS, type AccountProfile, type GoPlusFact, type Profile } from './profile.ts'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -47,18 +47,13 @@ const plural = (count: number, word: string) => `${count.toLocaleString('en-US')
 
 const deployedText = (days: number) => `deployed ${days === 0 ? 'today' : `${plural(days, 'day')} ago`}`
 
-// The sentence of the young notice.
-export function youngText({ days, transactions }: Young): string {
-  if (days !== null && transactions !== null) {
-    return `This contract was ${deployedText(days)} and has ${plural(transactions, 'transaction')}.`
-  }
-  if (days !== null) return `This contract was ${deployedText(days)}.`
-  return `This contract has only ${plural(transactions ?? 0, 'transaction')}.`
-}
+// The tooltip of the warning on a young contract.
+export const youngText = (days: number) =>
+  `This contract was ${deployedText(days)}. A contract under ${YOUNG_DAYS} days old deserves more care. This is a hint, not a verdict.`
 
-// The count of transactions in words: exact under the limit, else a floor.
-export const transactionsText = ({ count, atLeast }: TransactionBound) =>
-  `${count.toLocaleString('en-US')}${atLeast ? ' or more' : ''}`
+// The tooltip of the nonce of a contract.
+export const CONTRACT_NONCE =
+  'A contract sends no transactions. Its nonce counts the contracts that it created, so the profile does not show it.'
 
 const goPlusOf = (profile: Profile | AccountProfile): GoPlusFact =>
   'security' in profile ? profile.security.goPlus : profile.goPlus
@@ -80,11 +75,7 @@ export function goPlusSource(result: GoPlusResult): string {
 export function summaryState(profile: Profile | AccountProfile, running: boolean): { text: string; tone: Tone } {
   if (profile.blocked.length > 0) return { text: 'on a block list', tone: 'coral' }
   if (goPlusFlags(profile)) return { text: 'flagged by GoPlus', tone: 'coral' }
-  if ('young' in profile && profile.young) {
-    const { days, transactions } = profile.young
-    const text = days !== null ? deployedText(days) : plural(transactions ?? 0, 'transaction')
-    return { text, tone: 'amber' }
-  }
+  if ('young' in profile && profile.young !== null) return { text: deployedText(profile.young), tone: 'amber' }
   const lists = profile.lists.state === 'known' ? profile.lists.value.hits.length : 0
   if (lists > 0) return { text: `on ${lists} ${lists === 1 ? 'list' : 'lists'}`, tone: 'green' }
   if (running) return { text: 'looking up', tone: 'gray' }

@@ -9,17 +9,16 @@ import { listedOn } from '../clear-signing/tokenLists.ts'
 import type { Creation, CreationRead } from '../gates/creation.ts'
 import type { Deployment as SourcifyDeployment } from '../gates/sourcify.ts'
 import type { Hex } from '../messages.ts'
-import { FEW_TRANSACTIONS, type BlockscoutClaims, type FirstTransaction, type TransactionPage } from './blockscout.ts'
-import type { ChainValue, CodeKind } from './chain.ts'
+import type { BlockscoutClaims, FirstTransaction } from './blockscout.ts'
+import type { AccountState, ChainValue, CodeKind } from './chain.ts'
 import type { EtherscanCreation } from './etherscan.ts'
 import type { Lookup } from './explorers.ts'
 import type { GoPlusResult } from './goplus.ts'
 import type { ListAnswer } from './lists.ts'
 
-// A deployment under this age, or a contract with fewer transactions,
-// gets a hint in the review. It is not a verdict.
+// A deployment under this age gets a warning in the review. It is not a
+// verdict.
 export const YOUNG_DAYS = 30
-export { FEW_TRANSACTIONS }
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -55,13 +54,13 @@ export type Holdings = {
   checked: boolean
 }
 
-// How many transactions went to the address: an exact count under
-// FEW_TRANSACTIONS, or a floor when the pages stopped.
-export type TransactionBound = { count: number; atLeast: boolean }
+// The nonce of an account: the number of transactions that it sent. A
+// contract sends no transactions, so its nonce does not show.
+export type NonceFact = Fact<bigint> | { state: 'contract' }
 
 export type Activity = {
-  transactions: Fact<TransactionBound>
-  // Null value: no transaction went to the address.
+  nonce: NonceFact
+  // Null value: the address has no transaction.
   firstTransaction: Fact<FirstTransaction | null>
   // In wei.
   eth: Fact<bigint>
@@ -76,13 +75,6 @@ export type DeployerProfile = Activity & {
   // A label from an allow list, or the name that Blockscout gives.
   name: Fact<string | null>
   lists: Fact<ListAnswer>
-}
-
-export type Young = {
-  // Set when the deployment is under YOUNG_DAYS old.
-  days: number | null
-  // Set when the count is under FEW_TRANSACTIONS.
-  transactions: number | null
 }
 
 export type GoPlusFact = Fact<GoPlusResult> | { state: 'off' }
@@ -121,8 +113,9 @@ export type Profile = Activity & {
   // of the request does not change.
   blocked: Blocked[]
   security: { blockscout: Fact<'ok' | 'scam'>; goPlus: GoPlusFact }
-  // Null when the contract is not young, or when nothing says so.
-  young: Young | null
+  // The age of the deployment in days, when it is under YOUNG_DAYS. Null
+  // when the contract is older, or when its age is not known.
+  young: number | null
   // The names of the sources that gave a value, for the provenance line.
   sources: string[]
   // The host of the Blockscout API. Null when no instance covers the
@@ -137,8 +130,8 @@ export type Profile = Activity & {
 export type HolderReads = {
   blockscout: Partial<BlockscoutClaims>
   // Set only when Etherscan was asked.
-  etherscanTransactions?: Lookup<TransactionPage>
-  balance?: Lookup<ChainValue<bigint>>
+  etherscanTransactions?: Lookup<FirstTransaction | null>
+  account?: Lookup<ChainValue<AccountState>>
   tokenAmounts: Partial<Record<Hex, Lookup<ChainValue<bigint>>>>
 }
 
@@ -325,11 +318,11 @@ function deployedAtFact(reads: ProfileReads, claim: CreationClaim, deployment: F
   if (etherscan?.ok && etherscan.value?.time != null && etherscan.value.transactionHash === claim.transactionHash) {
     return known(etherscan.value.time, false, 'Etherscan')
   }
-  // The first transaction to a contract that a transaction deployed is
+  // The first transaction of a contract that a transaction deployed is
   // its creation.
   const first = reads.contract.blockscout.transactions
-  if (first?.ok && first.value.first && first.value.first.hash === claim.transactionHash) {
-    return known(first.value.first.time, false, 'Blockscout')
+  if (first?.ok && first.value && first.value.hash === claim.transactionHash) {
+    return known(first.value.time, false, 'Blockscout')
   }
   if (deployment.state === 'pending') return pending(deployment.source)
   if (block && time === undefined && !reads.done) return pending(CHAIN)
@@ -378,8 +371,8 @@ function holdingsOf(holder: HolderReads, reads: ProfileReads): Fact<Holdings> {
   })
 }
 
-// The pages of transactions: Blockscout, else Etherscan.
-function transactionsFact(holder: HolderReads, done: boolean): Fact<TransactionPage> {
+// The first transaction: Blockscout, else Etherscan.
+function firstFact(holder: HolderReads, done: boolean): Fact<FirstTransaction | null> {
   const blockscout = holder.blockscout.transactions
   if (blockscout?.ok) return known(blockscout.value, false, 'Blockscout')
   const etherscan = holder.etherscanTransactions
@@ -389,29 +382,30 @@ function transactionsFact(holder: HolderReads, done: boolean): Fact<TransactionP
   return unknown(etherscan ? `${blockscout.reason} · Etherscan: ${etherscan.reason}` : blockscout.reason)
 }
 
-const mapFact = <T, U>(fact: Fact<T>, map: (value: T) => U): Fact<U> =>
-  fact.state === 'known' ? { ...fact, value: map(fact.value) } : fact
+// The nonce of an address whose code the chain gave. A contract has no
+// nonce row.
+function nonceOf(holder: HolderReads, reads: ProfileReads, kind: Fact<CodeKind>): NonceFact {
+  if (kind.state === 'pending') return pending(kind.source)
+  if (kind.state === 'unknown') return unknown('the code of the address is not known')
+  if (kind.value === 'contract') return { state: 'contract' }
+  return fromLookup(holder.account, reads.done, CHAIN, (state) =>
+    known(state.value.nonce, state.proof, chainSource(state.proof, reads.rpc)),
+  )
+}
 
-// Pages that ended under the limit give an exact count.
-export const boundOf = (page: TransactionPage): TransactionBound => ({
-  count: page.seen,
-  atLeast: page.more || page.seen >= FEW_TRANSACTIONS,
-})
-
-function activityOf(holder: HolderReads, reads: ProfileReads): Activity {
-  const pages = transactionsFact(holder, reads.done)
+function activityOf(holder: HolderReads, reads: ProfileReads, nonce: NonceFact): Activity {
   return {
-    transactions: mapFact(pages, boundOf),
-    firstTransaction: mapFact(pages, (page) => page.first),
-    eth: fromLookup(holder.balance, reads.done, CHAIN, (wei) =>
-      known(wei.value, wei.proof, chainSource(wei.proof, reads.rpc)),
+    nonce,
+    firstTransaction: firstFact(holder, reads.done),
+    eth: fromLookup(holder.account, reads.done, CHAIN, (state) =>
+      known(state.value.balance, state.proof, chainSource(state.proof, reads.rpc)),
     ),
     tokens: holdingsOf(holder, reads),
   }
 }
 
 const unknownActivity = (fact: Fact<never>): Activity => ({
-  transactions: fact,
+  nonce: fact,
   firstTransaction: fact,
   eth: fact,
   tokens: fact,
@@ -430,14 +424,15 @@ function deployerOf(reads: ProfileReads, address: Fact<Hex>): DeployerProfile {
     name = fromLookup(deployer.blockscout.address, reads.done, 'Blockscout', (claim) =>
       known(claim.name, false, 'Blockscout'),
     )
+  const kind: Fact<CodeKind> = fromLookup(deployer.kind, reads.done, CHAIN, (kind) =>
+    known(kind.value, kind.proof, chainSource(kind.proof, reads.rpc)),
+  )
   return {
     address,
-    kind: fromLookup(deployer.kind, reads.done, CHAIN, (kind) =>
-      known(kind.value, kind.proof, chainSource(kind.proof, reads.rpc)),
-    ),
+    kind,
     name,
     lists: listsFact(deployer.hits, reads.done),
-    ...activityOf(deployer, reads),
+    ...activityOf(deployer, reads, nonceOf(deployer, reads, kind)),
   }
 }
 
@@ -457,14 +452,9 @@ function goPlusOf(reads: AccountReads): GoPlusFact {
     : fromLookup(reads.goPlus, reads.done, 'GoPlus', (result) => known(result, false, 'GoPlus'))
 }
 
-export function young(profile: Pick<Profile, 'deployedAt' | 'transactions'>, now: number): Young | null {
-  const { deployedAt, transactions } = profile
-  const days =
-    deployedAt.state === 'known' && now - deployedAt.value < YOUNG_DAYS * DAY
-      ? Math.max(0, Math.floor((now - deployedAt.value) / DAY))
-      : null
-  const count = transactions.state === 'known' && !transactions.value.atLeast ? transactions.value.count : null
-  return days === null && count === null ? null : { days, transactions: count }
+export function young(deployedAt: Fact<number>, now: number): number | null {
+  if (deployedAt.state !== 'known' || now - deployedAt.value >= YOUNG_DAYS * DAY) return null
+  return Math.max(0, Math.floor((now - deployedAt.value) / DAY))
 }
 
 // The sources of the known values, in the order they first appear.
@@ -486,7 +476,7 @@ function sourcesOf(profile: object, lists: Fact<ListAnswer>[]): string[] {
 
 export function buildProfile(reads: ProfileReads): Profile {
   const { deployment, deployer, deployedAt } = deploymentFacts(reads)
-  const activity = activityOf(reads.contract, reads)
+  const activity = activityOf(reads.contract, reads, { state: 'contract' })
   const blockscoutAddress = reads.contract.blockscout.address
   const lists = listsFact(reads.hits, reads.done)
   const deployerProfile = deployerOf(reads, deployer)
@@ -515,7 +505,7 @@ export function buildProfile(reads: ProfileReads): Profile {
       ),
       goPlus: goPlusOf(reads),
     },
-    young: young({ deployedAt, transactions: activity.transactions }, reads.now),
+    young: young(deployedAt, reads.now),
     explorer: reads.explorer,
     rpc: reads.rpc,
   }

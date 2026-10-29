@@ -3,7 +3,14 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { balance, balanceOfData, blockTime, codeKind, tokenBalance, type ChainAccess } from '../src/context/chain.ts'
+import {
+  accountState,
+  balanceOfData,
+  blockTime,
+  codeKind,
+  tokenBalance,
+  type ChainAccess,
+} from '../src/context/chain.ts'
 import type { ChainRead } from '../src/gates/helios.ts'
 import type { Hex } from '../src/messages.ts'
 
@@ -29,13 +36,21 @@ const fail: ChainRead = async () => {
 
 const access = (read: ChainRead, proof = true, fallback = fail): ChainAccess => ({ read, fallback, proof })
 
-test('balance: eth_getProof with no storage slot, at the block', async () => {
-  const { read, calls } = reader(() => ({ balance: '0x9ae5c3c8b3c4b000', storageProof: [] }))
-  assert.deepEqual(await balance(access(read), HOLDER, 100), { value: 0x9ae5c3c8b3c4b000n, proof: true })
+test('accountState: the balance and the nonce from eth_getProof with no storage slot, at the block', async () => {
+  const { read, calls } = reader(() => ({ balance: '0x9ae5c3c8b3c4b000', nonce: '0x1f', storageProof: [] }))
+  assert.deepEqual(await accountState(access(read), HOLDER, 100), {
+    value: { balance: 0x9ae5c3c8b3c4b000n, nonce: 31n },
+    proof: true,
+  })
   assert.deepEqual(calls, [{ method: 'eth_getProof', params: [HOLDER, [], '0x64'] }])
-  const rpc = reader(() => ({ balance: '0x0' }))
-  assert.deepEqual(await balance(access(rpc.read, false), HOLDER, 100), { value: 0n, proof: false })
-  await assert.rejects(balance(access(reader(() => ({ balance: 7 })).read), HOLDER, 100), /balance did not read/)
+  const rpc = reader(() => ({ balance: '0x0', nonce: '0x0' }))
+  assert.deepEqual(await accountState(access(rpc.read, false), HOLDER, 100), {
+    value: { balance: 0n, nonce: 0n },
+    proof: false,
+  })
+  const state = (answer: unknown) => accountState(access(reader(() => answer).read), HOLDER, 100)
+  await assert.rejects(state({ balance: 7, nonce: '0x0' }), /balance did not read/)
+  await assert.rejects(state({ balance: '0x0' }), /nonce did not read/)
 })
 
 test('codeKind: account, contract, or account with a delegate', async () => {

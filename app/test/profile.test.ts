@@ -9,8 +9,6 @@ import {
   buildProfile,
   CHAIN,
   emptyHolder,
-  boundOf,
-  FEW_TRANSACTIONS,
   LISTS,
   type Fact,
   type ProfileReads,
@@ -89,8 +87,12 @@ test('Helios, in the window: the gate read of Sourcify, with proof on each row',
     reads({
       sourcify: { deployment, creation: creation(true), read: true },
       blockTime: blockTime(true),
-      deployer: { ...emptyHolder(), kind: { ok: true, value: { value: 'account', proof: true } } },
-      contract: { ...emptyHolder(), balance: { ok: true, value: { value: 42n, proof: true } } },
+      deployer: {
+        ...emptyHolder(),
+        kind: { ok: true, value: { value: 'account', proof: true } },
+        account: { ok: true, value: { value: { balance: 1n, nonce: 7n }, proof: true } },
+      },
+      contract: { ...emptyHolder(), account: { ok: true, value: { value: { balance: 42n, nonce: 1n }, proof: true } } },
     }),
   )
   assert.deepEqual(mark(profile.deployment), [true, 'Helios'])
@@ -100,6 +102,35 @@ test('Helios, in the window: the gate read of Sourcify, with proof on each row',
   assert.deepEqual(mark(profile.deployedAt), [true, 'Helios'])
   assert.deepEqual(mark(profile.deployer.kind), [true, 'Helios'])
   assert.deepEqual(mark(profile.eth), [true, 'Helios'])
+  assert.equal(known(profile.eth).value, 42n)
+  // The nonce of an account, with its proof. A contract has none.
+  assert.deepEqual(mark(profile.deployer.nonce as Fact<bigint>), [true, 'Helios'])
+  assert.equal(known(profile.deployer.nonce as Fact<bigint>).value, 7n)
+  assert.deepEqual(profile.nonce, { state: 'contract' })
+})
+
+test('the nonce of the deployer: none for a contract, and only once its code is known', () => {
+  const account = { ok: true as const, value: { value: { balance: 0n, nonce: 3n }, proof: false } }
+  const deployerWith = (kind: ProfileReads['deployer']['kind'], done = true) =>
+    buildProfile(
+      reads({
+        done,
+        sourcify: { deployment, creation: creation(true), read: true },
+        deployer: { ...emptyHolder(), account, ...(kind ? { kind } : {}) },
+      }),
+    ).deployer.nonce
+  assert.deepEqual(deployerWith({ ok: true, value: { value: 'contract', proof: true } }), { state: 'contract' })
+  assert.deepEqual(deployerWith({ ok: true, value: { value: 'delegated', proof: false } }), {
+    state: 'known',
+    value: 3n,
+    proof: false,
+    source: `${RPC} without proof`,
+  })
+  assert.deepEqual(deployerWith({ ok: false, reason: 'timeout' }), {
+    state: 'unknown',
+    reason: 'the code of the address is not known',
+  })
+  assert.deepEqual(deployerWith(undefined, false), { state: 'pending', source: CHAIN })
 })
 
 test('Helios, out of the window: the block and its time come without proof', () => {
@@ -123,7 +154,7 @@ test('RPC mode: every chain read is a claim of the endpoint', () => {
       deployer: {
         ...emptyHolder(),
         kind: { ok: true, value: { value: 'contract', proof: false } },
-        balance: { ok: true, value: { value: 10n ** 18n, proof: false } },
+        account: { ok: true, value: { value: { balance: 10n ** 18n, nonce: 1n }, proof: false } },
       },
     }),
   )
@@ -154,10 +185,7 @@ test('Blockscout claim only: the deployer as Blockscout says, the time of its fi
         ...emptyHolder(),
         blockscout: {
           address: blockscoutAddress(),
-          transactions: {
-            ok: true,
-            value: { first: { hash: HASH, block: 4634748, time: 1511829681000 }, seen: 1, more: false },
-          },
+          transactions: { ok: true, value: { hash: HASH, block: 4634748, time: 1511829681000 } },
         },
       },
       creationRead: { creation: null, reason: 'created by another contract', retry: false },
@@ -197,7 +225,7 @@ test('nothing: each row is unknown with a reason', () => {
     profile.deployment,
     profile.deployedAt,
     profile.deployer.address,
-    profile.transactions,
+    profile.firstTransaction,
     profile.eth,
   ]) {
     assert.equal(fact.state, 'unknown')
@@ -213,7 +241,7 @@ test('while the run runs, a row that waits is pending, not unknown', () => {
   const profile = buildProfile(reads({ done: false }))
   // Each row names the source it waits for.
   assert.deepEqual(profile.deployment, { state: 'pending', source: 'Blockscout' })
-  assert.deepEqual(profile.transactions, { state: 'pending', source: 'Blockscout' })
+  assert.deepEqual(profile.firstTransaction, { state: 'pending', source: 'Blockscout' })
   assert.deepEqual(profile.deployer.address, { state: 'pending', source: 'Blockscout' })
   assert.deepEqual(profile.deployer.kind, { state: 'pending', source: 'Blockscout' })
   assert.deepEqual(profile.eth, { state: 'pending', source: CHAIN })
@@ -239,26 +267,24 @@ test('a failed page of transactions leaves its rows unknown, the rest stays', ()
       },
     }),
   )
-  assert.deepEqual(profile.transactions, { state: 'unknown', reason: 'HTTP 500' })
   assert.deepEqual(profile.firstTransaction, { state: 'unknown', reason: 'HTTP 500' })
   assert.deepEqual(known(profile.tokens).value, { tokens: [], more: false, checked: true })
   assert.equal(known(profile.name).value, 'TetherToken')
 })
 
-test('the transactions: Etherscan when Blockscout failed', () => {
+test('the first transaction: Etherscan when Blockscout failed', () => {
   const first = { hash: HASH, block: 1, time: 5 }
   const profile = buildProfile(
     reads({
       contract: {
         ...emptyHolder(),
         blockscout: { transactions: { ok: false, reason: 'HTTP 500' } },
-        etherscanTransactions: { ok: true, value: { first, seen: FEW_TRANSACTIONS, more: true } },
+        etherscanTransactions: { ok: true, value: first },
       },
     }),
   )
   assert.deepEqual(mark(profile.firstTransaction), [false, 'Etherscan'])
   assert.deepEqual(known(profile.firstTransaction).value, first)
-  assert.deepEqual(known(profile.transactions).value, { count: FEW_TRANSACTIONS, atLeast: true })
   const neither = buildProfile(
     reads({
       contract: {
@@ -269,13 +295,6 @@ test('the transactions: Etherscan when Blockscout failed', () => {
     }),
   )
   assert.deepEqual(neither.firstTransaction, { state: 'unknown', reason: 'HTTP 500 · Etherscan: rate limited' })
-})
-
-test('boundOf: an exact count when the pages ended, else a floor', () => {
-  assert.deepEqual(boundOf({ first: null, seen: 0, more: false }), { count: 0, atLeast: false })
-  assert.deepEqual(boundOf({ first: null, seen: 99, more: false }), { count: 99, atLeast: false })
-  assert.deepEqual(boundOf({ first: null, seen: 50, more: true }), { count: 50, atLeast: true })
-  assert.deepEqual(boundOf({ first: null, seen: 100, more: false }), { count: 100, atLeast: true })
 })
 
 const page: TokenPage = {
@@ -473,32 +492,18 @@ test('an account: the lists and GoPlus only', () => {
   )
 })
 
-test('young: under 30 days, or under 100 transactions', () => {
+test('young: the age in days under 30 days, else null', () => {
   const at = (days: number) => ({ state: 'known' as const, value: NOW - days * DAY, proof: true, source: 'Helios' })
-  const count = (count: number, atLeast = false) => ({
-    state: 'known' as const,
-    value: { count, atLeast },
-    proof: false,
-    source: 'Blockscout',
-  })
-  assert.deepEqual(young({ deployedAt: at(3), transactions: count(FEW_TRANSACTIONS, true) }, NOW), {
-    days: 3,
-    transactions: null,
-  })
-  assert.deepEqual(young({ deployedAt: at(400), transactions: count(FEW_TRANSACTIONS - 1) }, NOW), {
-    days: null,
-    transactions: 99,
-  })
-  assert.equal(young({ deployedAt: at(YOUNG_DAYS), transactions: count(FEW_TRANSACTIONS, true) }, NOW), null)
-  assert.equal(
-    young({ deployedAt: { state: 'pending', source: CHAIN }, transactions: { state: 'unknown', reason: 'x' } }, NOW),
-    null,
-  )
+  assert.equal(young(at(3), NOW), 3)
+  assert.equal(young(at(0), NOW), 0)
+  assert.equal(young(at(YOUNG_DAYS), NOW), null)
+  assert.equal(young(at(400), NOW), null)
+  assert.equal(young({ state: 'pending', source: CHAIN }, NOW), null)
   const profile = buildProfile(
     reads({
       sourcify: { deployment, creation: creation(true), read: true },
       blockTime: { ok: true, value: { value: NOW - 2 * DAY, proof: true } },
     }),
   )
-  assert.deepEqual(profile.young, { days: 2, transactions: null })
+  assert.equal(profile.young, 2)
 })

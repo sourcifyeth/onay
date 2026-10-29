@@ -424,7 +424,7 @@ function chainReads() {
     calls.push(method)
     switch (method) {
       case 'eth_getProof':
-        return { balance: '0xde0b6b3a7640000' }
+        return { balance: '0xde0b6b3a7640000', nonce: '0x5' }
       case 'eth_getCode':
         return params[0] === DEPLOYER ? '0x' : '0x60'
       case 'eth_getBlockByNumber':
@@ -470,19 +470,21 @@ test('the profile: only the named contract, each row from its source, each read 
   assert.equal(profile.deployedAt.state === 'known' && profile.deployedAt.proof, true)
   assert.deepEqual(profile.deployer.address, { state: 'known', value: DEPLOYER, proof: true, source: 'Helios' })
   assert.deepEqual(profile.deployer.kind, { state: 'known', value: 'account', proof: true, source: 'Helios' })
-  assert.deepEqual(profile.transactions, {
+  assert.deepEqual(profile.firstTransaction, {
     state: 'known',
-    value: { count: 1, atLeast: false },
+    value: { hash: HASH, block: 90, time: Date.parse('2026-10-20T00:00:00Z') },
     proof: false,
     source: 'Blockscout',
   })
+  assert.deepEqual(profile.nonce, { state: 'contract' })
+  assert.deepEqual(profile.deployer.nonce, { state: 'known', value: 5n, proof: true, source: 'Helios' })
   assert.deepEqual(profile.eth, { state: 'known', value: 10n ** 18n, proof: true, source: 'Helios' })
   const tokens = profile.tokens.state === 'known' ? profile.tokens.value : null
   assert.equal(tokens?.checked, true)
   assert.deepEqual(tokens?.tokens[0].amount, { value: 25_000_000n, proof: true, source: 'Helios' })
   assert.equal(profile.security.goPlus.state, 'known')
-  // The young hint: deployed a week before NOW, one transaction.
-  assert.deepEqual(profile.young, { days: 7, transactions: 1 })
+  // The young warning: deployed a week before NOW.
+  assert.equal(profile.young, 7)
   // Contract and deployer: balance, code kind, block time, two token amounts.
   assert.deepEqual(chain.calls.sort(), [
     'eth_call',
@@ -573,7 +575,7 @@ test('the session cache: a second run asks Blockscout nothing again for the prof
   const context = await ended(startContext(verification([contract(A)]), deps))
   assert.equal(net.calls.filter((url) => url.includes('/api/v2/addresses/')).length, first)
   assert.ok(context.lines.some((line) => line.text.endsWith('· from this session') && line.text.includes('address')))
-  assert.equal(context.profiles[A]?.transactions.state, 'known')
+  assert.equal(context.profiles[A]?.firstTransaction.state, 'known')
 })
 
 test('the session cache: Blockscout claims older than the TTL are asked again', async () => {
@@ -664,14 +666,14 @@ test('a profile row that waits shows pending until the run ends', async () => {
   const { deps } = profileDeps(net.fetch)
   const store = startContext(verification([contract(A)]), deps)
   await tick()
-  assert.equal(store.getSnapshot().profiles[A]?.transactions.state, 'pending')
+  assert.equal(store.getSnapshot().profiles[A]?.firstTransaction.state, 'pending')
   const stop = ended(store)
   while (store.getSnapshot().status === 'running') {
     await tick()
     net.release()
   }
   const context = await stop
-  assert.notEqual(context.profiles[A]?.transactions.state, 'pending')
+  assert.notEqual(context.profiles[A]?.firstTransaction.state, 'pending')
 })
 
 test('a list with an error and no entries, and a registry that failed: missing, not "not on any list"', async () => {

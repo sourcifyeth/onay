@@ -107,21 +107,15 @@ const profile = (change: Partial<Profile> = {}): Profile =>
 test('summaryState puts a block-list hit first', () => {
   const blocked = [{ value: 'sanctioned · ETH', proof: false, source: 'OFAC sanctions', of: 'address' as const }]
   assert.deepEqual(summaryState(account({ blocked }), true), { text: 'on a block list', tone: 'coral' })
-  assert.deepEqual(summaryState(profile({ blocked, young: { days: 3, transactions: null } }), false), {
+  assert.deepEqual(summaryState(profile({ blocked, young: 3 }), false), {
     text: 'on a block list',
     tone: 'coral',
   })
 })
 
 test('summaryState says young, lists, looking up, or no explorer', () => {
-  assert.deepEqual(summaryState(profile({ young: { days: 3, transactions: 5 } }), false), {
-    text: 'deployed 3 days ago',
-    tone: 'amber',
-  })
-  assert.deepEqual(summaryState(profile({ young: { days: null, transactions: 1 } }), false), {
-    text: '1 transaction',
-    tone: 'amber',
-  })
+  assert.deepEqual(summaryState(profile({ young: 3 }), false), { text: 'deployed 3 days ago', tone: 'amber' })
+  assert.deepEqual(summaryState(profile({ young: 0 }), false), { text: 'deployed today', tone: 'amber' })
   const hit = { list: 'Safe deployments', kind: 'allow' as const, label: 'Safe v1.4.1', link: null }
   assert.deepEqual(summaryState(profile({ lists: known(answer({ hits: [hit, hit] })) }), false), {
     text: 'on 2 lists',
@@ -162,13 +156,9 @@ test('summaryState and goPlusFlags show the flags of GoPlus after a block-list h
   assert.equal(goPlusSource({ flags: [], sources: ['GoPlus'] }), 'GoPlus')
 })
 
-test('youngText builds the sentence for each case', () => {
-  assert.equal(
-    youngText({ days: 3, transactions: 12 }),
-    'This contract was deployed 3 days ago and has 12 transactions.',
-  )
-  assert.equal(youngText({ days: 0, transactions: null }), 'This contract was deployed today.')
-  assert.equal(youngText({ days: 1, transactions: null }), 'This contract was deployed 1 day ago.')
-  assert.equal(youngText({ days: null, transactions: 12 }), 'This contract has only 12 transactions.')
-  assert.equal(youngText({ days: null, transactions: 1 }), 'This contract has only 1 transaction.')
+test('youngText says the age and the limit', () => {
+  const rest = 'A contract under 30 days old deserves more care. This is a hint, not a verdict.'
+  assert.equal(youngText(3), `This contract was deployed 3 days ago. ${rest}`)
+  assert.equal(youngText(1), `This contract was deployed 1 day ago. ${rest}`)
+  assert.equal(youngText(0), `This contract was deployed today. ${rest}`)
 })

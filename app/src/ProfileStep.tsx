@@ -1,18 +1,17 @@
 // Step 4 of the review: the profile of each address that the request
 // names. Who deployed a contract and when, what it holds, and the lists
 // that know it. A tooltip on each value shows its mark and names its
-// source. Nothing here changes the
-// status of the request.
+// source. Nothing here changes the status of the request.
 
 import { useState, type ReactNode } from 'react'
 import {
   ageText,
+  CONTRACT_NONCE,
   dateText,
   goPlusFlags,
   goPlusSource,
   searchLinks,
   summaryState,
-  transactionsText,
   youngText,
   type Tone,
 } from './context/card.ts'
@@ -27,6 +26,7 @@ import type {
   Fact,
   GoPlusFact,
   Holdings,
+  NonceFact,
   Profile,
 } from './context/profile.ts'
 import { accountsToCheck, amountText, contractsToProfile, type Context } from './context/run.ts'
@@ -105,6 +105,15 @@ function FactView<T>({ fact, children }: { fact: Fact<T>; children: (value: T) =
   )
 }
 
+// A warning next to a value: amber, with the reason in a tooltip.
+function Warning({ tip, children }: { tip: string; children: ReactNode }) {
+  return (
+    <Tooltip tip={tip}>
+      <span className="text-amber-700">⚠ {children}</span>
+    </Tooltip>
+  )
+}
+
 // A value that is not here yet. The pulse says that work is in progress.
 function Loading({ children }: { children: ReactNode }) {
   return <span className="animate-pulse text-gray-400">{children}</span>
@@ -164,16 +173,6 @@ function BlockNotice({ blocked, goPlus }: { blocked: Blocked[]; goPlus: GoPlusRe
       <br />
       {blocked.length > 0 ? 'Do not interact with it.' : 'Check the address before you sign.'} Onay does not check these
       claims, so the result of the checks above stays as it is.
-    </Notice>
-  )
-}
-
-function YoungNotice({ young }: { young: Profile['young'] }) {
-  if (!young) return null
-  return (
-    <Notice tone="amber" title="⚠ A young contract" className="mb-3">
-      {youngText(young)} A new contract with little use deserves more care. It is a hint, not a verdict: the rows below
-      say where each value comes from.
     </Notice>
   )
 }
@@ -314,6 +313,17 @@ function Tokens({ fact, more }: { fact: Fact<Holdings>; more: string | null }) {
   )
 }
 
+function NonceView({ fact }: { fact: NonceFact }) {
+  if (fact.state === 'contract') {
+    return (
+      <Tooltip tip={CONTRACT_NONCE}>
+        <span className="text-gray-400">N/A</span>
+      </Tooltip>
+    )
+  }
+  return <FactView fact={fact}>{(nonce) => nonce.toLocaleString('en-US')}</FactView>
+}
+
 // The rows of activity that a contract and its deployer share.
 function ActivityRows({
   activity,
@@ -329,8 +339,8 @@ function ActivityRows({
   const more = explorers.blockscout ? `${addressLink(explorers.blockscout, address)}?tab=tokens` : null
   return (
     <>
-      <Row label="Transactions">
-        <FactView fact={activity.transactions}>{(bound) => transactionsText(bound)}</FactView>
+      <Row label="Nonce">
+        <NonceView fact={activity.nonce} />
       </Row>
       <Row label="First transaction">
         <FactView fact={activity.firstTransaction}>
@@ -403,11 +413,14 @@ function DeployerSection({
 }
 
 function DeployedRow({ profile, now }: { profile: Profile; now: number }) {
-  const { deployment, deployedAt } = profile
+  const { deployment, deployedAt, young } = profile
   return (
     <Row label="Deployed">
       <span className="inline-flex flex-col items-start">
-        <FactView fact={deployedAt}>{(at) => `${dateText(at)} · ${ageText(at, now)}`}</FactView>
+        <span className="flex flex-wrap items-baseline gap-x-2">
+          <FactView fact={deployedAt}>{(at) => `${dateText(at)} · ${ageText(at, now)}`}</FactView>
+          {young !== null && <Warning tip={youngText(young)}>new contract</Warning>}
+        </span>
         {deployment.state === 'known' && (
           <span className="text-xs text-gray-500">
             <Marked proof={deployment.proof} source={deployment.source}>
@@ -495,7 +508,6 @@ function ProfileBody({ profile, explorers }: { profile: Profile; explorers: Chai
   return (
     <div>
       <BlockNotice blocked={profile.blocked} goPlus={goPlusFlags(profile)} />
-      <YoungNotice young={profile.young} />
       <div className="divide-y divide-gray-100">
         <AddressRow address={profile.address} />
         <DeployedRow profile={profile} now={now} />
@@ -574,7 +586,7 @@ export function ProfileStep({
   return (
     <Step
       step={step}
-      explainer="Facts about the contract's history and what it holds help you judge it. A contract that was deployed a few days ago and has few transactions deserves more care. Every address the request names is also checked against the block lists. These facts come from explorers and lists; they do not change the result of the checks."
+      explainer="Facts about the contract's history and what it holds help you judge it. A contract that was deployed a few days ago deserves more care. Every address the request names is also checked against the block lists. These facts come from explorers and lists; they do not change the result of the checks."
     >
       {named.length === 0 ? (
         <p className="rounded-xl border border-gray-200 bg-white px-5 py-4 text-sm text-gray-600 shadow-sm">
