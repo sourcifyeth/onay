@@ -43,6 +43,7 @@ import { short } from './gates/words.ts'
 import { LocallyVerifiedIcon, ThirdPartyIcon } from './Icons.tsx'
 import { CollapsibleLog } from './Log.tsx'
 import type { Hex } from './messages.ts'
+import { SettingsLink } from './SettingsLink.tsx'
 import { CollapsibleCard, Notice, Step } from './Step.tsx'
 import { Tooltip } from './Tooltip.tsx'
 
@@ -226,7 +227,13 @@ function ListsView({ fact }: { fact: Fact<ListAnswer> }) {
 }
 
 function GoPlusView({ fact }: { fact: GoPlusFact }) {
-  if (fact.state === 'off') return <span className="text-gray-400">off · settings</span>
+  if (fact.state === 'off') {
+    return (
+      <span className="text-gray-400">
+        off · <SettingsLink field="goplus">turn it on in the settings</SettingsLink>
+      </span>
+    )
+  }
   if (fact.state !== 'known') return <FactView fact={fact}>{() => null}</FactView>
   const result: GoPlusResult = fact.value
   const source = goPlusSource(result)

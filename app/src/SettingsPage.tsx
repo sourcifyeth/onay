@@ -1,6 +1,7 @@
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { AttesterSettings } from './AttesterSettings.tsx'
 import { ProfileSettings } from './ProfileSettings.tsx'
+import type { SettingsField } from './openSettings.ts'
 import { TokenListSettings } from './TokenListSettings.tsx'
 import { EXPLORER_FIELDS, isExplorerField } from './chainList.ts'
 import { chainStore, heliosKey, heliosStarted, saveChains, type ChainConfig } from './chains.ts'
@@ -309,6 +310,7 @@ function ExplorerSettings() {
         <label className="block min-w-0 flex-1">
           <span className="font-mono text-xs text-gray-500">Etherscan API key</span>
           <input
+            id="etherscan-key"
             value={draft}
             type="password"
             placeholder="none"
@@ -339,8 +341,22 @@ function ExplorerSettings() {
   )
 }
 
-export function SettingsPage({ snapshot, onBack }: { snapshot: Snapshot | null; onBack: () => void }) {
+export function SettingsPage({
+  snapshot,
+  field = null,
+  onBack,
+}: {
+  snapshot: Snapshot | null
+  // The field that a link from the review asked for.
+  field?: SettingsField | null
+  onBack: () => void
+}) {
   const chains = useSyncExternalStore(chainStore.subscribe, chainStore.getSnapshot)
+  useEffect(() => {
+    const target = field ? document.getElementById(field) : null
+    target?.scrollIntoView({ block: 'center' })
+    target?.focus()
+  }, [field])
   const update = (next: ChainConfig) => saveChains(chains.map((chain) => (chain.id === next.id ? next : chain)))
   const remove = (id: number) => saveChains(chains.filter((chain) => chain.id !== id))
 

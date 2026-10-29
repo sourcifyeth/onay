@@ -16,6 +16,7 @@ import { ThirdPartyIcon } from './Icons.tsx'
 import { CollapsibleLog } from './Log.tsx'
 import { CollapsibleCard, InfoTip, Notice, Row, Step } from './Step.tsx'
 import { MARKS } from './marks.ts'
+import { SettingsLink } from './SettingsLink.tsx'
 
 // A link to the page of a contract on a site, or a note that the app
 // does not open the site.
@@ -52,22 +53,33 @@ function SourcifyRow({ contract, chainId }: { contract: Contract; chainId: numbe
   )
 }
 
-function ExplorerStatusText({ status }: { status: ExplorerStatus }) {
+// `reproduced`: the app reproduced the source code itself. Then "not
+// verified" means only that the explorer has not caught up, so it shows
+// in gray.
+function ExplorerStatusText({ status, reproduced }: { status: ExplorerStatus; reproduced: boolean }) {
   switch (status.kind) {
     case 'verified':
       return <span className="text-green-700">✓ verified</span>
     case 'not verified':
-      return <span className="text-light-coral-700">✕ not verified</span>
+      return reproduced ? (
+        <span className="text-gray-400">not verified there</span>
+      ) : (
+        <span className="text-light-coral-700">✕ not verified</span>
+      )
     case 'unknown':
       return <span className="text-gray-400">unknown · {status.reason}</span>
     case 'no key':
-      return <span className="text-gray-400">no key · settings</span>
+      return (
+        <span className="text-gray-400">
+          no key · <SettingsLink field="etherscan-key">add one in the settings</SettingsLink>
+        </span>
+      )
   }
 }
 
-// What an explorer claims. Not checked here, so the row has the
-// third-party icon, and the gates do not use it.
-function ExplorerRowView({ row }: { row: ExplorerRow }) {
+// What an explorer claims. Not checked here, so a row with a claim has
+// the third-party icon, and the gates do not use it.
+function ExplorerRowView({ row, reproduced }: { row: ExplorerRow; reproduced: boolean }) {
   const name = EXPLORER_NAMES[row.explorer]
   // A host from the settings shows, so the row says whose claim it is.
   const host = row.builtIn ? null : row.host.replace(/^https?:\/\//, '')
@@ -82,15 +94,21 @@ function ExplorerRowView({ row }: { row: ExplorerRow }) {
         <p className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
           {name}
           {host && <span className="truncate font-mono text-xs font-normal text-gray-500">{host}</span>}
-          <ThirdPartyIcon
-            className="h-3.5 w-3.5 shrink-0"
-            title={`A claim of ${name}${host ? ` at ${host}` : ''}, not checked here`}
-          />
+          {(status?.kind === 'verified' || status?.kind === 'not verified') && (
+            <ThirdPartyIcon
+              className="h-3.5 w-3.5 shrink-0"
+              title={`A claim of ${name}${host ? ` at ${host}` : ''}, not checked here`}
+            />
+          )}
         </p>
         {detail && <p className="text-xs text-gray-500">claims {detail}</p>}
       </div>
       <span className="flex shrink-0 items-baseline gap-3 text-sm">
-        {status ? <ExplorerStatusText status={status} /> : <span className="text-gray-400">…</span>}
+        {status ? (
+          <ExplorerStatusText status={status} reproduced={reproduced} />
+        ) : (
+          <span className="text-gray-400">…</span>
+        )}
         <ViewLink href={row.link} />
       </span>
     </div>
@@ -98,13 +116,13 @@ function ExplorerRowView({ row }: { row: ExplorerRow }) {
 }
 
 // The explorer rows of a contract, while the lookups run too.
-function ExplorerRows({ rows }: { rows: ExplorerRow[] | undefined }) {
+function ExplorerRows({ rows, reproduced }: { rows: ExplorerRow[] | undefined; reproduced: boolean }) {
   if (!rows) return null
   if (rows.length === 0) return <p className="py-1.5 text-sm text-gray-400">no explorer covers this chain</p>
   return (
     <>
       {rows.map((row) => (
-        <ExplorerRowView key={row.explorer} row={row} />
+        <ExplorerRowView key={row.explorer} row={row} reproduced={reproduced} />
       ))}
     </>
   )
@@ -346,7 +364,7 @@ function ContractVerification({
       <p className="pb-2 font-mono text-[13px] break-all text-gray-700">{contract.address}</p>
       <div className="divide-y divide-gray-100">
         {verification.chainId !== null && <SourcifyRow contract={contract} chainId={verification.chainId} />}
-        <ExplorerRows rows={context.explorers[contract.address]} />
+        <ExplorerRows rows={context.explorers[contract.address]} reproduced={contract.sourcify.status === 'passed'} />
       </div>
       <LocalVerification contract={contract} />
       <CollapsibleLog lines={lines} />

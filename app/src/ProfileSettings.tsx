@@ -9,9 +9,20 @@ import { contextSettingsStore, saveContextSettings } from './context/settings.ts
 import { ExternalLink } from './ExternalLink.tsx'
 import { ThirdPartyIcon } from './Icons.tsx'
 
-function Switch({ on, label, onChange }: { on: boolean; label: string; onChange: (on: boolean) => void }) {
+function Switch({
+  id,
+  on,
+  label,
+  onChange,
+}: {
+  id?: string
+  on: boolean
+  label: string
+  onChange: (on: boolean) => void
+}) {
   return (
     <button
+      id={id}
       role="switch"
       aria-checked={on}
       aria-label={label}
@@ -90,6 +101,7 @@ export function ProfileSettings() {
         })}
         <div className="flex items-start gap-3 py-2">
           <Switch
+            id="goplus"
             on={settings.goPlus}
             label="Ask GoPlus"
             onChange={(goPlus) => saveContextSettings({ ...settings, goPlus })}
