@@ -1,0 +1,386 @@
+<!doctype html>
+<!-- Source of public/og-image.png. Run in site/ (any Chrome works; this is the one that Playwright installs): chrome-headless-shell --hide-scrollbars --allow-file-access-from-files --force-device-scale-factor=1 --window-size=1200,630 --screenshot=public/og-image.png og-image.html -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Onay link preview</title>
+    <style>
+      @font-face {
+        font-family: 'IBM Plex Sans';
+        font-weight: 400;
+        src: url('src/fonts/IBMPlexSans-Regular-Latin1.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'IBM Plex Sans';
+        font-weight: 500;
+        src: url('src/fonts/IBMPlexSans-Medium-Latin1.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'IBM Plex Sans';
+        font-weight: 600;
+        src: url('src/fonts/IBMPlexSans-SemiBold-Latin1.woff2') format('woff2');
+      }
+
+      :root {
+        --navy: #071e52;
+        --azure: #159bfa;
+        --azure-100: #d7eaff;
+        --azure-700: #1767ad;
+        --ink: #14213b;
+        --muted: #65738b;
+        --line: #e2e8f1;
+        --paper: #f6f8fc;
+        --ok: #16a34a;
+        --ok-dark: #15803d;
+        --ok-bg: #e7f6ec;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+      }
+      body {
+        position: relative;
+        background: radial-gradient(circle at 85% 45%, #e3f1ff 0, var(--paper) 60%);
+        font-family: 'IBM Plex Sans', sans-serif;
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+      body > * {
+        position: absolute;
+      }
+      .letter {
+        fill: none;
+        stroke: var(--navy);
+        stroke-width: 24;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      /* Left: the headline of the page. */
+      .logo {
+        left: 64px;
+        top: 56px;
+        height: 48px;
+        overflow: visible;
+      }
+      h1 {
+        left: 64px;
+        top: 136px;
+        font-size: 76px;
+        line-height: 1.06;
+        font-weight: 600;
+        color: var(--navy);
+        letter-spacing: -1.2px;
+      }
+      h1 svg {
+        display: inline-block;
+        width: 0.8em;
+        height: 0.8em;
+        vertical-align: -0.06em;
+      }
+      .sub {
+        left: 66px;
+        top: 318px;
+        width: 520px;
+        font-size: 26px;
+        line-height: 1.4;
+        color: var(--muted);
+      }
+      .chips {
+        left: 64px;
+        top: 452px;
+        display: flex;
+        gap: 10px;
+      }
+      .chip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #fff;
+        border: 2px solid var(--line);
+        border-radius: 12px;
+        padding: 8px 14px;
+        font-size: 20px;
+        font-weight: 500;
+        color: var(--navy);
+      }
+      .chip svg {
+        width: 22px;
+        height: 22px;
+        color: var(--azure);
+      }
+
+      /* Right, behind: the wallet shows the request as hex that nobody can read. */
+      .wallet {
+        left: 664px;
+        top: 70px;
+        width: 330px;
+        height: 420px;
+        background: #fff;
+        border: 2px solid var(--line);
+        border-radius: 18px;
+        padding: 18px 20px;
+        transform: rotate(-3deg);
+        box-shadow: 0 10px 30px #132c5014;
+      }
+      .wallet-title {
+        font-size: 19px;
+        font-weight: 600;
+        color: #4b5567;
+        text-align: center;
+        margin-bottom: 12px;
+      }
+      .wallet-label {
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: #a3abb8;
+        margin-bottom: 6px;
+      }
+      .hex {
+        height: 236px;
+        overflow: hidden;
+        background: #f4f6f9;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-family: 'DejaVu Sans Mono', ui-monospace, monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        word-break: break-all;
+        color: #9aa3b2;
+      }
+      .buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .buttons span {
+        flex: 1;
+        text-align: center;
+        border-radius: 999px;
+        padding: 8px 0;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .cancel {
+        border: 2px solid #c9d1ff;
+        color: #6b7bff;
+      }
+      .confirm {
+        background: #8f9bff;
+        color: #fff;
+      }
+      .lost {
+        position: absolute;
+        left: -24px;
+        top: -20px;
+        width: 60px;
+        height: 60px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        border: 4px solid var(--paper);
+        background: #e9edf3;
+        color: #7b8698;
+        font-size: 38px;
+        font-weight: 600;
+        transform: rotate(3deg);
+      }
+
+      /* Right, in front: Onay shows the same request in plain words, with its checks. */
+      .onay {
+        left: 800px;
+        top: 180px;
+        width: 360px;
+        background: #fff;
+        border: 2px solid var(--azure-100);
+        border-radius: 20px;
+        box-shadow: 0 22px 60px #132c5030;
+        padding: 18px 22px 20px;
+      }
+      .onay-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .onay-head svg {
+        height: 22px;
+        overflow: visible;
+      }
+      .chain {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--azure-700);
+      }
+      .chain i {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--azure);
+      }
+      .site {
+        font-size: 15px;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .site b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .intent {
+        font-size: 25px;
+        line-height: 1.18;
+        font-weight: 600;
+        color: var(--navy);
+        margin-bottom: 12px;
+      }
+      .assets {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+      .assets span {
+        font-size: 19px;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 8px;
+      }
+      .out {
+        background: #f1f3f6;
+      }
+      .in {
+        background: var(--ok-bg);
+        color: var(--ok-dark);
+      }
+      ul {
+        list-style: none;
+        display: grid;
+        gap: 7px;
+      }
+      li {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 18px;
+        font-weight: 500;
+      }
+      li b {
+        width: 24px;
+        height: 24px;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        border-radius: 50%;
+        background: var(--ok);
+        color: #fff;
+        font-size: 14px;
+      }
+      .verdict {
+        margin-top: 14px;
+        background: var(--ok-bg);
+        color: var(--ok-dark);
+        border-radius: 10px;
+        padding: 9px 14px;
+        font-size: 19px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <svg class="logo" viewBox="45 40 710 215" aria-hidden="true">
+      <use href="#eye" />
+      <use href="#wordmark" />
+    </svg>
+    <h1>
+      A second
+      <svg viewBox="61 56 178 178" aria-hidden="true">
+        <circle cx="150" cy="145" r="89" fill="#071E52" />
+        <circle cx="150" cy="145" r="67" fill="#159BFA" />
+        <circle cx="150" cy="145" r="45" fill="#fff" />
+        <circle cx="136" cy="148" r="21" fill="#071E52" />
+        <circle cx="129" cy="141" r="4.7" fill="#fff" /></svg
+      >,<br />before you sign.
+    </h1>
+    <p class="sub">Onay checks every Ethereum transaction on your computer before your wallet signs it.</p>
+    <div class="chips">
+      <span class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+          <circle cx="12" cy="12" r="3" /></svg
+        >Read only
+      </span>
+      <span class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="7.5" cy="15.5" r="4.5" />
+          <path d="m10.7 12.3 8.8-8.8M16 7l2.5 2.5M3 3l18 18" /></svg
+        >Holds no keys
+      </span>
+      <span class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="5" width="16" height="11" rx="1.5" />
+          <path d="M2 19h20" /></svg
+        >Local first
+      </span>
+    </div>
+
+    <div class="wallet">
+      <div class="wallet-title">Transaction request</div>
+      <div class="wallet-label">Data</div>
+      <div class="hex">
+        0x3593564c000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000067a1c2b300000000000000000000000000000000000000000000000000000000000000020b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000de0b6b3a7640000
+      </div>
+      <div class="buttons"><span class="cancel">Cancel</span><span class="confirm">Confirm</span></div>
+      <div class="lost">?</div>
+    </div>
+
+    <div class="onay">
+      <div class="onay-head">
+        <svg viewBox="45 40 710 215" aria-hidden="true">
+          <use href="#eye" />
+          <use href="#wordmark" />
+        </svg>
+        <span class="chain"><i></i>Ethereum</span>
+      </div>
+      <div class="site"><b>app.swap.example</b> asks to sign</div>
+      <div class="intent">Swap 1 ETH for at least<br />2,318.47 USDC</div>
+      <div class="assets"><span class="out">− 1 ETH</span><span class="in">+ 2,330.12 USDC</span></div>
+      <ul>
+        <li><b>✓</b>Source code verified</li>
+        <li><b>✓</b>Chain data verified</li>
+        <li><b>✓</b>Same digest on your wallet</li>
+      </ul>
+      <div class="verdict">✓ Every check passed.</div>
+    </div>
+
+    <!-- The parts of the logo, used by both lockups above. -->
+    <svg width="0" height="0" aria-hidden="true">
+      <defs>
+        <g id="eye">
+          <circle cx="150" cy="145" r="89" fill="#071E52" />
+          <circle cx="150" cy="145" r="67" fill="#159BFA" />
+          <circle cx="150" cy="145" r="45" fill="#fff" />
+          <circle cx="150" cy="145" r="21" fill="#071E52" />
+          <circle cx="143" cy="138" r="4.7" fill="#fff" />
+        </g>
+        <g id="wordmark" class="letter">
+          <circle cx="339" cy="145" r="38" />
+          <path d="M 418 184 V 145 C 418 120 432 107 454 107 C 477 107 489 122 489 145 V 184" />
+          <circle cx="561" cy="145" r="38" />
+          <path d="M 602 145 V 184" />
+          <path d="M 642 113 C 649 150 666 176 684 180 C 704 184 717 152 724 113 M 724 113 C 716 164 701 205 679 227" />
+        </g>
+      </defs>
+    </svg>
+  </body>
+</html>
