@@ -1,6 +1,7 @@
 # Builds and publishes a release from a version tag on main, such as 0.1.0.
 # The tag must equal the app version in the repo (scripts/set-version.mjs).
-# The app is published only from here. The extension still goes to the
+# The app is published only from here. The last job rebuilds the download
+# page at onay.sh, so it lists the new release. The extension still goes to the
 # Chrome Web Store by hand (README). The signing secrets live in the
 # `release` environment, which only version tags may use, and there is no
 # manual trigger: no workflow on a branch can reach them.
@@ -159,3 +160,16 @@ jobs:
           extension="$(node -p "require('./extension/manifest.json').version")"
           gh release create "$GITHUB_REF_NAME" --verify-tag --title "Onay $GITHUB_REF_NAME" \
             --notes "Works with version $extension of the Onay browser extension." --generate-notes release/*
+
+  site:
+    name: Rebuild onay.sh
+    needs: release
+    runs-on: ubuntu-latest
+    # the hook URL is a secret of the release environment, so only version tags reach it
+    environment: release
+    steps:
+      # Cloudflare Pages builds main, which holds the tag, and reads the new release from the GitHub API
+      - name: Start the Cloudflare Pages build
+        env:
+          HOOK: ${{ secrets.CLOUDFLARE_PAGES_DEPLOY_HOOK }}
+        run: curl --fail --silent --show-error -X POST "$HOOK"

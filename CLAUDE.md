@@ -13,6 +13,7 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 - `mock/` — Vite + React + TypeScript playground (client-only, no SSR). The one place where vibecoding is allowed: Version 0's whole UX is mocked here with fake data, and the app takes its UI from the mock one feature at a time.
 - `app/` — the Tauri app: Vite + React + TypeScript webview in `app/src/`, Rust in `app/src-tauri/`, and the native messaging relay crate in `app/relay/`. One Cargo workspace at `app/Cargo.toml`, lockfile committed. `app/README.md` explains the architecture.
 - `extension/` — the Chrome extension (Manifest V3). Zero runtime dependencies: TypeScript compiled by `tsc` into plain ES modules in `extension/dist/`, no bundler. `inpage.ts` and `content.ts` are plain scripts, not modules: no imports or exports, types through `import('./messages.ts')`. `extension/README.md` explains the architecture.
+- `site/` — the download page at onay.sh: Vite + Tailwind, no React, no script at view time. The build reads the releases from the GitHub API (`site/releases.mjs`) and renders them into `index.html` (`site/src/releases.ts`). Cloudflare Pages builds and hosts it. Its look follows the Onay logo (navy #071e52, azure #159bfa, IBM Plex Sans), not the Sourcify tokens.
 - `testdata/` — test vectors that the Rust and the TypeScript implementation of the encrypted channel must both match.
 - `extension/key.pem` (gitignored) is the private key behind the `key` field in `extension/manifest.json`. It fixes the extension ID to `iobfgkmfcccohihielbadfbebklmbdbp`, which the app's host manifest allowlists. Back it up; never commit it.
 
@@ -51,6 +52,7 @@ A from-zero build. Every line that enters this repo is written deliberately and 
 - `pnpm --filter extension package` — store zip of the extension (`extension/onay-extension.zip`), without the `key` field. `pnpm --filter extension package:first` adds `key.pem` to it, for the first upload to the store only.
 - `pnpm version:set app|extension X.Y.Z` — write the version of one package into every file that holds it; `--check` before the arguments only verifies it, as the release workflow does.
 - `pnpm test` — run the tests of `scripts/` with `node --test`.
+- `pnpm --filter site dev` — run the download page (port 5198); `build` writes `site/dist/`; both call the GitHub API once. `test` runs its tests.
 - `pnpm --filter extension test` — build, type-check the tests, and run them with `node --test`.
 - `cargo build` in `app/` — build the Rust workspace (app and relay).
 - `cargo test` in `app/` — run the Rust tests.
