@@ -1,7 +1,10 @@
 /*
  * The scene of the hero. A person swaps on a DEX. The wallet shows raw data, and the person is lost.
  * Onay opens next to it and explains the request. Then a fake airdrop, which Onay flags.
- * One loop is 50 s: the swap from 0 s, the airdrop from 26 s. A pointer over the scene pauses it.
+ * One loop is 50 s: the swap from 0 s, the airdrop from 26 s. On a touch screen a press pauses it.
+ * A click on a chapter name under the scene starts that chapter again. There is no script:
+ * a press removes the animations, and the release starts them again. The checked radio sets --o,
+ * the time in the loop where they start.
  *
  * Every animation runs 50 s. The elements of class sc-in, sc-swing, sc-rise, sc-glow, and sc-pop
  * share their keyframes and start at --t seconds. All other animations start at 0 s.
@@ -825,15 +828,15 @@
   height: 16px;
   margin-top: 4px;
 }
-.sc-chapters span {
+.sc-chapters > * {
   position: absolute;
   top: 0;
 }
-.sc-chapters span:nth-child(2) {
+.sc-chapters > :nth-child(2) {
   left: 52%;
   padding-left: 6px;
 }
-.sc-chapters span:nth-child(3) {
+.sc-chapters > :nth-child(3) {
   right: 0;
   opacity: 0;
   transition: opacity 0.2s;
@@ -879,24 +882,39 @@
     animation-iteration-count: infinite;
     animation-timing-function: cubic-bezier(0.22, 0.8, 0.24, 1);
     animation-fill-mode: backwards;
+    animation-delay: calc(-1 * var(--o, 0s));
   }
-  /* A mouse pauses the scene on hover. On a touch screen a tap leaves the hover state on, */
-  /* so there the scene pauses only while a finger presses it. */
-  @media (hover: hover) and (pointer: fine) {
-    .sc-wrap:hover .sc-stage *,
-    .sc-wrap:hover .sc-scene {
-      animation-play-state: paused;
-    }
-    .sc-wrap:hover .sc-chapters span:nth-child(3) {
-      opacity: 1;
-    }
+
+  /* The chapter names start their chapter again, just after the scene fades in */
+  .sc-chapters label {
+    pointer-events: auto;
+    cursor: pointer;
+    transition: color 0.2s;
   }
+  .sc-chapters label:hover {
+    color: var(--color-ink);
+  }
+  .sc-wrap:has(#sc-go-swap:checked) {
+    --o: 1.2s;
+  }
+  .sc-wrap:has(#sc-go-airdrop:checked) {
+    --o: 27.2s;
+  }
+  .sc-wrap:has(.sc-chapters label:active) .sc-stage *,
+  .sc-wrap:has(.sc-chapters label:active) .sc-scene {
+    animation-name: none;
+  }
+  .sc-wrap:has(.sc-chapters label:active) .sc-scene {
+    visibility: hidden;
+  }
+
+  /* On a touch screen the scene pauses while a finger presses it */
   @media (hover: none) {
     .sc-wrap:active .sc-stage *,
     .sc-wrap:active .sc-scene {
       animation-play-state: paused;
     }
-    .sc-wrap:active .sc-chapters span:nth-child(3) {
+    .sc-wrap:active .sc-chapters > :nth-child(3) {
       opacity: 1;
     }
   }
@@ -906,7 +924,7 @@
   .sc-rise,
   .sc-glow,
   .sc-pop {
-    animation-delay: calc(var(--t) * 1s);
+    animation-delay: calc(var(--t) * 1s - var(--o, 0s));
   }
   .sc-in {
     animation-name: sc-in;

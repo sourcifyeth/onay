@@ -171,7 +171,7 @@ To release extension `0.1.1`: `pnpm version:set extension 0.1.1`, merge, build t
 
 ### The website
 
-`site/` is the download page at [onay.sh](https://onay.sh). It is one static page with no script: the download links of the newest release are rendered at build time. `site/releases.mjs` reads the published releases from the GitHub API and writes `site/releases.json`, and a Vite plugin renders them into `index.html`. A failed API call fails the build, so an empty page never goes live. To run it locally:
+`site/` is the download page at [onay.sh](https://onay.sh). It is one static page with no script: the download links of the newest release are rendered at build time. `site/releases.mjs` writes the answer of the GitHub API to `site/releases.json`. A Vite plugin then keeps the published releases, checks them, and renders the newest one into `index.html`, with links to its release notes and its `SHA256SUMS` file. A failed API call fails the build, so an empty page never goes live. To run it locally:
 
 ```
 pnpm --filter site dev

@@ -199,6 +199,7 @@
                 </span>
                 <!-- @end -->
               </div>
+              <p class="mt-2 flex justify-end gap-4 text-xs text-muted"><!-- @links --></p>
             </section>
 
             <section class="mt-7 flex items-center justify-between gap-4">
@@ -223,8 +224,10 @@
           <div
             class="sc-wrap order-first mx-auto lg:order-none"
             role="img"
-            aria-label="A swap on a DEX: the wallet shows only raw data and the person is lost. Onay shows the checks, the balance changes, and the meaning. Then a fake airdrop that would take your USDC for worthless tokens, which Onay flags. A pointer over the scene pauses it."
+            aria-label="A swap on a DEX: the wallet shows only raw data and the person is lost. Onay shows the checks, the balance changes, and the meaning. Then a fake airdrop that would take your USDC for worthless tokens, which Onay flags."
           >
+            <input id="sc-go-swap" type="radio" name="sc-go" hidden />
+            <input id="sc-go-airdrop" type="radio" name="sc-go" hidden />
             <div class="sc-stage" aria-hidden="true">
               <div class="sc-scene sc-scene-good">
                 <div class="sc-window sc-browser">
@@ -633,7 +636,10 @@
                   <div class="sc-fill"></div>
                   <div class="sc-split"></div>
                 </div>
-                <div class="sc-chapters"><span>A swap</span><span>A fake airdrop</span><span>Paused</span></div>
+                <div class="sc-chapters">
+                  <label for="sc-go-swap">A swap</label><label for="sc-go-airdrop">A fake airdrop</label
+                  ><span>Paused</span>
+                </div>
               </div>
             </div>
           </div>

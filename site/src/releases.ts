@@ -15,7 +15,7 @@ export function parseReleases(data: unknown): Release[] {
     if (!isObject(item)) throw new Error(`${where}: not an object`)
     const { tag, url, publishedAt, assets } = item
     if (typeof tag !== 'string' || tag === '') throw new Error(`${where}.tag: not a string`)
-    if (typeof url !== 'string' || !url.startsWith(RELEASE_URL)) throw new Error(`${where}.url: not ${RELEASE_URL}...`)
+    if (!isLinkUnder(url, RELEASE_URL)) throw new Error(`${where}.url: not ${RELEASE_URL}...`)
     if (typeof publishedAt !== 'string' || Number.isNaN(Date.parse(publishedAt))) {
       throw new Error(`${where}.publishedAt: not a date`)
     }
@@ -29,8 +29,7 @@ export function parseReleases(data: unknown): Release[] {
         if (!isObject(asset)) throw new Error(`${at}: not an object`)
         const { name, url, size } = asset
         if (typeof name !== 'string' || name === '') throw new Error(`${at}.name: not a string`)
-        if (typeof url !== 'string' || !url.startsWith(DOWNLOAD_URL))
-          throw new Error(`${at}.url: not ${DOWNLOAD_URL}...`)
+        if (!isLinkUnder(url, DOWNLOAD_URL)) throw new Error(`${at}.url: not ${DOWNLOAD_URL}...`)
         if (typeof size !== 'number' || !Number.isFinite(size) || size < 0) throw new Error(`${at}.size: not a size`)
         return { name, url, size }
       }),
@@ -38,8 +37,44 @@ export function parseReleases(data: unknown): Release[] {
   })
 }
 
+// Reads the answer of the GitHub API, which releases.mjs writes: the published releases, newest first.
+export function fromGitHub(data: unknown): Release[] {
+  if (!Array.isArray(data)) throw new Error('GitHub: not an array')
+  const published = data.filter((item: unknown, index) => {
+    if (!isObject(item)) throw new Error(`GitHub[${index}]: not an object`)
+    if (typeof item.draft !== 'boolean' || typeof item.prerelease !== 'boolean') {
+      throw new Error(`GitHub[${index}]: no draft or prerelease flag`)
+    }
+    return !item.draft && !item.prerelease
+  }) as Record<string, unknown>[]
+  const releases = parseReleases(
+    published.map((item) => ({
+      tag: item.tag_name,
+      url: item.html_url,
+      publishedAt: item.published_at,
+      assets: Array.isArray(item.assets)
+        ? item.assets.map((asset: unknown) =>
+            isObject(asset) ? { name: asset.name, url: asset.browser_download_url, size: asset.size } : asset,
+          )
+        : item.assets,
+    })),
+  )
+  return releases.sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+// A link passes when it starts with the prefix and the browser reads it as written.
+// This refuses dot segments such as /../, which move the link out of the repo.
+function isLinkUnder(url: unknown, prefix: string): url is string {
+  if (typeof url !== 'string') return false
+  try {
+    return new URL(url).href === url && url.startsWith(prefix)
+  } catch {
+    return false
+  }
 }
 
 // The package kinds that the page offers, such as 'dmg-arm64'.
@@ -87,6 +122,14 @@ export function renderRow(pkg: Package, label: string, asset: Asset | undefined)
   return `<a class="group ${ROW} border-line transition hover:border-azure-300 hover:bg-azure-50/60" href="${escapeHtml(asset.url)}" title="${escapeHtml(asset.name)}">${label}<span class="inline-flex shrink-0 items-center gap-2 rounded-lg bg-navy px-3 py-1.5 text-sm font-medium text-white transition group-hover:bg-navy-600">${DOWNLOAD_ICON}.${extension}<span class="text-xs font-normal text-white/60">${formatSize(asset.size)}</span></span></a>`
 }
 
+// The links under the download rows: the release notes and the checksums of the newest release.
+export function renderLinks(release: Release | undefined): string {
+  if (!release) return ''
+  const sums = release.assets.find((asset) => asset.name === 'SHA256SUMS')
+  const link = (url: string, text: string) => `<a class="hover:text-ink" href="${escapeHtml(url)}">${text}</a>`
+  return link(release.url, 'Release notes') + (sums ? link(sums.url, 'SHA256SUMS') : '')
+}
+
 const ROW_BLOCK = /<!-- @row ([\w-]+) -->([\s\S]*?)<!-- @end -->/g
 
 // Fills the placeholders of index.html. A missing or unknown placeholder fails the build.
@@ -96,6 +139,7 @@ export function fillPage(html: string, releases: Release[]): string {
   const values: Record<string, string> = {
     '<!-- @version -->': latest ? `Version ${escapeHtml(latest.tag)}` : 'No release yet',
     '<!-- @date -->': latest ? formatDate(latest.publishedAt) : '',
+    '<!-- @links -->': renderLinks(latest),
   }
   for (const placeholder of Object.keys(values)) {
     if (!html.includes(placeholder)) throw new Error(`index.html: no ${placeholder}`)

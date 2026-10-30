@@ -1,4 +1,4 @@
-// Writes releases.json: the published releases of the app on GitHub, newest first.
+// Writes releases.json: the answer of the GitHub API, as it is. fromGitHub in src/releases.ts reads it.
 // The build fails when GitHub does not answer: an empty page must not go live.
 // GITHUB_TOKEN is optional. It lifts the API limit for shared build machines.
 import { writeFileSync } from 'node:fs'
@@ -22,19 +22,6 @@ if (!response.ok) {
   process.exit(1)
 }
 
-const releases = (await response.json())
-  .filter((release) => !release.draft && !release.prerelease)
-  .map((release) => ({
-    tag: release.tag_name,
-    url: release.html_url,
-    publishedAt: release.published_at,
-    assets: release.assets.map((asset) => ({
-      name: asset.name,
-      url: asset.browser_download_url,
-      size: asset.size,
-    })),
-  }))
-  .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
-
+const releases = await response.json()
 writeFileSync(OUT, JSON.stringify(releases, null, 2) + '\n')
-console.log(`releases.json: ${releases.map((release) => release.tag).join(', ') || 'no release'}`)
+console.log(`releases.json: ${Array.isArray(releases) ? releases.length : 0} releases`)
