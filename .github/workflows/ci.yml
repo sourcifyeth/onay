@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   javascript:
-    name: JavaScript (mock, app webview, extension, site)
+    name: JavaScript (mock, app webview, extension)
     runs-on: ubuntu-latest
     steps:
       # actions are pinned to commit SHAs (tag in the comment), per the supply-chain rules
