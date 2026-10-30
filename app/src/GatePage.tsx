@@ -4,8 +4,10 @@ import { chainName } from './chains.ts'
 import { ChainDataStep } from './ChainDataStep.tsx'
 import { ClearSigningStep } from './ClearSigningStep.tsx'
 import { CompareStep } from './CompareStep.tsx'
+import { contextFor } from './context/store.ts'
 import { LocallyVerifiedIcon } from './Icons.tsx'
 import { Cursor, LogBox, LogLineView, ProgressIcon } from './Log.tsx'
+import { ProfileStep } from './ProfileStep.tsx'
 import { SimulationStep } from './SimulationStep.tsx'
 import { VerificationStep } from './VerificationStep.tsx'
 import { progressOf, progressOfSimulation, progressShown, type Progress } from './gates/contracts.ts'
@@ -222,8 +224,12 @@ const NO_CLEAR_SIGNING = { subscribe: () => () => {}, getSnapshot: () => null }
 // The steps of the review once the run ended. Clear Signing starts here,
 // with the result of the run. The verdict of the steps is computed once,
 // and the compare step shows it.
+// The explorer lookups start here too, so a request that never reaches
+// the review asks no explorer.
 function Review({ request, verification }: { request: SigningRequest; verification: Verification }) {
   const store = verification.chain ? clearSigningFor(request, verification) : NO_CLEAR_SIGNING
+  const contextStore = contextFor(request, verification)
+  const context = useSyncExternalStore(contextStore.subscribe, contextStore.getSnapshot)
   const clearSigning = useSyncExternalStore<ClearSigning | null>(store.subscribe, store.getSnapshot)
   const verdicts = useMemo(() => stepVerdicts(verification, clearSigning), [verification, clearSigning])
   const steps = stepsOf(verification)
@@ -234,7 +240,9 @@ function Review({ request, verification }: { request: SigningRequest; verificati
       case 'simulation':
         return <SimulationStep key={step.id} step={step} verification={verification} />
       case 'verification':
-        return <VerificationStep key={step.id} step={step} verification={verification} />
+        return <VerificationStep key={step.id} step={step} verification={verification} context={context} />
+      case 'profile':
+        return <ProfileStep key={step.id} step={step} verification={verification} context={context} />
       case 'clearSigning':
         return (
           clearSigning && (

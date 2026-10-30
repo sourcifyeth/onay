@@ -22,10 +22,11 @@ export type Creation = {
 // The creation transaction, or why it was not read. A read that failed
 // on the way, for example on a rate limit, is tried again on the next
 // request. A factory deployment, or a chain that does not know the
-// hash, is not.
+// hash, is not. `block` is the block of a transaction that the chain
+// gave but that did not deploy the contract directly, as for a factory.
 export type CreationRead =
-  | { creation: Creation; reason?: undefined; retry?: undefined }
-  | { creation: null; reason: string; retry: boolean }
+  | { creation: Creation; reason?: undefined; retry?: undefined; block?: undefined }
+  | { creation: null; reason: string; retry: boolean; block?: number }
 
 export type CreationReader = (address: Hex, transactionHash: Hex) => Promise<CreationRead>
 
@@ -57,6 +58,12 @@ export function parseCreation(
     input: asHex(transaction.input, 'transaction'),
     verified,
   }
+}
+
+// The block of a transaction answer. Null when it does not read.
+export function transactionBlock(tx: unknown): number | null {
+  if (typeof tx !== 'object' || tx === null) return null
+  return parseQuantity((tx as { blockNumber?: unknown }).blockNumber)
 }
 
 // Helios says "block N is outside EIP-2935 ring buffer range (latest: M,

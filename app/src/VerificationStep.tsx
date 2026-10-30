@@ -2,6 +2,9 @@
 // what Sourcify claims, and what the app reproduced.
 
 import { useState } from 'react'
+import { EXPLORER_NAMES, linkable, sourcifyLink, type ExplorerStatus } from './context/explorers.ts'
+import type { Context, ExplorerRow } from './context/run.ts'
+import { ExternalLink } from './ExternalLink.tsx'
 import { verdictOf, type Contract } from './gates/contracts.ts'
 import { delegateOf } from './gates/simulation.ts'
 import { claimOf, claimText, describeCompiler, failureOf, type Found } from './gates/sourcify.ts'
@@ -13,17 +16,30 @@ import { ThirdPartyIcon } from './Icons.tsx'
 import { CollapsibleLog } from './Log.tsx'
 import { CollapsibleCard, InfoTip, Notice, Row, Step } from './Step.tsx'
 import { MARKS } from './marks.ts'
+import { SettingsLink } from './SettingsLink.tsx'
 
-function SourcifyRow({ contract }: { contract: Contract }) {
+// A link to the page of a contract on a site, or a note that the app
+// does not open the site.
+function ViewLink({ href }: { href: string | null }) {
+  if (!href) return <span className="text-xs text-gray-400">no link for a custom host</span>
+  return (
+    <ExternalLink href={href} className="text-xs text-cerulean-blue-600 hover:underline">
+      view ↗
+    </ExternalLink>
+  )
+}
+
+function SourcifyRow({ contract, chainId }: { contract: Contract; chainId: number }) {
   const claim = claimOf(contract.sourcify)
   const notFound = failureOf(contract.sourcify)?.kind === 'not verified'
+  const link = sourcifyLink(chainId, contract.address)
   return (
     <div className="flex items-baseline justify-between gap-4 py-1.5">
       <div className="min-w-0">
         <p className="text-sm font-medium text-gray-800">Sourcify</p>
         {claim && <p className="text-xs text-gray-500">claims {claimText(claim.runtimeMatch)}</p>}
       </div>
-      <span className="shrink-0 text-sm">
+      <span className="flex shrink-0 items-baseline gap-3 text-sm">
         {claim ? (
           <span className="text-green-700">✓ verified</span>
         ) : notFound ? (
@@ -31,8 +47,84 @@ function SourcifyRow({ contract }: { contract: Contract }) {
         ) : (
           <span className="text-gray-400">unknown</span>
         )}
+        <ViewLink href={linkable(link) ? link : null} />
       </span>
     </div>
+  )
+}
+
+// `reproduced`: the app reproduced the source code itself. Then "not
+// verified" means only that the explorer has not caught up, so it shows
+// in gray.
+function ExplorerStatusText({ status, reproduced }: { status: ExplorerStatus; reproduced: boolean }) {
+  switch (status.kind) {
+    case 'verified':
+      return <span className="text-green-700">✓ verified</span>
+    case 'not verified':
+      return reproduced ? (
+        <span className="text-gray-400">not verified there</span>
+      ) : (
+        <span className="text-light-coral-700">✕ not verified</span>
+      )
+    case 'unknown':
+      return <span className="text-gray-400">unknown · {status.reason}</span>
+    case 'no key':
+      return (
+        <span className="text-gray-400">
+          no key · <SettingsLink field="etherscan-key">add one in the settings</SettingsLink>
+        </span>
+      )
+  }
+}
+
+// What an explorer claims. Not checked here, so a row with a claim has
+// the third-party icon, and the gates do not use it.
+function ExplorerRowView({ row, reproduced }: { row: ExplorerRow; reproduced: boolean }) {
+  const name = EXPLORER_NAMES[row.explorer]
+  // A host from the settings shows, so the row says whose claim it is.
+  const host = row.builtIn ? null : row.host.replace(/^https?:\/\//, '')
+  const status = row.state.status === 'done' ? row.state.result : null
+  const detail =
+    status?.kind === 'verified' && (status.name || status.partial)
+      ? [status.name, status.partial && 'partial match'].filter(Boolean).join(' · ')
+      : null
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-1.5">
+      <div className="min-w-0">
+        <p className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
+          {name}
+          {host && <span className="truncate font-mono text-xs font-normal text-gray-500">{host}</span>}
+          {(status?.kind === 'verified' || status?.kind === 'not verified') && (
+            <ThirdPartyIcon
+              className="h-3.5 w-3.5 shrink-0"
+              title={`A claim of ${name}${host ? ` at ${host}` : ''}, not checked here`}
+            />
+          )}
+        </p>
+        {detail && <p className="text-xs text-gray-500">claims {detail}</p>}
+      </div>
+      <span className="flex shrink-0 items-baseline gap-3 text-sm">
+        {status ? (
+          <ExplorerStatusText status={status} reproduced={reproduced} />
+        ) : (
+          <span className="text-gray-400">…</span>
+        )}
+        <ViewLink href={row.link} />
+      </span>
+    </div>
+  )
+}
+
+// The explorer rows of a contract, while the lookups run too.
+function ExplorerRows({ rows, reproduced }: { rows: ExplorerRow[] | undefined; reproduced: boolean }) {
+  if (!rows) return null
+  if (rows.length === 0) return <p className="py-1.5 text-sm text-gray-400">no explorer covers this chain</p>
+  return (
+    <>
+      {rows.map((row) => (
+        <ExplorerRowView key={row.explorer} row={row} reproduced={reproduced} />
+      ))}
+    </>
   )
 }
 
@@ -155,13 +247,22 @@ function roleOf(contract: Contract, contracts: Contract[]): string {
   return `Ran as ${short(of)}`
 }
 
-// One line per contract: its verdict, role, address and name.
-function ContractSummary({ contract, contracts }: { contract: Contract; contracts: Contract[] }) {
+// One line per contract: its verdict, role, address and name. The
+// profile card leaves the verdict out: the verification card shows it.
+export function ContractSummary({
+  contract,
+  contracts,
+  verdict = true,
+}: {
+  contract: Contract
+  contracts: Contract[]
+  verdict?: boolean
+}) {
   const [mark, color] = MARKS[verdictOf(contract)]
   const name = claimOf(contract.sourcify)?.name
   return (
     <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-      <span className={`font-medium ${color}`}>{mark}</span>
+      {verdict && <span className={`font-medium ${color}`}>{mark}</span>}
       <span className="text-xs text-gray-500">{roleOf(contract, contracts)}</span>
       <span className="font-mono text-[13px] text-gray-700" title={contract.address}>
         {short(contract.address)}
@@ -225,36 +326,46 @@ function DelegatedAccount({ contract }: { contract: Contract }) {
 function ContractEntry({
   contract,
   verification,
+  context,
   open,
 }: {
   contract: Contract
   verification: Verification
+  context: Context
   open: boolean
 }) {
   if (contract.sourcify.status === 'skipped' && delegateOf(codeOf(contract) ?? '0x')) {
     return <DelegatedAccount contract={contract} />
   }
-  return <ContractVerification contract={contract} verification={verification} open={open} />
+  return <ContractVerification contract={contract} verification={verification} context={context} open={open} />
 }
 
 // The full card of a contract, behind its summary line.
 function ContractVerification({
   contract,
   verification,
+  context,
   open,
 }: {
   contract: Contract
   verification: Verification
+  context: Context
   open: boolean
 }) {
-  const lines = verification.lines.filter(
-    (line) => line.address === contract.address && (line.source === 'sourcify' || line.source === 'solc'),
-  )
+  const lines = [
+    ...verification.lines.filter(
+      (line) => line.address === contract.address && (line.source === 'sourcify' || line.source === 'solc'),
+    ),
+    ...context.lines.filter((line) => line.address === contract.address && line.topic === 'status'),
+  ]
   return (
     <CollapsibleCard open={open} summary={<ContractSummary contract={contract} contracts={verification.contracts} />}>
       <Warnings contract={contract} />
       <p className="pb-2 font-mono text-[13px] break-all text-gray-700">{contract.address}</p>
-      <SourcifyRow contract={contract} />
+      <div className="divide-y divide-gray-100">
+        {verification.chainId !== null && <SourcifyRow contract={contract} chainId={verification.chainId} />}
+        <ExplorerRows rows={context.explorers[contract.address]} reproduced={contract.sourcify.status === 'passed'} />
+      </div>
       <LocalVerification contract={contract} />
       <CollapsibleLog lines={lines} />
     </CollapsibleCard>
@@ -263,7 +374,15 @@ function ContractVerification({
 
 // The contracts that the simulation found, folded. The header counts
 // them, and says how many are not verified.
-function CalledContracts({ contracts, verification }: { contracts: Contract[]; verification: Verification }) {
+function CalledContracts({
+  contracts,
+  verification,
+  context,
+}: {
+  contracts: Contract[]
+  verification: Verification
+  context: Context
+}) {
   const [open, setOpen] = useState(false)
   const flagged = contracts.filter((contract) => verdictOf(contract) === 'flagged').length
   const failed = contracts.filter((contract) => verdictOf(contract) === 'failed').length
@@ -286,7 +405,13 @@ function CalledContracts({ contracts, verification }: { contracts: Contract[]; v
       {open && (
         <div className="flex flex-col gap-2 px-3 pb-3">
           {contracts.map((contract) => (
-            <ContractEntry key={contract.address} contract={contract} verification={verification} open={false} />
+            <ContractEntry
+              key={contract.address}
+              contract={contract}
+              verification={verification}
+              context={context}
+              open={false}
+            />
           ))}
         </div>
       )}
@@ -294,7 +419,15 @@ function CalledContracts({ contracts, verification }: { contracts: Contract[]; v
   )
 }
 
-export function VerificationStep({ step, verification }: { step: StepInfo; verification: Verification }) {
+export function VerificationStep({
+  step,
+  verification,
+  context,
+}: {
+  step: StepInfo
+  verification: Verification
+  context: Context
+}) {
   // An address without code has nothing to verify, and is left out. An
   // account with a delegate (EIP-7702) has no sources either, but it
   // stays: it is what the request names, and its delegate is checked.
@@ -318,10 +451,11 @@ export function VerificationStep({ step, verification }: { step: StepInfo; verif
               key={contract.address}
               contract={contract}
               verification={verification}
+              context={context}
               open={!contract.implementationOf}
             />
           ))}
-          {called.length > 0 && <CalledContracts contracts={called} verification={verification} />}
+          {called.length > 0 && <CalledContracts contracts={called} verification={verification} context={context} />}
         </div>
       )}
     </Step>

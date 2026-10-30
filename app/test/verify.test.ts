@@ -164,6 +164,9 @@ test('the creation transaction read: its input is the creation bytecode, exact m
   assert.equal(verified.runtimeMatch, 'perfect')
   assert.equal(verified.creationMatch, 'perfect')
   assert.equal(verified.creationNote, null)
+  // The profile reuses the read.
+  assert.equal(verified.creation?.input, creation)
+  assert.equal(verified.creation?.blockNumber, 6083505)
   assert.deepEqual(lines.at(-1), {
     source: 'sourcify',
     text: 'creation bytecode compare · exact match',
@@ -200,6 +203,7 @@ test('the creation transaction not read: the runtime match passes, with the reas
   assert.equal(verified.runtimeMatch, 'perfect')
   assert.equal(verified.creationMatch, null)
   assert.equal(verified.creationNote, 'created by another contract')
+  assert.equal(verified.creation, null)
 })
 
 test('the creation transaction read failed on the way: the next request reads again', async () => {

@@ -3,10 +3,13 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import type { ConnectionInfo, SigningRequest, Snapshot } from './messages.ts'
 import { GatePage } from './GatePage.tsx'
+import { Legend } from './Legend.tsx'
 import { PasteCard } from './PasteCard.tsx'
 import { SettingsPage } from './SettingsPage.tsx'
+import { OpenSettings, type SettingsField } from './openSettings.ts'
 import { forgetVerification, requestKey, verificationFor } from './gates/verification.ts'
 import { forgetClearSigning } from './clear-signing/store.ts'
+import { forgetContext } from './context/store.ts'
 import { refreshStaleTokenLists } from './clear-signing/tokenLists.ts'
 import { AttesterNotice } from './AttesterNotice.tsx'
 
@@ -82,6 +85,7 @@ function Request({ request, onOpen }: { request: SigningRequest; onOpen: () => v
   const dismiss = () => {
     forgetVerification(request)
     forgetClearSigning(request)
+    forgetContext(request)
     return invoke('dismiss_request', { connection: request.connection, id: request.id })
   }
   // The page reports the chain of eth_sendTransaction, apart from the request.
@@ -140,7 +144,8 @@ export default function App() {
 
   // The request on its own page, if any.
   const [openKey, setOpenKey] = useState<string | null>(null)
-  const [settings, setSettings] = useState(false)
+  // The settings page, with the field that a link asked for.
+  const [settings, setSettings] = useState<{ field: SettingsField | null } | null>(null)
   const seen = useRef(new Set<string>())
 
   // The token lists refresh once a day.
@@ -161,7 +166,10 @@ export default function App() {
   useEffect(() => {
     const fresh = snapshot?.requests.filter((request) => !seen.current.has(requestKey(request))) ?? []
     for (const request of fresh) seen.current.add(requestKey(request))
-    if (fresh.length > 0) setOpenKey(requestKey(fresh[fresh.length - 1]))
+    if (fresh.length > 0) {
+      setOpenKey(requestKey(fresh[fresh.length - 1]))
+      setSettings(null)
+    }
   }, [snapshot])
 
   const errors = failure ?? snapshot?.errors ?? []
@@ -171,7 +179,7 @@ export default function App() {
   const opened = requests.find((request) => requestKey(request) === openKey)
 
   return (
-    <main className="p-6 font-sans text-sm">
+    <main className="flex min-h-screen flex-col p-6 font-sans text-sm">
       <div className="flex items-baseline justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold">Onay</h1>
@@ -183,7 +191,10 @@ export default function App() {
           )}
         </div>
         {!opened && !settings && (
-          <button onClick={() => setSettings(true)} className="font-mono text-xs text-gray-400 hover:text-gray-600">
+          <button
+            onClick={() => setSettings({ field: null })}
+            className="font-mono text-xs text-gray-400 hover:text-gray-600"
+          >
             settings
           </button>
         )}
@@ -199,13 +210,16 @@ export default function App() {
         <Pairing key={connection.id} connection={connection} />
       ))}
 
-      {opened ? (
-        <GatePage key={openKey} request={opened} onBack={() => setOpenKey(null)} />
-      ) : settings ? (
-        <SettingsPage snapshot={snapshot} onBack={() => setSettings(false)} />
+      {settings ? (
+        // Back returns to the review that opened the settings, if any.
+        <SettingsPage snapshot={snapshot} field={settings.field} onBack={() => setSettings(null)} />
+      ) : opened ? (
+        <OpenSettings.Provider value={(field) => setSettings({ field })}>
+          <GatePage key={openKey} request={opened} onBack={() => setOpenKey(null)} />
+        </OpenSettings.Provider>
       ) : (
         <>
-          <AttesterNotice onSettings={() => setSettings(true)} />
+          <AttesterNotice onSettings={() => setSettings({ field: null })} />
           <PasteCard />
           <section className="mt-6">
             <h2 className="font-semibold">Signing requests</h2>
@@ -222,6 +236,7 @@ export default function App() {
           </section>
         </>
       )}
+      <Legend />
     </main>
   )
 }

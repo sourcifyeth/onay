@@ -15,6 +15,7 @@ import type { ChainReady, ChainReadyArgs, ChainRequestArgs, Hex } from '../messa
 import {
   oldBlock,
   parseCreation,
+  transactionBlock,
   UNKNOWN_TRANSACTION,
   unknownTransaction,
   type CreationRead,
@@ -134,10 +135,10 @@ export function creationReaderFor(chain: ChainConfig, read: ChainRead, log: Log)
   }
   return async (address, transactionHash): Promise<CreationRead> => {
     const name = `creation transaction ${short(transactionHash)}`
-    const notRead = (error: unknown, retry: boolean): CreationRead => {
+    const notRead = (error: unknown, retry: boolean, block: number | null = null): CreationRead => {
       const reason = errorText(error)
       log({ source: chain.mode, text: `${name} · not read · ${reason}` })
-      return { creation: null, reason, retry }
+      return block === null ? { creation: null, reason, retry } : { creation: null, reason, retry, block }
     }
     let answers: { tx: unknown; receipt: unknown }
     let verified = helios
@@ -161,7 +162,7 @@ export function creationReaderFor(chain: ChainConfig, read: ChainRead, log: Log)
     try {
       creation = parseCreation(address, transactionHash, answers.tx, answers.receipt, verified)
     } catch (error) {
-      return notRead(error, false)
+      return notRead(error, false, transactionBlock(answers.tx))
     }
     log({
       source: chain.mode,
