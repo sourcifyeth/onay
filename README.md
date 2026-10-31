@@ -131,7 +131,7 @@ SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) pnpm --filter extension package
 sha256sum extension/onay-extension.zip
 ```
 
-To keep the extension ID that the app accepts, the first upload to the store must include the private key as `key.pem` in the root of the zip. `pnpm --filter extension package:first` builds that zip from `extension/key.pem`, which is not in the repo (it is in the team password manager). The first upload is done by hand in the developer dashboard. After it the store holds the key, and later uploads use `package`. For now every store upload is by hand; the store API step of the release workflow is a follow-up in issue 15.
+To keep the extension ID that the app accepts, the first upload to the store must include the private key as `key.pem` in the root of the zip. `pnpm --filter extension package:first` builds that zip from `extension/key.pem`, which is not in the repo (it is in the team password manager). The first upload is done by hand in the developer dashboard. After it the store holds the key, and later uploads use `package`, from the `Release extension` workflow (see below).
 
 ### The icon
 
@@ -167,7 +167,27 @@ The macOS build signs and notarizes when these six secrets exist in the `release
 
 The Rust compile runs before the secrets enter the environment, so no build script of the dependency tree sees them. Then Tauri imports the certificate into a keychain of its own on the runner, signs the app and the relay with the hardened runtime, sends the app to the Apple notary service, and staples the ticket.
 
-To release extension `0.1.1`: `pnpm version:set extension 0.1.1`, merge, build the zip with `package` from the merge commit, and upload it in the developer dashboard. The store refuses a version that is not higher than the last one.
+To release extension `0.1.1`:
+
+1. `pnpm version:set extension 0.1.1` writes it into the manifest and the extension package. Open a pull request with the change and merge it. The store refuses a version that is not higher than the last one.
+2. Tag the merge commit on `main` and push the tag: `git tag extension-0.1.1 && git push origin extension-0.1.1`.
+
+The `Release extension` workflow then checks that the tag is on `main` and equals the extension version in the repo, runs the extension tests, builds the reproducible zip with the commit time as `SOURCE_DATE_EPOCH`, uploads it to the Chrome Web Store, submits it for review, and creates the GitHub release `extension-0.1.1` with the zip and its checksum. The store review takes days; the item goes live when it passes, with the visibility set in the dashboard. The listing texts and the icon stay in the dashboard: the workflow changes only the package.
+
+The store credentials live in the `store` environment of the repository, whose deployment policy admits only tags matching `extension-[0-9]*.[0-9]*.[0-9]*`, like the `release` environment for the app. The zip is built in a job without the environment, so the build never sees the credentials. The four secrets, all required:
+
+- `CWS_PUBLISHER_ID`: the publisher ID, under Publisher, Settings in the [developer dashboard](https://chrome.google.com/webstore/devconsole).
+- `CWS_CLIENT_ID` and `CWS_CLIENT_SECRET`: an OAuth client of a Google Cloud project with the Chrome Web Store API enabled.
+- `CWS_REFRESH_TOKEN`: a refresh token of the Google account that owns the item, for the scope `https://www.googleapis.com/auth/chromewebstore`.
+
+To make them, following [Google's guide](https://developer.chrome.com/docs/webstore/using-api):
+
+1. In the [Google Cloud Console](https://console.cloud.google.com), create a project, search for "Chrome Web Store API" and enable it.
+2. Under APIs & Services, OAuth consent screen: user type External, an app name such as `Onay release`, the support and contact emails. No scopes. Then publish the app to production: in the testing status, Google expires refresh tokens after seven days. The scope above needs no verification.
+3. Under Credentials, Create credentials, OAuth client ID: type Web application, and `https://developers.google.com/oauthplayground` as the authorized redirect URI. Keep the client ID and the client secret.
+4. In the [OAuth 2.0 Playground](https://developers.google.com/oauthplayground), open the settings (gear icon), tick "Use your own OAuth credentials" and enter the two. In step 1, type the scope `https://www.googleapis.com/auth/chromewebstore` and authorize with the account that owns the item in the store. In step 2, exchange the authorization code for tokens. Keep the refresh token.
+
+The item ID is in the workflow file, because it is public: it is the one of the store page.
 
 ### The website
 
