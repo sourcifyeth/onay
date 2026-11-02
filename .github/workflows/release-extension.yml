@@ -149,6 +149,6 @@ jobs:
       - name: Create the release with the zip that went to the store
         run: |
           version="${GITHUB_REF_NAME#extension-}"
-          gh release create "$GITHUB_REF_NAME" --verify-tag --title "Onay extension $version" \
+          gh release create "$GITHUB_REF_NAME" --verify-tag --latest=false --title "Onay extension $version" \
             --notes "The zip submitted to the Chrome Web Store, reproducible from this commit (README)." \
             onay-extension.zip SHA256SUMS
