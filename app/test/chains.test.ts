@@ -84,3 +84,30 @@ test('isExplorerField takes an empty value or an https URL', () => {
   assert.ok(!isExplorerField('scout.example'))
   assert.ok(!isExplorerField('https://a b'))
 })
+
+const sepolia = DEFAULT_CHAINS[1]
+
+test('Sepolia reads the chain through Helios, from the Nimbus node', () => {
+  assert.equal(sepolia.id, 11155111)
+  assert.equal(sepolia.mode, 'helios')
+  assert.equal(sepolia.consensusRpc, 'http://unstable.sepolia.beacon-api.nimbus.team')
+})
+
+test('a saved Sepolia with the retired publicnode endpoint takes the current default', () => {
+  const saved: ChainConfig = {
+    ...sepolia,
+    executionRpc: 'https://my.node',
+    consensusRpc: 'https://ethereum-sepolia-beacon-api.publicnode.com',
+  }
+  assert.deepEqual(loadChains(JSON.stringify([saved]))[1], { ...sepolia, executionRpc: 'https://my.node' })
+})
+
+test('a saved Sepolia with an endpoint of the user keeps it', () => {
+  const saved: ChainConfig = { ...sepolia, consensusRpc: 'https://my.node/beacon' }
+  assert.deepEqual(loadChains(JSON.stringify([saved]))[1], saved)
+})
+
+test('the retired endpoint changes only on its own chain', () => {
+  const saved: ChainConfig = { ...mainnet, consensusRpc: 'https://ethereum-sepolia-beacon-api.publicnode.com' }
+  assert.equal(loadChains(JSON.stringify([saved]))[0].consensusRpc, saved.consensusRpc)
+})

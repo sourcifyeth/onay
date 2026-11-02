@@ -43,6 +43,18 @@ const explorers = (id: number) => ({
 // lags the node. Publicnode serves proofs for the newest block only, so it
 // is not used here. Checked on 2026-10-08: dRPC and Tenderly serve proofs
 // at least 10 blocks back.
+//
+// Sepolia activated Glamsterdam (Gloas) on 2026-10-06. Checked on
+// 2026-11-02, see issue #35:
+// - publicnode runs Lighthouse 8.3.1, which makes no light-client data for
+//   Gloas blocks. It answers 404 to every bootstrap.
+// - Lodestar serves the Gloas data, but changes the finality update once
+//   per epoch only, as the spec says. Helios 0.12.0 takes its head from the
+//   finality update alone, so the head falls up to 6 minutes behind.
+// - Nimbus serves the Gloas data and changes the finality update every
+//   slot, so the head of Helios stays recent. This node is a test node of
+//   the Nimbus team, over HTTP only. Helios checks all the data that it
+//   sends, so the node cannot forge the chain.
 export const DEFAULT_CHAINS: ChainConfig[] = [
   {
     id: 1,
@@ -57,7 +69,7 @@ export const DEFAULT_CHAINS: ChainConfig[] = [
     name: 'Sepolia',
     mode: 'helios',
     executionRpc: 'https://sepolia.gateway.tenderly.co',
-    consensusRpc: 'https://ethereum-sepolia-beacon-api.publicnode.com',
+    consensusRpc: 'http://unstable.sepolia.beacon-api.nimbus.team',
     ...explorers(11155111),
   },
   {
@@ -104,9 +116,16 @@ function withValidExplorers(chain: ChainConfig): ChainConfig {
   return result
 }
 
+// Endpoints that were a default once, by chain id. The app saves the whole
+// list, so a saved chain can hold one that the user never chose.
+const RETIRED_CONSENSUS_RPCS: Record<number, string[]> = {
+  11155111: ['https://ethereum-sepolia-beacon-api.publicnode.com'],
+}
+
 // The built-in chains with the saved edits, then the chains that the user
 // added. A built-in chain of a newer version shows up with its defaults,
-// and a field that an older save does not have gets its default.
+// a field that an older save does not have gets its default, and a retired
+// default endpoint changes to the current one.
 export function loadChains(stored: string | null): ChainConfig[] {
   let saved: ChainConfig[] = []
   try {
@@ -119,6 +138,10 @@ export function loadChains(stored: string | null): ChainConfig[] {
     const edit = saved.find((other) => other.id === chain.id && !other.custom)
     if (!edit) return chain
     const merged = { ...edit }
+    const retired = RETIRED_CONSENSUS_RPCS[chain.id] ?? []
+    if (retired.includes(merged.consensusRpc ?? '')) {
+      merged.consensusRpc = chain.consensusRpc
+    }
     for (const field of EXPLORER_FIELDS) {
       if (merged[field] === undefined && chain[field] !== undefined) merged[field] = chain[field]
     }
