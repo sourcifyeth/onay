@@ -56,7 +56,7 @@ test('searchLinks quote the address for the search engines', () => {
 test('each link of the card is linkable and in the allowlist of open_url in Rust', () => {
   const rust = readFileSync(new URL('../src-tauri/src/browser.rs', import.meta.url), 'utf8')
   const allowed = [...rust.matchAll(/^ {4}"(https:\/\/[^"]+)",$/gm)].map((match) => match[1])
-  assert.deepEqual([...allowed].sort(), [...LINK_PREFIXES, 'https://4byte.sourcify.dev/'].sort())
+  assert.deepEqual([...allowed].sort(), [...LINK_PREFIXES, 'https://4byte.sourcify.dev/', 'https://onay.sh/'].sort())
   const searches = [...rust.matchAll(/^ {4}\("(https:\/\/[^"]+)", "([^"]+)"\),$/gm)].map((match) => [
     match[1],
     match[2],

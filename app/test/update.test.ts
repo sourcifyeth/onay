@@ -1,0 +1,69 @@
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+
+import { checkForUpdate, latestAppVersion, MAX_BYTES, newerVersion, parseVersion, RELEASES_API } from '../src/update.ts'
+
+const release = (tag_name: string, flags: { draft?: boolean; prerelease?: boolean } = {}) => ({
+  tag_name,
+  draft: false,
+  prerelease: false,
+  ...flags,
+})
+
+test('parseVersion reads major.minor.patch only', () => {
+  assert.deepEqual(parseVersion('0.10.2'), [0, 10, 2])
+  assert.equal(parseVersion('v0.1.0'), null)
+  assert.equal(parseVersion('extension-0.1.1'), null)
+  assert.equal(parseVersion('0.1.0-rc.1'), null)
+  assert.equal(parseVersion('0.1'), null)
+})
+
+test('latestAppVersion takes the highest published app tag', () => {
+  const releases = [
+    release('extension-0.9.0'),
+    release('0.2.0'),
+    release('0.10.0'),
+    release('0.11.0', { draft: true }),
+    release('0.12.0', { prerelease: true }),
+    release('0.9.0'),
+    { tag_name: '0.13.0' },
+    null,
+  ]
+  assert.equal(latestAppVersion(releases), '0.10.0')
+  assert.equal(latestAppVersion([release('extension-0.1.1')]), null)
+  assert.equal(latestAppVersion([]), null)
+  assert.throws(() => latestAppVersion({ message: 'API rate limit exceeded' }), /not a list/)
+})
+
+test('newerVersion compares the numbers, not the text', () => {
+  assert.equal(newerVersion('0.9.0', '0.10.0'), '0.10.0')
+  assert.equal(newerVersion('0.10.0', '0.9.0'), null)
+  assert.equal(newerVersion('0.10.0', '0.10.0'), null)
+  assert.equal(newerVersion('0.1.0', '1.0.0'), '1.0.0')
+  assert.equal(newerVersion('0.1.0', null), null)
+  assert.equal(newerVersion('dev', '1.0.0'), null)
+})
+
+test('checkForUpdate asks GitHub and returns the newer version', async () => {
+  let asked = ''
+  const fetch = async (url: string) => {
+    asked = url
+    return Response.json([release('extension-0.2.0'), release('0.2.0'), release('0.1.0')])
+  }
+  assert.equal(await checkForUpdate('0.1.0', fetch), '0.2.0')
+  assert.equal(asked, RELEASES_API)
+  assert.equal(await checkForUpdate('0.2.0', fetch), null)
+})
+
+test('checkForUpdate refuses an error, a non-JSON body, or an oversized one', async () => {
+  await assert.rejects(
+    checkForUpdate('0.1.0', async () => new Response('', { status: 403 })),
+    /HTTP 403/,
+  )
+  await assert.rejects(
+    checkForUpdate('0.1.0', async () => new Response('<html>')),
+    /not JSON/,
+  )
+  const big = async () => new Response('[' + ' '.repeat(MAX_BYTES) + ']')
+  await assert.rejects(checkForUpdate('0.1.0', big), /over 2 MB/)
+})

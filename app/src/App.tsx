@@ -12,6 +12,8 @@ import { forgetClearSigning } from './clear-signing/store.ts'
 import { forgetContext } from './context/store.ts'
 import { refreshStaleTokenLists } from './clear-signing/tokenLists.ts'
 import { AttesterNotice } from './AttesterNotice.tsx'
+import { UpdateNotice } from './UpdateNotice.tsx'
+import { startUpdateCheck } from './updateStore.ts'
 
 const OUTCOME_TEXT = {
   fulfilled: 'The wallet signed.',
@@ -153,6 +155,8 @@ export default function App() {
     void refreshStaleTokenLists()
   }, [])
 
+  useEffect(startUpdateCheck, [])
+
   useEffect(() => {
     const load = () => invoke<Snapshot>('link_state').then(setSnapshot, setFailure)
     load()
@@ -219,6 +223,7 @@ export default function App() {
         </OpenSettings.Provider>
       ) : (
         <>
+          <UpdateNotice />
           <AttesterNotice onSettings={() => setSettings({ field: null })} />
           <PasteCard />
           <section className="mt-6">

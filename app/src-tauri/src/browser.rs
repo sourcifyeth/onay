@@ -9,6 +9,7 @@ use std::process::Command;
 const ALLOWED: &[&str] = &[
     "https://github.com/",
     "https://4byte.sourcify.dev/",
+    "https://onay.sh/",
     "https://repo.sourcify.dev/",
     "https://etherscan.io/",
     "https://sepolia.etherscan.io/",
@@ -109,6 +110,8 @@ mod tests {
             "https://github.com/ethereum/clear-signing-erc7730-registry"
         ));
         assert!(allowed("https://4byte.sourcify.dev/?q=0xa9059cbb"));
+        assert!(allowed("https://onay.sh/"));
+        assert!(!allowed("https://onay.sh.evil.com/"));
         assert!(!allowed("https://github.evil.com/"));
         assert!(!allowed("http://github.com/"));
         assert!(!allowed("https://example.com/https://github.com/"));
