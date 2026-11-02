@@ -11,6 +11,7 @@ import { ExternalLink } from './ExternalLink.tsx'
 import { errorText } from './gates/gate.ts'
 import type { Snapshot } from './messages.ts'
 import { CollapsibleCard } from './Step.tsx'
+import { UpdateStatus } from './UpdateStatus.tsx'
 
 const isUrl = (value: string) => /^https?:\/\/\S+$/.test(value)
 
@@ -421,6 +422,9 @@ export function SettingsPage({
       <AttesterSettings />
       <TokenListSettings />
       {snapshot && <BrowserLink snapshot={snapshot} />}
+
+      <GroupHeading>App</GroupHeading>
+      <UpdateStatus />
     </div>
   )
 }

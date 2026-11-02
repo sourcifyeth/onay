@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { checkForUpdate, latestAppVersion, MAX_BYTES, newerVersion, parseVersion, RELEASES_API } from '../src/update.ts'
+import {
+  fetchLatestVersion,
+  latestAppVersion,
+  MAX_BYTES,
+  newerVersion,
+  parseVersion,
+  RELEASES_API,
+} from '../src/update.ts'
 
 const release = (tag_name: string, flags: { draft?: boolean; prerelease?: boolean } = {}) => ({
   tag_name,
@@ -44,26 +51,26 @@ test('newerVersion compares the numbers, not the text', () => {
   assert.equal(newerVersion('dev', '1.0.0'), null)
 })
 
-test('checkForUpdate asks GitHub and returns the newer version', async () => {
+test('fetchLatestVersion asks GitHub and returns the highest app version', async () => {
   let asked = ''
   const fetch = async (url: string) => {
     asked = url
-    return Response.json([release('extension-0.2.0'), release('0.2.0'), release('0.1.0')])
+    return Response.json([release('extension-0.3.0'), release('0.2.0'), release('0.1.0')])
   }
-  assert.equal(await checkForUpdate('0.1.0', fetch), '0.2.0')
+  assert.equal(await fetchLatestVersion(fetch), '0.2.0')
   assert.equal(asked, RELEASES_API)
-  assert.equal(await checkForUpdate('0.2.0', fetch), null)
+  assert.equal(await fetchLatestVersion(async () => Response.json([])), null)
 })
 
-test('checkForUpdate refuses an error, a non-JSON body, or an oversized one', async () => {
+test('fetchLatestVersion refuses an error, a non-JSON body, or an oversized one', async () => {
   await assert.rejects(
-    checkForUpdate('0.1.0', async () => new Response('', { status: 403 })),
+    fetchLatestVersion(async () => new Response('', { status: 403 })),
     /HTTP 403/,
   )
   await assert.rejects(
-    checkForUpdate('0.1.0', async () => new Response('<html>')),
+    fetchLatestVersion(async () => new Response('<html>')),
     /not JSON/,
   )
   const big = async () => new Response('[' + ' '.repeat(MAX_BYTES) + ']')
-  await assert.rejects(checkForUpdate('0.1.0', big), /over 2 MB/)
+  await assert.rejects(fetchLatestVersion(big), /over 2 MB/)
 })

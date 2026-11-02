@@ -97,7 +97,9 @@ Links: the card links to the explorers, the list repositories on GitHub, and web
 
 ## New releases
 
-At start and once a day, the page asks the GitHub API for the releases of the repository (`src/update.ts`, with the timer in `src/updateStore.ts`). It takes the highest published version with an app tag, such as `0.2.0`, and skips drafts, prereleases, and the extension tags. If that version is above the version of the app, the home page shows a note with the new version and a link to onay.sh, where the user gets it. The app downloads and installs nothing itself. The release list is a claim of GitHub, so the note has the third-party icon. A failed check shows nothing, and "Later" hides the note until a still newer version comes out or the app starts again.
+At start and once a day, the page asks the GitHub API for the releases of the repository (`src/update.ts`, with the state and the timer in `src/updateStore.ts`). It takes the highest published version with an app tag, such as `0.2.0`, and skips drafts, prereleases, and the extension tags. If that version is above the version of the app, the home page shows a note with the new version and a link to onay.sh, where the user gets it. The app downloads and installs nothing itself. The release list is a claim of GitHub, so the note has the third-party icon. A failed check shows nothing, and "Later" hides the note until a still newer version comes out or the app starts again.
+
+The App group at the end of the settings shows the version of the app, what the last check of GitHub said (the latest release, or a newer one with the link to onay.sh), the time of that check, and a button that checks again.
 
 ## Pasted requests
 

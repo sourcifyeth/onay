@@ -58,8 +58,8 @@ export function newerVersion(current: string, latest: string | null): string | n
   return compareSemver(released, running) > 0 ? latest : null
 }
 
-// Asks GitHub for the releases. Returns the newer version, or null.
-export async function checkForUpdate(current: string, fetch: Fetch, timeout = 15_000): Promise<string | null> {
+// Asks GitHub for the releases. Returns the highest app version, or null if there is none.
+export async function fetchLatestVersion(fetch: Fetch, timeout = 15_000): Promise<string | null> {
   const response = await fetch(RELEASES_API, {
     headers: { Accept: 'application/vnd.github+json' },
     signal: AbortSignal.timeout(timeout),
@@ -72,5 +72,5 @@ export async function checkForUpdate(current: string, fetch: Fetch, timeout = 15
   } catch {
     throw new Error('not JSON')
   }
-  return newerVersion(current, latestAppVersion(body))
+  return latestAppVersion(body)
 }

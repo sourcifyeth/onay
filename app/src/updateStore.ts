@@ -1,13 +1,33 @@
-// The state of the update check. It lives outside the notice, which
-// unmounts on each navigation.
+// The state of the update check. It lives outside the components, which
+// unmount on each navigation.
 
 import { getVersion } from '@tauri-apps/api/app'
-import { CHECK_EVERY, checkForUpdate } from './update.ts'
+import { errorText } from './gates/gate.ts'
+import { CHECK_EVERY, fetchLatestVersion, newerVersion } from './update.ts'
 
-type UpdateState = { current: string; newer: string } | null
+export type UpdateState = {
+  // The version of this app. Null until Tauri answers.
+  current: string | null
+  checking: boolean
+  // The highest app release on GitHub, after the last good check.
+  latest: string | null
+  // The latest release, if it is above the current version.
+  newer: string | null
+  checkedAt: number | null
+  error: string | null
+  // The version the user hid the notice for.
+  dismissed: string | null
+}
 
-let state: UpdateState = null
-let dismissed: string | null = null
+let state: UpdateState = {
+  current: null,
+  checking: false,
+  latest: null,
+  newer: null,
+  checkedAt: null,
+  error: null,
+  dismissed: null,
+}
 let started = false
 const listeners = new Set<() => void>()
 export const updateStore = {
@@ -15,21 +35,26 @@ export const updateStore = {
     listeners.add(listener)
     return () => listeners.delete(listener)
   },
-  getSnapshot: () => (state && state.newer !== dismissed ? state : null),
+  getSnapshot: () => state,
 }
-function emit() {
+function set(change: Partial<UpdateState>) {
+  state = { ...state, ...change }
   for (const listener of listeners) listener()
 }
 
-async function check() {
+export async function checkNow() {
+  if (state.checking) return
+  set({ checking: true })
   try {
-    const current = await getVersion()
-    const newer = await checkForUpdate(current, fetch)
-    state = newer ? { current, newer } : null
-    emit()
+    const current = state.current ?? (await getVersion())
+    set({ current })
+    const latest = await fetchLatestVersion(fetch)
+    set({ latest, newer: newerVersion(current, latest), checkedAt: Date.now(), error: null })
   } catch (error) {
-    // A failed check shows nothing. The next check tries again.
-    console.error('update check:', error)
+    // The last good answer stays. The next check tries again.
+    set({ error: errorText(error) })
+  } finally {
+    set({ checking: false })
   }
 }
 
@@ -37,12 +62,11 @@ async function check() {
 export function startUpdateCheck() {
   if (started) return
   started = true
-  void check()
-  setInterval(() => void check(), CHECK_EVERY)
+  void checkNow()
+  setInterval(() => void checkNow(), CHECK_EVERY)
 }
 
 // Hides the notice until GitHub lists a still newer version.
 export function dismissUpdate(version: string) {
-  dismissed = version
-  emit()
+  set({ dismissed: version })
 }
