@@ -3,7 +3,8 @@
 import { useSyncExternalStore } from 'react'
 import { ExternalLink } from './ExternalLink.tsx'
 import { DOWNLOAD_PAGE } from './update.ts'
-import { checkNow, updateStore } from './updateStore.ts'
+import { updateStore } from './updateCheck.ts'
+import { statusOf } from './updateStore.ts'
 
 export function DownloadLink() {
   return (
@@ -15,24 +16,30 @@ export function DownloadLink() {
 
 function Release() {
   const update = useSyncExternalStore(updateStore.subscribe, updateStore.getSnapshot)
-  if (update.checkedAt === null) {
+  const status = statusOf(update)
+  if (status === null || update.checkedAt === null) {
     return (
       <p className="text-xs text-gray-500">
-        {update.checking ? 'Asking GitHub for the latest release…' : `GitHub did not answer: ${update.error}`}
+        {update.error === null ? 'Asking GitHub for the latest release…' : `The check failed: ${update.error}`}
       </p>
     )
   }
   return (
     <div className="flex flex-col gap-1">
-      {update.newer ? (
+      {status === 'newer' ? (
         <p className="text-xs text-amber-800">
-          GitHub lists a newer release: <span className="font-mono">{update.newer}</span>. Get it from <DownloadLink />.
+          GitHub lists a newer release: <span className="font-mono">{update.latest}</span>. Get it from <DownloadLink />
+          .
         </p>
       ) : (
         <p className="text-xs text-gray-600">
-          {update.latest === null
-            ? 'GitHub lists no app release yet.'
-            : 'This is the latest release, according to GitHub.'}
+          {status === 'latest' && 'This is the latest release, according to GitHub.'}
+          {status === 'ahead' && (
+            <>
+              This build is above the latest release on GitHub, <span className="font-mono">{update.latest}</span>.
+            </>
+          )}
+          {status === 'none' && 'GitHub lists no app release yet.'}
         </p>
       )}
       <p className="font-mono text-xs text-gray-400">
@@ -52,7 +59,7 @@ export function UpdateStatus() {
           Onay <span className="font-mono">{update.current ?? '…'}</span>
         </p>
         <button
-          onClick={() => void checkNow()}
+          onClick={() => void updateStore.checkNow()}
           disabled={update.checking}
           className="font-mono text-xs text-gray-400 hover:text-gray-600 disabled:opacity-40"
         >

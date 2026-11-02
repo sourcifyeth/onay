@@ -13,7 +13,7 @@ import { forgetContext } from './context/store.ts'
 import { refreshStaleTokenLists } from './clear-signing/tokenLists.ts'
 import { AttesterNotice } from './AttesterNotice.tsx'
 import { UpdateNotice } from './UpdateNotice.tsx'
-import { startUpdateCheck } from './updateStore.ts'
+import { startUpdateCheck } from './updateCheck.ts'
 
 const OUTCOME_TEXT = {
   fulfilled: 'The wallet signed.',

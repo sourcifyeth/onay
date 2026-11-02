@@ -4,8 +4,8 @@
 
 use std::process::Command;
 
-// The same list as LINK_PREFIXES in src/context/explorers.ts. Keep both
-// lists the same.
+// LINK_PREFIXES in src/context/explorers.ts holds the same sites, apart
+// from 4byte and onay.sh. A test in profile-card.test.ts compares them.
 const ALLOWED: &[&str] = &[
     "https://github.com/",
     "https://4byte.sourcify.dev/",

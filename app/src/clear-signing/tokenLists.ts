@@ -5,7 +5,8 @@
 // good copy of each. The pure parts have no browser calls, so the tests
 // run them.
 
-import type { Fetch } from '../gates/gate.ts'
+import { readCapped, tooBig, type Fetch } from '../gates/gate.ts'
+import { compareVersions, type Version } from '../version.ts'
 import type { Hex } from '../messages.ts'
 
 const STORAGE_KEY = 'onay.tokenLists'
@@ -21,8 +22,6 @@ export const REFRESH_AFTER = 24 * 60 * 60 * 1000
 
 export const MAX_BYTES = 8 * 1024 * 1024
 export const MAX_TOKENS = 10_000
-
-export type Version = { major: number; minor: number; patch: number }
 
 export type Token = { chainId: number; address: Hex; symbol: string; decimals: number }
 
@@ -73,10 +72,6 @@ export function versionText(version: Version): string {
   return `v${version.major}.${version.minor}.${version.patch}`
 }
 
-export function compareVersions(a: Version, b: Version): number {
-  return a.major - b.major || a.minor - b.minor || a.patch - b.patch
-}
-
 // The list as parsed, with the count of entries that were skipped: a
 // non-EVM address, a bad chain id, or bad decimals. Throws if the list
 // has the wrong shape.
@@ -113,38 +108,7 @@ export function parseTokenList(value: unknown): { list: TokenList; skipped: numb
   return { list: { name: record.name.trim().slice(0, 60), version, timestamp, tokens }, skipped }
 }
 
-const tooBig = (cap: number, what = 'the list') => `${what} is over ${cap / 1024 / 1024} MB`
 const TOO_BIG = tooBig(MAX_BYTES)
-
-// The body as text, read in chunks and stopped at the cap, so that a
-// list cannot fill the memory before the check.
-export async function readCapped(response: Response, cap: number, what?: string): Promise<string> {
-  const reader = response.body?.getReader()
-  if (!reader) {
-    const text = await response.text()
-    if (new TextEncoder().encode(text).length > cap) throw new Error(tooBig(cap, what))
-    return text
-  }
-  const chunks: Uint8Array[] = []
-  let size = 0
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    size += value.length
-    if (size > cap) {
-      await reader.cancel()
-      throw new Error(tooBig(cap, what))
-    }
-    chunks.push(value)
-  }
-  const bytes = new Uint8Array(size)
-  let offset = 0
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset)
-    offset += chunk.length
-  }
-  return new TextDecoder().decode(bytes)
-}
 
 // Fetches and parses a list. Rejects a body over the size cap.
 export async function fetchTokenList(

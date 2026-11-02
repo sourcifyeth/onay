@@ -5,8 +5,8 @@ import {
   fetchLatestVersion,
   latestAppVersion,
   MAX_BYTES,
-  newerVersion,
   parseVersion,
+  releaseStatus,
   RELEASES_API,
 } from '../src/update.ts'
 
@@ -18,7 +18,7 @@ const release = (tag_name: string, flags: { draft?: boolean; prerelease?: boolea
 })
 
 test('parseVersion reads major.minor.patch only', () => {
-  assert.deepEqual(parseVersion('0.10.2'), [0, 10, 2])
+  assert.deepEqual(parseVersion('0.10.2'), { major: 0, minor: 10, patch: 2 })
   assert.equal(parseVersion('v0.1.0'), null)
   assert.equal(parseVersion('extension-0.1.1'), null)
   assert.equal(parseVersion('0.1.0-rc.1'), null)
@@ -42,16 +42,16 @@ test('latestAppVersion takes the highest published app tag', () => {
   assert.throws(() => latestAppVersion({ message: 'API rate limit exceeded' }), /not a list/)
 })
 
-test('newerVersion compares the numbers, not the text', () => {
-  assert.equal(newerVersion('0.9.0', '0.10.0'), '0.10.0')
-  assert.equal(newerVersion('0.10.0', '0.9.0'), null)
-  assert.equal(newerVersion('0.10.0', '0.10.0'), null)
-  assert.equal(newerVersion('0.1.0', '1.0.0'), '1.0.0')
-  assert.equal(newerVersion('0.1.0', null), null)
-  assert.equal(newerVersion('dev', '1.0.0'), null)
+test('releaseStatus compares the numbers, not the text', () => {
+  assert.equal(releaseStatus('0.9.0', '0.10.0'), 'newer')
+  assert.equal(releaseStatus('0.1.0', '1.0.0'), 'newer')
+  assert.equal(releaseStatus('0.10.0', '0.10.0'), 'latest')
+  // A development build above every release.
+  assert.equal(releaseStatus('0.10.0', '0.9.0'), 'ahead')
+  assert.equal(releaseStatus('0.1.0', null), 'none')
 })
 
-test('fetchLatestVersion asks GitHub and returns the highest app version', async () => {
+test('fetchLatestVersion asks GitHub for 100 releases and returns the highest app version', async () => {
   let asked = ''
   const fetch = async (url: string) => {
     asked = url
@@ -59,6 +59,7 @@ test('fetchLatestVersion asks GitHub and returns the highest app version', async
   }
   assert.equal(await fetchLatestVersion(fetch), '0.2.0')
   assert.equal(asked, RELEASES_API)
+  assert.match(asked, /per_page=100$/)
   assert.equal(await fetchLatestVersion(async () => Response.json([])), null)
 })
 

@@ -4,7 +4,6 @@ import { test } from 'node:test'
 import {
   acceptTokenListUpdate,
   applies,
-  compareVersions,
   fetchTokenList,
   isHttpsUrl,
   isStale,
@@ -23,6 +22,7 @@ import {
   type TokenList,
 } from '../src/clear-signing/tokenLists.ts'
 import type { Hex } from '../src/messages.ts'
+import { compareVersions } from '../src/version.ts'
 
 const USDC = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const usdc = USDC.toLowerCase() as Hex
