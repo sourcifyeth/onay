@@ -38,8 +38,9 @@ export type ChainConfig = {
 //   changes the finality update once per epoch only, as the spec says, so
 //   the head of Helios 0.12.0 falls up to 6 minutes behind. Helios needs
 //   the optimistic update for a recent head.
-// - unstable.sepolia.beacon-api.nimbus.team has no DNS record, and
-//   sepolia.lightclient.xyz closes the connection.
+// - http://unstable.sepolia.beacon-api.nimbus.team is not tested. A Helios
+//   maintainer suggests it in a16z/helios#555. sepolia.lightclient.xyz
+//   closes the connection.
 export const DEFAULT_CHAINS: ChainConfig[] = [
   {
     id: 1,
