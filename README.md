@@ -155,6 +155,14 @@ To release app `0.2.0`:
 
 The `Release` workflow then checks that the tag is on `main` and equals the app version in the repo, builds the app packages (Linux x64, macOS arm64), and creates the GitHub release with them attached, with a `SHA256SUMS` file, and with the extension version at the tag in the first line of the notes. A tag that fails a check or a build publishes nothing.
 
+Every file of a release, of the app and of the extension, carries a build provenance attestation: a statement signed through Sigstore that this workflow, at this commit, in this run, made the file. GitHub stores it next to the repository. To check a downloaded file:
+
+```
+gh attestation verify Onay_0.2.0_amd64.deb --repo sourcifyeth/onay
+```
+
+The answer names the workflow file and the tag, or fails. A file built anywhere else has no statement, and a changed file matches none. The GitHub release itself is immutable (a repository setting): its files and its tag cannot change after publication, and GitHub adds a release attestation of its own, which `gh release verify-asset` checks.
+
 A tag push is a release, so a tag ruleset in the repository settings (Rules, Rulesets, target all tags, rule "Restrict creations", with the repository admins in the bypass list) limits who creates version tags to the maintainers.
 
 The signing secrets live in the `release` environment of the repository, whose deployment policy admits only tags matching `[0-9]*.[0-9]*.[0-9]*`. A workflow on a branch cannot use the environment, so no branch can reach the secrets, whatever its workflow files say. The workflow has no manual trigger for the same reason. The first tag after a change to the workflow is its test.
@@ -172,7 +180,7 @@ To release extension `0.1.1`:
 1. `pnpm version:set extension 0.1.1` writes it into the manifest and the extension package. Open a pull request with the change and merge it. The store refuses a version that is not higher than the last one.
 2. Tag the merge commit on `main` and push the tag: `git tag extension-0.1.1 && git push origin extension-0.1.1`.
 
-The `Release extension` workflow then checks that the tag is on `main` and equals the extension version in the repo, runs the extension tests, builds the reproducible zip with the commit time as `SOURCE_DATE_EPOCH`, uploads it to the Chrome Web Store, submits it for review, and creates the GitHub release `extension-0.1.1` with the zip and its checksum. The store review takes days; the item goes live when it passes, with the visibility set in the dashboard. The listing texts and the icon stay in the dashboard: the workflow changes only the package.
+The `Release extension` workflow then checks that the tag is on `main` and equals the extension version in the repo, runs the extension tests, builds the reproducible zip with the commit time as `SOURCE_DATE_EPOCH`, uploads it to the Chrome Web Store, submits it for review, and creates the GitHub release `extension-0.1.1` with the zip, its checksum, and the provenance attestation described above. The store review takes days; the item goes live when it passes, with the visibility set in the dashboard. The listing texts and the icon stay in the dashboard: the workflow changes only the package.
 
 The store credentials live in the `store` environment of the repository, whose deployment policy admits only tags matching `extension-[0-9]*.[0-9]*.[0-9]*`, like the `release` environment for the app. The zip is built in a job without the environment, so the build never sees the credentials. The four secrets, all required:
 

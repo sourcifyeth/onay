@@ -139,6 +139,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # the provenance: id-token to prove the run to Sigstore, attestations to store the result
+      id-token: write
+      attestations: write
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -146,6 +149,12 @@ jobs:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: extension
+      # a signed statement per file: this workflow, at this commit, made it (README: `gh attestation verify`)
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            onay-extension.zip
+            SHA256SUMS
       - name: Create the release with the zip that went to the store
         run: |
           version="${GITHUB_REF_NAME#extension-}"
