@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Onay",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Sends each signing request to the local Onay app for a second, independent check before your wallet signs.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArqteLSPEhRAOajems4V/h3nswSnxEr5Sh1ljJTqPA5FvjJeNLq8n6BbrrBnoKfp2aC22ZzWt82cXOxSf1zwfLZlMmh94WWpkzP72G0lfWV+LFGm5sMEISnfAFvUNfejg4vFKi6qY+rgKhq+zWrZCmdM8q83lUHO3Rz8mKGiSIeGtGBR5ntjwqFHCtu5TwzTLudoN1IzZbi3+NR/JNf2w999DyV2ZrLeWURHDy6NuyQOSKR/djLBBZb+RsrnYxfum8ELXpHGRkbipZnBNPPQJ8hlm4725ozFmPtbwgEUWPlixbAcXGDxgPyVdnhvaJNpdI4G8CoFmph0kA84mKbUBqwIDAQAB",
   "minimum_chrome_version": "133",
