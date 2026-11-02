@@ -2,7 +2,6 @@
 
 import { useSyncExternalStore } from 'react'
 import { ExternalLink } from './ExternalLink.tsx'
-import { ThirdPartyIcon } from './Icons.tsx'
 import { DOWNLOAD_PAGE } from './update.ts'
 import { checkNow, updateStore } from './updateStore.ts'
 
@@ -23,25 +22,17 @@ function Release() {
       </p>
     )
   }
-  const claim = <ThirdPartyIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" title="From GitHub, not checked here" />
   return (
     <div className="flex flex-col gap-1">
       {update.newer ? (
-        <p className="flex items-start gap-1.5 text-xs text-amber-800">
-          {claim}
-          <span>
-            GitHub lists a newer release: <span className="font-mono">{update.newer}</span>. Get it from{' '}
-            <DownloadLink />.
-          </span>
+        <p className="text-xs text-amber-800">
+          GitHub lists a newer release: <span className="font-mono">{update.newer}</span>. Get it from <DownloadLink />.
         </p>
       ) : (
-        <p className="flex items-start gap-1.5 text-xs text-gray-600">
-          {claim}
-          <span>
-            {update.latest === null
-              ? 'GitHub lists no app release yet.'
-              : 'This is the latest release, according to GitHub.'}
-          </span>
+        <p className="text-xs text-gray-600">
+          {update.latest === null
+            ? 'GitHub lists no app release yet.'
+            : 'This is the latest release, according to GitHub.'}
         </p>
       )}
       <p className="font-mono text-xs text-gray-400">
