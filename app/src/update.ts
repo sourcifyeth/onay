@@ -1,7 +1,5 @@
-// The check for a new release of the app on GitHub. The release list is
-// a claim of GitHub, not checked here, so the notice marks it as
-// third-party data. The pure parts have no browser calls, so the tests
-// run them.
+// The check for a new release of the app on GitHub. The pure parts
+// have no browser calls, so the tests run them.
 
 import type { Fetch } from './gates/gate.ts'
 import { readCapped } from './clear-signing/tokenLists.ts'
