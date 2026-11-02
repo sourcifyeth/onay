@@ -1,8 +1,8 @@
 # Builds and publishes a release from a version tag on main, such as 0.1.0.
 # The tag must equal the app version in the repo (scripts/set-version.mjs).
 # The app is published only from here. The last job rebuilds the download
-# page at onay.sh, so it lists the new release. The extension still goes to the
-# Chrome Web Store by hand (README). The signing secrets live in the
+# page at onay.sh, so it lists the new release. The extension has its own
+# tags and workflow (release-extension.yml). The signing secrets live in the
 # `release` environment, which only version tags may use, and there is no
 # manual trigger: no workflow on a branch can reach them.
 name: Release
