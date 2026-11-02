@@ -61,9 +61,10 @@ function gitHubRelease(tag: string, publishedAt: string, flags = { draft: false,
   }
 }
 
-test('fromGitHub keeps the published releases, newest first', () => {
+test('fromGitHub keeps the published app releases, newest first', () => {
   const releases = fromGitHub([
     gitHubRelease('0.0.9', '2026-09-01T08:00:00Z'),
+    gitHubRelease('extension-0.1.1', '2026-11-03T08:00:00Z'),
     gitHubRelease('0.2.0', '2026-11-02T08:00:00Z', { draft: true, prerelease: false }),
     gitHubRelease('0.1.0', '2026-10-27T14:44:12Z'),
     gitHubRelease('0.1.1-rc.1', '2026-10-30T08:00:00Z', { draft: false, prerelease: true }),

@@ -37,7 +37,10 @@ export function parseReleases(data: unknown): Release[] {
   })
 }
 
-// Reads the answer of the GitHub API, which releases.mjs writes: the published releases, newest first.
+// The tag of an app release. The extension has its own tags, such as extension-0.1.1.
+const APP_TAG = /^\d+\.\d+\.\d+$/
+
+// Reads the answer of the GitHub API, which releases.mjs writes: the published app releases, newest first.
 export function fromGitHub(data: unknown): Release[] {
   if (!Array.isArray(data)) throw new Error('GitHub: not an array')
   const published = data.filter((item: unknown, index) => {
@@ -45,7 +48,7 @@ export function fromGitHub(data: unknown): Release[] {
     if (typeof item.draft !== 'boolean' || typeof item.prerelease !== 'boolean') {
       throw new Error(`GitHub[${index}]: no draft or prerelease flag`)
     }
-    return !item.draft && !item.prerelease
+    return !item.draft && !item.prerelease && typeof item.tag_name === 'string' && APP_TAG.test(item.tag_name)
   }) as Record<string, unknown>[]
   const releases = parseReleases(
     published.map((item) => ({
