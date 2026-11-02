@@ -41,6 +41,8 @@ export type Verified = {
   // the transaction came without proof.
   creationMatch: Match | null
   creationNote: string | null
+  // The creation transaction that the gate read. The profile reuses it.
+  creation: Creation | null
   transformations: { runtime: Transformations; creation: Transformations }
   // From the compile that matched, not from Sourcify.
   abi: unknown[]
@@ -144,6 +146,7 @@ export async function verify(
     runtimeMatch,
     creationMatch: isMatch(creationMatch) ? creationMatch : null,
     creationNote,
+    creation: read.creation,
     transformations: verification.transformations,
     abi: output?.abi ?? [],
   }

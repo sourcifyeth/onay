@@ -1,13 +1,12 @@
-// The chains that the app reads, and how. The list is saved in the
-// webview. Each chain in Helios mode has a Helios client in Rust, which
-// this module starts and stops. The defaults and the merge with the saved
-// list live in `chainList.ts`.
+// The chains that the app knows, and how it reads each one. The list is
+// saved in the webview. Each chain in Helios mode has a Helios client in
+// Rust, which this module starts and stops.
 
 import { invoke } from '@tauri-apps/api/core'
-import { mergeChains, type ChainConfig } from './chainList.ts'
 import type { StartChainArgs, StopChainArgs } from './messages.ts'
+import { loadChains, type ChainConfig } from './chainList.ts'
 
-export type { ChainConfig } from './chainList.ts'
+export type { ChainConfig }
 
 const STORAGE_KEY = 'onay.chains'
 
@@ -53,7 +52,7 @@ export function saveChains(next: ChainConfig[]) {
 
   for (const chain of next) {
     const old = before.find((other) => other.id === chain.id)
-    if (JSON.stringify(old) !== JSON.stringify(chain)) startHelios(chain)
+    if (!old || heliosKey(old) !== heliosKey(chain)) startHelios(chain)
   }
   for (const old of before) {
     const now = next.find((chain) => chain.id === old.id)
@@ -63,6 +62,10 @@ export function saveChains(next: ChainConfig[]) {
     }
   }
 }
+
+// The fields that the Helios client uses. A change of an explorer does
+// not restart it.
+export const heliosKey = (chain: ChainConfig) => JSON.stringify([chain.mode, chain.executionRpc, chain.consensusRpc])
 
 function startHelios(chain: ChainConfig) {
   if (chain.mode !== 'helios') return
@@ -78,11 +81,9 @@ function startHelios(chain: ChainConfig) {
 }
 
 function load(): ChainConfig[] {
-  let saved: unknown = null
   try {
-    saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null')
+    return loadChains(localStorage.getItem(STORAGE_KEY))
   } catch {
-    // Use the defaults.
+    return loadChains(null)
   }
-  return mergeChains(saved)
 }

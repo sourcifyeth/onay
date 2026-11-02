@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="./favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <title>Onay privacy policy</title>
+    <style>
+      :root {
+        --blue: #2b50aa;
+        --ink: #1d2433;
+        --muted: #5b6477;
+        --line: #dde2ec;
+      }
+      body {
+        margin: 0;
+        padding: 40px 16px 64px;
+        background: #fff;
+        color: var(--ink);
+        font-family: 'IBM Plex Sans', system-ui, sans-serif;
+        font-size: 16px;
+        line-height: 1.55;
+      }
+      main {
+        max-width: 42rem;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 1.75rem;
+        line-height: 1.2;
+        margin: 0 0 4px;
+      }
+      h2 {
+        font-size: 1.15rem;
+        margin: 28px 0 8px;
+      }
+      p,
+      li {
+        margin: 0 0 10px;
+      }
+      .date {
+        color: var(--muted);
+        margin-bottom: 24px;
+      }
+      code {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.92em;
+      }
+      a {
+        color: var(--blue);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Onay privacy policy</h1>
+      <p class="date">Effective 29 October 2026</p>
+      <p>
+        This policy covers the Onay browser extension and the Onay desktop app, free software by the Sourcify team. Onay
+        gives every transaction a second, independent check before your wallet signs it. It is view only and holds no
+        keys.
+      </p>
+
+      <h2>What the extension does</h2>
+      <p>
+        The extension watches the wallet provider on each web page. When a page asks the wallet to sign a transaction, a
+        message, or typed data, the extension sends a copy of that request to the Onay app on the same computer. The
+        wallet gets the request unchanged and at the same time. The extension never changes a request and never blocks
+        the wallet.
+      </p>
+
+      <h2>Data the extension handles</h2>
+      <ul>
+        <li>
+          The signing request that a page makes to your wallet: account addresses, amounts, calldata, and the message to
+          sign.
+        </li>
+        <li>The origin of the page that makes the request, for example <code>https://app.example.org</code>.</li>
+        <li>The answer of the wallet: whether it fulfilled or rejected the request. Not the signature itself.</li>
+      </ul>
+      <p>
+        The extension handles this data for one purpose: to show the request to you in the Onay app, so that you can
+        check it before you sign. It does not read any other page content, and it does not record which pages you visit.
+      </p>
+
+      <h2>Where the data goes</h2>
+      <p>
+        The extension sends the request only to the Onay app on your computer, through the native messaging interface of
+        the browser, encrypted end to end. The extension makes no network requests and sends nothing to us or to anyone
+        else. It does not sell, share, or transfer user data to third parties.
+      </p>
+
+      <h2>What the extension stores</h2>
+      <p>
+        The extension stores one thing in the browser: its own key pair for the encrypted channel to the app and the
+        public key of the app it paired with. No request, address, page, or personal information is stored by the
+        extension.
+      </p>
+
+      <h2>The app and the network</h2>
+      <p>
+        The app checks the request against the chain. For this it asks an Ethereum RPC endpoint for the chain state that
+        the request touches, which shows the addresses and the calls of the request to that endpoint. It asks Sourcify
+        for the verified source code of the contracts that the request names, and it may fetch public descriptors and
+        token lists from the Clear Signing registry and from the publishers of those lists. These requests carry no
+        account of yours other than what the request itself contains, and no identifier of you. The app keeps no history
+        of requests.
+      </p>
+
+      <h2>Changes and contact</h2>
+      <p>
+        The source code of the extension and the app is public at
+        <a href="https://github.com/sourcifyeth/onay">github.com/sourcifyeth/onay</a>. Changes to this policy appear in
+        that repository and on this page with a new date. Questions about this policy go to the issues of that
+        repository.
+      </p>
+    </main>
+  </body>
+</html>

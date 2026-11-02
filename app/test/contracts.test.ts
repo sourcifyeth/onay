@@ -35,6 +35,7 @@ const verified = {
   runtimeMatch: 'perfect',
   creationMatch: null,
   creationNote: 'Sourcify does not know the creation transaction',
+  creation: null,
   transformations: { runtime: { list: [], values: {} }, creation: { list: [], values: {} } },
   abi: [],
 } satisfies Verified

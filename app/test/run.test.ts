@@ -49,6 +49,7 @@ const verified = {
   runtimeMatch: 'perfect',
   creationMatch: null,
   creationNote: null,
+  creation: null,
   transformations: { runtime: { list: [], values: {} }, creation: { list: [], values: {} } },
   abi: [],
 } satisfies Verified

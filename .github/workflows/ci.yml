@@ -32,7 +32,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # formatting (oxfmt) is checked, never changed, in CI
       - run: pnpm format:check
+      # the site build reads the releases from the GitHub API; the token lifts the limit of shared runners
       - run: pnpm -r build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - run: pnpm -r lint
       - run: pnpm -r test
       # the scripts of the repo root

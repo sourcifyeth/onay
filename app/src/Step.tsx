@@ -20,21 +20,25 @@ export function Step({ step, explainer, children }: { step: StepInfo; explainer:
 
 // A card whose summary always shows. The details open with the chevron,
 // or from the start.
+// `tall` gives the title more room above and under it.
 export function CollapsibleCard({
   summary,
   open: initial = false,
+  tall = false,
   children,
 }: {
   summary: ReactNode
   open?: boolean
+  tall?: boolean
   children: ReactNode
 }) {
   const [open, setOpen] = useState(initial)
+  const top = tall ? 'py-5' : 'py-3'
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-4 px-5 py-3 text-left"
+        className={`flex w-full items-center justify-between gap-4 px-5 ${top} text-left`}
       >
         <div className="min-w-0 flex-1">{summary}</div>
         <span className="shrink-0 text-gray-400">{open ? '▴' : '▾'}</span>
@@ -99,7 +103,7 @@ export function Row({ label, children }: { label: string; children: ReactNode })
   return (
     <div className="flex items-baseline justify-between gap-4 py-1.5">
       <span className="shrink-0 text-sm text-gray-500">{label}</span>
-      <span className="min-w-0 text-right text-sm text-gray-800">{children}</span>
+      <span className="min-w-0 text-right text-sm [overflow-wrap:anywhere] text-gray-800">{children}</span>
     </div>
   )
 }

@@ -1,7 +1,13 @@
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { AttesterSettings } from './AttesterSettings.tsx'
+import { ProfileSettings } from './ProfileSettings.tsx'
+import type { SettingsField } from './openSettings.ts'
 import { TokenListSettings } from './TokenListSettings.tsx'
-import { chainStore, heliosStarted, saveChains, type ChainConfig } from './chains.ts'
+import { EXPLORER_FIELDS, isExplorerField } from './chainList.ts'
+import { chainStore, heliosKey, heliosStarted, saveChains, type ChainConfig } from './chains.ts'
+import { EXPLORER_HOSTS, explorersOf } from './context/explorers.ts'
+import { contextSettingsStore, isEtherscanKey, saveContextSettings } from './context/settings.ts'
+import { ExternalLink } from './ExternalLink.tsx'
 import { errorText } from './gates/gate.ts'
 import type { Snapshot } from './messages.ts'
 import { CollapsibleCard } from './Step.tsx'
@@ -33,6 +39,42 @@ function Field({
   )
 }
 
+// The explorer fields of a chain card. A field shows the built-in host
+// until the user changes it. An empty field turns that explorer off.
+function ExplorerFields({ draft, onChange }: { draft: ChainConfig; onChange: (chain: ChainConfig) => void }) {
+  const table = EXPLORER_HOSTS[draft.id] as (typeof EXPLORER_HOSTS)[number] | undefined
+  const effective = explorersOf(draft)
+  const invalid = EXPLORER_FIELDS.some((field) => draft[field] !== undefined && !isExplorerField(draft[field]))
+  return (
+    <div className="flex flex-col gap-3 border-t border-gray-100 pt-3">
+      <p className="font-mono text-xs text-gray-500">explorers</p>
+      <Field
+        label="Etherscan"
+        value={draft.etherscan ?? table?.etherscan ?? ''}
+        placeholder="none"
+        onChange={(etherscan) => onChange({ ...draft, etherscan })}
+      />
+      <Field
+        label="Blockscout"
+        value={draft.blockscout ?? table?.blockscout ?? ''}
+        placeholder="none"
+        onChange={(blockscout) => onChange({ ...draft, blockscout })}
+      />
+      {effective.blockscout && (
+        <Field
+          label="Blockscout API, if on another host"
+          value={draft.blockscoutApi ?? ''}
+          placeholder={effective.blockscoutApi ?? ''}
+          onChange={(blockscoutApi) => onChange({ ...draft, blockscoutApi })}
+        />
+      )}
+      {invalid && (
+        <p className="text-xs text-light-coral-700">An explorer URL starts with https://. Leave it empty for none.</p>
+      )}
+    </div>
+  )
+}
+
 function ChainCard({
   chain,
   onChange,
@@ -47,12 +89,16 @@ function ChainCard({
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
   const helios = chain.mode === 'helios'
   const dirty = JSON.stringify(draft) !== JSON.stringify(chain)
-  const valid = isUrl(draft.executionRpc) && (!helios || isUrl(draft.consensusRpc ?? ''))
+  const valid =
+    isUrl(draft.executionRpc) &&
+    (!helios || isUrl(draft.consensusRpc ?? '')) &&
+    EXPLORER_FIELDS.every((field) => draft[field] === undefined || isExplorerField(draft[field]))
+  const restarts = helios && heliosKey(draft) !== heliosKey(chain)
 
   const save = async () => {
     onChange(draft)
     setResult(null)
-    if (!helios) return setResult({ ok: true, text: 'saved' })
+    if (!restarts) return setResult({ ok: true, text: 'saved' })
     try {
       await heliosStarted(chain.id)
       setResult({ ok: true, text: 'saved · Helios restarted' })
@@ -81,6 +127,7 @@ function ChainCard({
             onChange={(consensusRpc) => setDraft({ ...draft, consensusRpc })}
           />
         )}
+        <ExplorerFields draft={draft} onChange={setDraft} />
       </div>
       <div className="flex items-center gap-3 pt-3">
         {dirty && (
@@ -89,7 +136,7 @@ function ChainCard({
             disabled={!valid}
             className="rounded-lg bg-cerulean-blue-500 px-4 py-1.5 text-xs font-medium text-white hover:bg-cerulean-blue-600 disabled:opacity-40"
           >
-            Save{helios ? ' · restarts Helios' : ''}
+            Save{restarts ? ' · restarts Helios' : ''}
           </button>
         )}
         {result && (
@@ -169,14 +216,21 @@ function AddChain({ chains, onAdd }: { chains: ChainConfig[]; onAdd: (chain: Cha
 }
 
 // The parts of the link to the browser extension, for diagnosis.
+// The heading of a group of settings that is not a chain mode.
+function GroupHeading({ children }: { children: string }) {
+  return (
+    <h3 className="flex items-center gap-1.5 pt-4 font-mono text-xs tracking-widest text-gray-500 uppercase">
+      <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
+      {children}
+    </h3>
+  )
+}
+
 function BrowserLink({ snapshot }: { snapshot: Snapshot }) {
   const paired = snapshot.connections.filter((c) => c.pairingCode === null).length
   return (
     <>
-      <h3 className="flex items-center gap-1.5 pt-4 font-mono text-xs tracking-widest text-gray-500 uppercase">
-        <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
-        Browser link
-      </h3>
+      <GroupHeading>Browser link</GroupHeading>
       <CollapsibleCard
         summary={
           <div className="flex items-baseline justify-between gap-4">
@@ -224,8 +278,92 @@ function BrowserLink({ snapshot }: { snapshot: Snapshot }) {
   )
 }
 
-export function SettingsPage({ snapshot, onBack }: { snapshot: Snapshot | null; onBack: () => void }) {
+// The Etherscan key, and what each explorer learns from a lookup.
+function ExplorerSettings() {
+  const settings = useSyncExternalStore(contextSettingsStore.subscribe, contextSettingsStore.getSnapshot)
+  const [draft, setDraft] = useState(settings.etherscanKey)
+  const [saved, setSaved] = useState(false)
+  const key = draft.trim()
+  const valid = isEtherscanKey(key)
+  const dirty = key !== settings.etherscanKey
+
+  const save = () => {
+    saveContextSettings({ ...settings, etherscanKey: key })
+    setSaved(true)
+  }
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <p className="pb-1 font-medium text-gray-800">Explorers</p>
+      <p className="pb-3 text-xs leading-relaxed text-gray-500">
+        Their claims show next to the checks, with the yellow mark. Etherscan needs a free key from{' '}
+        <ExternalLink href="https://etherscan.io/apis" className="text-cerulean-blue-600 hover:underline">
+          etherscan.io/apis ↗
+        </ExternalLink>
+        ; Blockscout needs none.
+      </p>
+      <div className="flex items-end gap-3">
+        <label className="block min-w-0 flex-1">
+          <span className="font-mono text-xs text-gray-500">Etherscan API key</span>
+          <input
+            id="etherscan-key"
+            value={draft}
+            type="password"
+            placeholder="none"
+            autoComplete="off"
+            onChange={(event) => {
+              setDraft(event.target.value)
+              setSaved(false)
+            }}
+            onKeyDown={(event) => event.key === 'Enter' && valid && dirty && save()}
+            spellCheck={false}
+            className="mt-1 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-1.5 font-mono text-xs text-gray-800 placeholder:text-gray-400 focus:border-cerulean-blue-400 focus:outline-none"
+          />
+        </label>
+        {dirty ? (
+          <button
+            onClick={save}
+            disabled={!valid}
+            className="rounded-lg bg-cerulean-blue-500 px-4 py-1.5 text-xs font-medium text-white hover:bg-cerulean-blue-600 disabled:opacity-40"
+          >
+            {key === '' ? 'Remove' : 'Save'}
+          </button>
+        ) : (
+          saved && <span className="pb-1.5 font-mono text-xs text-green-600">saved ✓</span>
+        )}
+      </div>
+      {!valid && <p className="pt-2 text-xs text-light-coral-700">An Etherscan key has only letters and digits.</p>}
+      <details className="pt-3 text-xs leading-relaxed text-gray-500">
+        <summary className="cursor-pointer font-mono text-gray-400 hover:text-gray-600">
+          what the explorers learn
+        </summary>
+        <p className="pt-1">
+          Each lookup tells the explorer which contract you check and who deployed it. The key is saved in the app's
+          local storage, a plain file that other programs of your user can read; a free key is fine there. The explorer
+          URLs of each chain are in its chain card above; set your own Blockscout instance there.
+        </p>
+      </details>
+      <p className="pt-2 text-xs text-gray-400">Powered by Etherscan.io APIs.</p>
+    </section>
+  )
+}
+
+export function SettingsPage({
+  snapshot,
+  field = null,
+  onBack,
+}: {
+  snapshot: Snapshot | null
+  // The field that a link from the review asked for.
+  field?: SettingsField | null
+  onBack: () => void
+}) {
   const chains = useSyncExternalStore(chainStore.subscribe, chainStore.getSnapshot)
+  useEffect(() => {
+    const target = field ? document.getElementById(field) : null
+    target?.scrollIntoView({ block: 'center' })
+    target?.focus()
+  }, [field])
   const update = (next: ChainConfig) => saveChains(chains.map((chain) => (chain.id === next.id ? next : chain)))
   const remove = (id: number) => saveChains(chains.filter((chain) => chain.id !== id))
 
@@ -246,7 +384,8 @@ export function SettingsPage({ snapshot, onBack }: { snapshot: Snapshot | null; 
         Helios is a light client: it never trusts these endpoints, it checks them. Each piece of chain state is checked
         against a cryptographic proof, so a lying RPC (Remote Procedure Call) endpoint gets caught instead of believed.
         The consensus RPC serves the beacon chain light client updates, and Helios follows the sync committee signatures
-        from there.
+        from there. The address profile also asks the execution endpoint about the deployer's account, and the decimals
+        and the balance of up to 10 tokens of the contract and of its deployer.
       </p>
       {chains
         .filter((chain) => chain.mode === 'helios')
@@ -274,6 +413,11 @@ export function SettingsPage({ snapshot, onBack }: { snapshot: Snapshot | null; 
         ))}
       <AddChain chains={chains} onAdd={(chain) => saveChains([...chains, chain])} />
 
+      <GroupHeading>Address profile</GroupHeading>
+      <ExplorerSettings />
+      <ProfileSettings />
+
+      <GroupHeading>Clear Signing</GroupHeading>
       <AttesterSettings />
       <TokenListSettings />
       {snapshot && <BrowserLink snapshot={snapshot} />}

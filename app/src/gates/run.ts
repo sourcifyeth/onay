@@ -28,6 +28,9 @@ export type TimedLine = LogLine & {
   at: number
   // Set on the lines of the gates of one contract.
   address?: Hex
+  // Set on the lines of the explorer status lookups, which the
+  // verification card shows.
+  topic?: 'status'
 }
 
 export type { Status }

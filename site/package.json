@@ -1,0 +1,23 @@
+{
+  "name": "site",
+  "version": "0.0.0",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "releases": "node releases.mjs",
+    "dev": "node releases.mjs && vite",
+    "build": "node releases.mjs && tsc -b && vite build",
+    "lint": "oxlint",
+    "test": "tsc -p tsconfig.test.json && node --test \"test/*.test.ts\"",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "24.13.3",
+    "oxlint": "1.80.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "vite": "8.2.4"
+  }
+}

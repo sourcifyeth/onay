@@ -2,6 +2,7 @@ packages:
   - app
   - extension
   - mock
+  - site
 
 # supply-chain guardrails (see PLAN.md)
 # cbor-extract is the native addon of cbor-x (from lib-sourcify). Not built:
