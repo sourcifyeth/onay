@@ -4,11 +4,12 @@
 
 use std::process::Command;
 
-// The same list as LINK_PREFIXES in src/context/explorers.ts. Keep both
-// lists the same.
+// LINK_PREFIXES in src/context/explorers.ts holds the same sites, apart
+// from 4byte and onay.sh. A test in profile-card.test.ts compares them.
 const ALLOWED: &[&str] = &[
     "https://github.com/",
     "https://4byte.sourcify.dev/",
+    "https://onay.sh/",
     "https://repo.sourcify.dev/",
     "https://etherscan.io/",
     "https://sepolia.etherscan.io/",
@@ -109,6 +110,8 @@ mod tests {
             "https://github.com/ethereum/clear-signing-erc7730-registry"
         ));
         assert!(allowed("https://4byte.sourcify.dev/?q=0xa9059cbb"));
+        assert!(allowed("https://onay.sh/"));
+        assert!(!allowed("https://onay.sh.evil.com/"));
         assert!(!allowed("https://github.evil.com/"));
         assert!(!allowed("http://github.com/"));
         assert!(!allowed("https://example.com/https://github.com/"));

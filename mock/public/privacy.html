@@ -108,7 +108,8 @@
         The app checks the request against the chain. For this it asks an Ethereum RPC endpoint for the chain state that
         the request touches, which shows the addresses and the calls of the request to that endpoint. It asks Sourcify
         for the verified source code of the contracts that the request names, and it may fetch public descriptors and
-        token lists from the Clear Signing registry and from the publishers of those lists. These requests carry no
+        token lists from the Clear Signing registry and from the publishers of those lists. At start and once a day, it
+        asks GitHub for the list of Onay releases, to tell you when a new version is out. These requests carry no
         account of yours other than what the request itself contains, and no identifier of you. The app keeps no history
         of requests.
       </p>

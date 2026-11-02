@@ -6,8 +6,8 @@
 // take the storage and `fetch` as parameters, so the tests run them.
 
 import type { RegistryIndex } from '@ethereum-sourcify/clear-signing'
-import { listedOn, readCapped, type ListEntry } from '../clear-signing/tokenLists.ts'
-import type { Fetch } from '../gates/gate.ts'
+import { listedOn, type ListEntry } from '../clear-signing/tokenLists.ts'
+import { readCapped, type Fetch } from '../gates/gate.ts'
 import type { Hex } from '../messages.ts'
 
 export const STORAGE_KEY = 'onay.addressLists'

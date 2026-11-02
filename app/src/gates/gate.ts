@@ -88,3 +88,35 @@ export type Fetch = (
   url: string,
   init?: { headers?: Record<string, string>; signal?: AbortSignal },
 ) => Promise<Response>
+
+export const tooBig = (cap: number, what = 'the list') => `${what} is over ${cap / 1024 / 1024} MB`
+
+// The body as text, read in chunks and stopped at the cap, so that a
+// big answer cannot fill the memory before the check.
+export async function readCapped(response: Response, cap: number, what?: string): Promise<string> {
+  const reader = response.body?.getReader()
+  if (!reader) {
+    const text = await response.text()
+    if (new TextEncoder().encode(text).length > cap) throw new Error(tooBig(cap, what))
+    return text
+  }
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.length
+    if (size > cap) {
+      await reader.cancel()
+      throw new Error(tooBig(cap, what))
+    }
+    chunks.push(value)
+  }
+  const bytes = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.length
+  }
+  return new TextDecoder().decode(bytes)
+}

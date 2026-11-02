@@ -4,8 +4,7 @@
 // run it as it is.
 
 import type { ChainConfig } from '../chainList.ts'
-import { readCapped } from '../clear-signing/tokenLists.ts'
-import { errorText, type Fetch } from '../gates/gate.ts'
+import { errorText, readCapped, type Fetch } from '../gates/gate.ts'
 import type { Hex } from '../messages.ts'
 
 export type Explorer = 'etherscan' | 'blockscout'
