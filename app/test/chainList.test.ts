@@ -15,7 +15,7 @@ test('nothing saved, or no list: the defaults', () => {
 test('the Ethereum chains run in Helios mode, each with a consensus endpoint', () => {
   for (const chain of [mainnet, sepolia, DEFAULT_CHAINS[2]]) {
     assert.equal(chain.mode, 'helios', chain.name)
-    assert.match(chain.consensusRpc ?? '', /^https:\/\//, chain.name)
+    assert.match(chain.consensusRpc ?? '', /^https?:\/\//, chain.name)
   }
 })
 
@@ -35,7 +35,7 @@ test('a saved Sepolia with the retired publicnode endpoint takes the current def
     consensusRpc: 'https://ethereum-sepolia-beacon-api.publicnode.com',
   }
   assert.deepEqual(mergeChains([saved])[1], { ...sepolia, executionRpc: 'https://my.node/exec' })
-  assert.equal(sepolia.consensusRpc, 'https://lodestar-sepolia.chainsafe.io')
+  assert.equal(sepolia.consensusRpc, 'http://unstable.sepolia.beacon-api.nimbus.team')
 })
 
 test('a saved Sepolia with an endpoint of the user keeps it', () => {

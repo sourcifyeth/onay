@@ -31,16 +31,16 @@ export type ChainConfig = {
 // at least 10 blocks back.
 //
 // Sepolia activated Glamsterdam (Gloas) on 2026-10-06. Checked on
-// 2026-10-28, see issue #35:
+// 2026-11-02, see issue #35:
 // - publicnode runs Lighthouse 8.3.1, which makes no light-client data for
 //   Gloas blocks. It answers 404 to every bootstrap.
-// - Lodestar serves the Gloas data, and Helios syncs from it. Lodestar
-//   changes the finality update once per epoch only, as the spec says, so
-//   the head of Helios 0.12.0 falls up to 6 minutes behind. Helios needs
-//   the optimistic update for a recent head.
-// - http://unstable.sepolia.beacon-api.nimbus.team is not tested. A Helios
-//   maintainer suggests it in a16z/helios#555. sepolia.lightclient.xyz
-//   closes the connection.
+// - Lodestar serves the Gloas data, but changes the finality update once
+//   per epoch only, as the spec says. Helios 0.12.0 takes its head from the
+//   finality update alone, so the head falls up to 6 minutes behind.
+// - Nimbus serves the Gloas data and changes the finality update every
+//   slot, so the head of Helios stays recent. This node is a test node of
+//   the Nimbus team, over HTTP only. Helios checks all the data that it
+//   sends, so the node cannot forge the chain.
 export const DEFAULT_CHAINS: ChainConfig[] = [
   {
     id: 1,
@@ -54,7 +54,7 @@ export const DEFAULT_CHAINS: ChainConfig[] = [
     name: 'Sepolia',
     mode: 'helios',
     executionRpc: 'https://sepolia.gateway.tenderly.co',
-    consensusRpc: 'https://lodestar-sepolia.chainsafe.io',
+    consensusRpc: 'http://unstable.sepolia.beacon-api.nimbus.team',
   },
   {
     id: 560048,
