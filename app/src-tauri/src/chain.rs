@@ -70,8 +70,10 @@ pub async fn start_chain(
             .network(Network::from_chain_id(chain_id)?)
             .consensus_rpc(consensus_rpc.as_str())?
             .execution_rpc(execution_rpc.as_str())?
-            // If the saved checkpoint is too old, take the checkpoint that
-            // most public checkpoint services agree on.
+            // Helios starts from the saved checkpoint, or from its built-in
+            // one. An old checkpoint gives a warning only. If the first sync
+            // fails, Helios takes the checkpoint that most public checkpoint
+            // services agree on.
             .load_external_fallback()
             .data_dir(chains.data_dir.join(chain_id.to_string()))
             .build()

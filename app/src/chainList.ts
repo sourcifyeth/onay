@@ -139,7 +139,7 @@ export function loadChains(stored: string | null): ChainConfig[] {
     if (!edit) return chain
     const merged = { ...edit }
     const retired = RETIRED_CONSENSUS_RPCS[chain.id] ?? []
-    if (merged.consensusRpc !== undefined && retired.includes(merged.consensusRpc)) {
+    if (retired.includes(merged.consensusRpc ?? '')) {
       merged.consensusRpc = chain.consensusRpc
     }
     for (const field of EXPLORER_FIELDS) {

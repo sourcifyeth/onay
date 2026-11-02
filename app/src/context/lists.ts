@@ -9,6 +9,7 @@ import type { RegistryIndex } from '@ethereum-sourcify/clear-signing'
 import { listedOn, readCapped, type ListEntry } from '../clear-signing/tokenLists.ts'
 import type { Fetch } from '../gates/gate.ts'
 import type { Hex } from '../messages.ts'
+import { hostOf } from '../url.ts'
 
 export const STORAGE_KEY = 'onay.addressLists'
 
@@ -416,14 +417,6 @@ export function missingTokenLists(entries: ListEntry[]): MissingList[] {
   return entries
     .filter((entry) => entry.list === null)
     .map((entry) => ({ list: hostOf(entry.url), reason: entry.error ?? 'not fetched yet' }))
-}
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).host
-  } catch {
-    return url.slice(0, 60)
-  }
 }
 
 // The missing lists in words, for the log.
