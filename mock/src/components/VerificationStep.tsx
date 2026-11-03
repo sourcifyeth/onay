@@ -155,7 +155,7 @@ export function VerificationStep({ request }: { request: MockRequest }) {
   )
   return (
     <Step
-      number={2}
+      number={3}
       title="Source Code Verification"
       explainer="A contract without verified source code is a black box: nobody can check what it does. Do not interact with one."
     >
