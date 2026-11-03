@@ -1,3 +1,5 @@
+import { approveEffects, nftEffects, swapDisagreeEffects, swapEffects, type Effects } from './effects'
+
 export interface TxField {
   name: string
   value: string
@@ -94,6 +96,8 @@ export interface MockRequest {
   batch?: { interpolatedIntent: IntentPart[]; calls: BatchCall[] }
   /** contracts touched by the transaction, as a call tree flattened depth-first */
   contracts: MockContract[]
+  /** what the local run changes, with the other simulators; only some scenarios have it */
+  effects?: Effects
 }
 
 export interface Scenario {
@@ -270,6 +274,7 @@ export const mockRequest: MockRequest = {
     ],
   },
   contracts: [routerContract, wethContract, pairContract],
+  effects: swapEffects,
 }
 
 const tokenTransfer: MockRequest = {
@@ -422,6 +427,7 @@ const approveUnlimited: MockRequest = {
       sources: usdcSources,
     },
   ],
+  effects: approveEffects,
 }
 
 const permitTypedData: MockRequest = {
@@ -880,6 +886,7 @@ const nftTransfer: MockRequest = {
       sources: ['contracts/BoredApeYachtClub.sol', 'lib/ERC721.sol'],
     },
   ],
+  effects: nftEffects,
 }
 
 const noDescriptor: MockRequest = {
@@ -1065,6 +1072,11 @@ const reverting: MockRequest = {
 
 export const scenarios: Scenario[] = [
   { id: 'swap', label: 'swap · nested calls', request: mockRequest },
+  {
+    id: 'swap-disagree',
+    label: 'swap · simulators disagree',
+    request: { ...mockRequest, effects: swapDisagreeEffects },
+  },
   { id: 'token-transfer', label: 'ERC-20 transfer', request: tokenTransfer },
   { id: 'eth-transfer', label: 'plain ETH transfer', request: ethTransfer },
   { id: 'approve', label: 'approve · unlimited', request: approveUnlimited },

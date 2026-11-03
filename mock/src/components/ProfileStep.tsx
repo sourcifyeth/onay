@@ -180,7 +180,7 @@ export function ProfileStep({ request }: { request: MockRequest }) {
   )
   return (
     <Step
-      number={3}
+      number={4}
       title="Contract Profile"
       explainer="Facts about the contract's history and what it holds help you judge it. A contract that was deployed a few days ago and has few transactions deserves more care."
     >

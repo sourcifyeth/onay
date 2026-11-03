@@ -11,6 +11,7 @@ import { RequestSummary } from './components/RequestSummary'
 import { VerificationStep } from './components/VerificationStep'
 import { ChainDataStep } from './components/ChainDataStep'
 import { ProfileStep } from './components/ProfileStep'
+import { SimulationStep } from './components/SimulationStep'
 import { IconsPreview } from './components/IconsPreview'
 
 type Phase = 'home' | 'settings' | 'icons' | 'verifying' | 'failed' | 'review' | 'approved' | 'rejected'
@@ -208,6 +209,7 @@ function App() {
             {phase !== 'verifying' && (
               <>
                 <ChainDataStep request={request} rpcUrl={chains.find((c) => c.id === request.chainId)?.executionRpc} />
+                <SimulationStep request={request} />
                 <VerificationStep request={request} />
                 <ProfileStep request={request} />
               </>
