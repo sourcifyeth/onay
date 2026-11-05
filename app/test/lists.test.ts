@@ -16,7 +16,9 @@ import {
   missingText,
   missingTokenLists,
   newState,
+  PQ1_FILE,
   parseOfac,
+  parsePq1,
   parseSafe,
   parseScamSniffer,
   parseStates,
@@ -99,6 +101,34 @@ const ofacEth = ['0x0330070FD38Ec3bB94F58FA55D40368271E9e54A', '0x038989cbb1710c
 // blacklist/address.json of ScamSniffer.
 const scamSniffer = ['0x101ce0cedd142f199c9ef61739ae59b6611a0fc0', '0x43412801d29861ecc4c4d86e5becfd16af86a67b']
 
+// secure/data/erc20.json of ethereumphone/pq1 (2026-11-05), and two bad rows.
+const pq1 = [
+  { chain_id: 1, address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', name: 'USD Coin', symbol: 'USDC', decimals: 6 },
+  {
+    chain_id: 1,
+    address: '0x0f6B862E05A9B528b0002261f9EB616e6c4452e9',
+    name: 'Unified Smart Defi Token',
+    symbol: 'ՍSDT',
+    decimals: 18,
+  },
+  {
+    chain_id: 8453,
+    address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    name: 'USD Coin',
+    symbol: 'USDC',
+    decimals: 6,
+  },
+  {
+    chain_id: 56,
+    address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
+    name: 'USD Coin',
+    symbol: 'USDC',
+    decimals: 18,
+  },
+  { chain_id: '1', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', symbol: 'USDT' },
+  null,
+]
+
 test('Safe: one entry for each type on each chain of the settings; the ABI is not kept', () => {
   const entries = parseSafe(gnosisSafe, { url: 'x' }, [1, 10, 42161])
   assert.deepEqual(entries, [
@@ -138,6 +168,17 @@ test('OFAC and ScamSniffer: EVM addresses only, on every chain', () => {
   ])
   assert.deepEqual(parseScamSniffer(scamSniffer)[0], { chainId: null, address: SCAM, label: 'scam address' })
   assert.throws(() => parseScamSniffer({ addresses: [] }), /not an array/)
+})
+
+test('PQ1: the tokens of the chains of the settings, with no symbol in the label', () => {
+  assert.equal(sourceOf('pq1').kind, 'allow')
+  assert.deepEqual(parsePq1(pq1, { url: PQ1_FILE }, [1, 8453]), [
+    { chainId: 1, address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', label: 'token' },
+    { chainId: 1, address: '0x0f6b862e05a9b528b0002261f9eb616e6c4452e9', label: 'token' },
+    { chainId: 8453, address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', label: 'token' },
+  ])
+  assert.deepEqual(parsePq1(pq1, { url: PQ1_FILE }, [42161]), [])
+  assert.throws(() => parsePq1({ tokens: pq1 }, { url: PQ1_FILE }, [1]), /not an array/)
 })
 
 // A fake network over the files of each source.
@@ -360,6 +401,7 @@ test('the store: works with a storage that throws, and refreshes the stale sourc
     '_ARB.json': { body: [] },
     '_BSC.json': { body: [] },
     '/1.json': { body: uniswap1 },
+    '/erc20.json': { body: pq1 },
     ...Object.fromEntries(SAFE_FILES.map((path) => [path, { body: safe141 }])),
   })
   const store = createAddressListStore({ storage: () => throwing, fetch: net.fetch, now: () => 1000 })
@@ -371,6 +413,8 @@ test('the store: works with a storage that throws, and refreshes the stale sourc
   assert.equal(byId.scamsniffer.entries.length, 2)
   assert.equal(byId.ofac.entries.length, 4)
   assert.equal(byId.uniswap.entries.length, 2)
+  assert.equal(byId.pq1.entries.length, 2)
+  assert.deepEqual(byId.pq1.chains, [1])
   assert.deepEqual(byId.safe.entries, [{ chainId: 1, address: SAFE_141, label: 'Safe v1.4.1' }])
   assert.ok(store.getSnapshot().every((item) => item.fetchedAt === 1000 && item.error === null))
   // Fresh: no second fetch.
