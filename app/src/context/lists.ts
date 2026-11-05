@@ -15,7 +15,7 @@ export const STORAGE_KEY = 'onay.addressLists'
 
 export const REFRESH_AFTER = 24 * 60 * 60 * 1000
 
-// The cap of one file. The largest today is 121 kB.
+// The cap of one file. The largest today is the PQ1 token list, 2.5 MB.
 export const MAX_BYTES = 4 * 1024 * 1024
 // The cap of the entries of one source.
 export const MAX_ENTRIES = 50_000
@@ -24,7 +24,7 @@ const TIMEOUT = 20_000
 
 export type ListKind = 'allow' | 'block'
 
-export type SourceId = 'safe' | 'uniswap' | 'ofac' | 'scamsniffer'
+export type SourceId = 'safe' | 'uniswap' | 'pq1' | 'ofac' | 'scamsniffer'
 
 // Null `chainId`: the address is on the list on every chain.
 export type Entry = { chainId: number | null; address: Hex; label: string }
@@ -122,6 +122,23 @@ export function parseUniswap(body: unknown, file: ListFile): Entry[] {
   return entries
 }
 
+export const PQ1_FILE = 'https://raw.githubusercontent.com/ethereumphone/pq1/master/secure/data/erc20.json'
+
+// The ERC-20 tokens of the PQ1 wallet: one array for all chains. Only the
+// tokens of the chains in the settings are kept. The label is "token"
+// and not the symbol, because a symbol can copy the look of another one.
+export function parsePq1(body: unknown, _file: ListFile, chainIds: number[]): Entry[] {
+  if (!Array.isArray(body)) throw new Error('the file is not an array')
+  const chains = new Set(chainIds)
+  const entries: Entry[] = []
+  for (const row of body) {
+    const token = row as { chain_id?: unknown; address?: unknown } | null
+    if (typeof token?.chain_id !== 'number' || !chains.has(token.chain_id) || !isAddress(token.address)) continue
+    entries.push({ chainId: token.chain_id, address: token.address.toLowerCase() as Hex, label: 'token' })
+  }
+  return entries
+}
+
 // A plain array of addresses. Entries that are not EVM addresses, such
 // as TRON addresses in the USDT list of OFAC, are skipped.
 function parseAddressArray(body: unknown, label: string): Entry[] {
@@ -163,6 +180,17 @@ export const LIST_SOURCES: ListSource[] = [
         chainId,
       })),
     parse: parseUniswap,
+  },
+  {
+    id: 'pq1',
+    name: 'PQ1 token list',
+    kind: 'allow',
+    license: 'GPL-3.0',
+    note: 'the ERC-20 tokens that the PQ1 hardware wallet of ethereumPhone knows',
+    repository: 'https://github.com/ethereumphone/pq1',
+    perChain: true,
+    files: () => [{ url: PQ1_FILE }],
+    parse: parsePq1,
   },
   {
     id: 'ofac',

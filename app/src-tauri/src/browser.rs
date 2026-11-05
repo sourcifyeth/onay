@@ -170,6 +170,7 @@ mod tests {
         for repository in [
             "https://github.com/safe-global/safe-deployments",
             "https://github.com/Uniswap/contracts",
+            "https://github.com/ethereumphone/pq1",
             "https://github.com/0xB10C/ofac-sanctioned-digital-currency-addresses",
             "https://github.com/scamsniffer/scam-database",
             "https://github.com/ethereum/clear-signing-erc7730-registry/tree/master/registry/uniswap",
