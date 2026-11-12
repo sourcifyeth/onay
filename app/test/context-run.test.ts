@@ -108,7 +108,7 @@ function depsWith(fetch: Fetch, settings: Partial<ContextSettings> = {}, cache =
   const waits: number[] = []
   const deps: Deps = {
     fetch,
-    settings: () => ({ etherscanKey: '', goPlus: false, ...settings }),
+    settings: () => ({ etherscanKey: '', goPlus: false, prices: false, ...settings }),
     now: () => 0,
     date: () => NOW,
     wait: async (ms) => void waits.push(ms),

@@ -115,3 +115,57 @@ test('an answer of another shape is refused', async () => {
   await assert.rejects(state.getCode(A), /eth_getCode gave an unexpected answer/)
   await assert.rejects(state.getStorage(A, SLOT), /eth_getStorageAt gave an unexpected answer/)
 })
+
+test('the diff: each changed balance, nonce and slot, with the value of the chain', async () => {
+  const state = new ChainStateManager(chain(), 1)
+  await state.modifyAccountFields(A, { balance: 5n, nonce: 2n })
+  await state.getStorage(A, SLOT)
+  await state.putStorage(A, SLOT, hexToBytes('0x07'))
+  // B gets an account of its own, as a value transfer gives it.
+  await state.getAccount(B)
+  await state.putAccount(B, new Account(0n, 9n))
+  assert.deepEqual(await state.diff(), {
+    accounts: [
+      { address: A.toString(), balance: { before: 10n ** 18n, after: 5n }, nonce: { before: 1n, after: 2n } },
+      { address: B.toString(), balance: { before: 0n, after: 9n }, nonce: { before: 0n, after: 0n } },
+    ],
+    slots: [
+      {
+        address: A.toString(),
+        slot: bytesToHex(SLOT),
+        before: `0x${'00'.repeat(31)}2a`,
+        after: `0x${'00'.repeat(31)}07`,
+      },
+    ],
+  })
+})
+
+test('the diff leaves out a write that a revert undid, and a write of the same value', async () => {
+  const state = new ChainStateManager(chain(), 1)
+  await state.getStorage(A, SLOT)
+  await state.checkpoint()
+  await state.putStorage(A, SLOT, hexToBytes('0x07'))
+  await state.revert()
+  const other = setLengthLeft(hexToBytes('0x02'), 32)
+  await state.getStorage(A, other)
+  await state.putStorage(A, other, hexToBytes('0x2a'))
+  await state.modifyAccountFields(A, { balance: 10n ** 18n })
+  assert.deepEqual(await state.diff(), { accounts: [], slots: [] })
+})
+
+test('the state before: the values of the chain without the writes, and no second read', async () => {
+  const read = chain()
+  const state = new ChainStateManager(read, 1)
+  await state.getStorage(A, SLOT)
+  await state.putStorage(A, SLOT, hexToBytes('0x07'))
+  await state.modifyAccountFields(A, { balance: 5n })
+  const before = state.before()
+  assert.equal(bytesToHex(await before.getStorage(A, SLOT)), '0x2a')
+  assert.equal((await before.getAccount(A))?.balance, 10n ** 18n)
+  assert.equal(bytesToHex(await before.getCode(A)), '0x6001')
+  assert.equal(bytesToHex(await state.getStorage(A, SLOT)), '0x07')
+  // Each value came from the chain once, for both states.
+  assert.equal(read.calls.filter((call) => call.startsWith('eth_getStorageAt')).length, 1)
+  assert.equal(read.calls.filter((call) => call.startsWith('eth_getProof')).length, 1)
+  assert.equal(before.reads, state.reads)
+})

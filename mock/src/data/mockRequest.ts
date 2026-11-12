@@ -1,4 +1,12 @@
-import { approveEffects, nftEffects, swapDisagreeEffects, swapEffects, type Effects } from './effects'
+import {
+  approveEffects,
+  ethTransferEffects,
+  nftEffects,
+  revertEffects,
+  swapEffects,
+  usdcTransferEffects,
+  type Effects,
+} from './effects'
 
 export interface TxField {
   name: string
@@ -96,7 +104,7 @@ export interface MockRequest {
   batch?: { interpolatedIntent: IntentPart[]; calls: BatchCall[] }
   /** contracts touched by the transaction, as a call tree flattened depth-first */
   contracts: MockContract[]
-  /** what the local run changes, with the other simulators; only some scenarios have it */
+  /** what the local run changes for you; only some scenarios have it */
   effects?: Effects
 }
 
@@ -323,6 +331,7 @@ const tokenTransfer: MockRequest = {
     ],
   },
   contracts: [usdcTransferContract],
+  effects: usdcTransferEffects(250_000_000n),
 }
 
 const ethTransfer: MockRequest = {
@@ -356,6 +365,7 @@ const ethTransfer: MockRequest = {
   ],
   calldata: '0x',
   contracts: [],
+  effects: ethTransferEffects,
 }
 
 const approveUnlimited: MockRequest = {
@@ -1030,12 +1040,14 @@ const rpcMode: MockRequest = {
       address: '0xaf88d065e77c8cc2239327c5edb3a432268e5831',
     },
   ],
+  effects: usdcTransferEffects(100_000_000n),
 }
 
 const reverting: MockRequest = {
   ...mockRequest,
   outcome: 'reverted',
   revertReason: 'Router: INSUFFICIENT_OUTPUT',
+  effects: revertEffects,
   clearSigning: {
     ...mockRequest.clearSigning!,
     interpolatedIntent: [
@@ -1072,11 +1084,6 @@ const reverting: MockRequest = {
 
 export const scenarios: Scenario[] = [
   { id: 'swap', label: 'swap · nested calls', request: mockRequest },
-  {
-    id: 'swap-disagree',
-    label: 'swap · simulators disagree',
-    request: { ...mockRequest, effects: swapDisagreeEffects },
-  },
   { id: 'token-transfer', label: 'ERC-20 transfer', request: tokenTransfer },
   { id: 'eth-transfer', label: 'plain ETH transfer', request: ethTransfer },
   { id: 'approve', label: 'approve · unlimited', request: approveUnlimited },

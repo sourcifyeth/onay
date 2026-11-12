@@ -116,7 +116,15 @@ function start(verification: Verification): KeptStore {
     }
   }
   run()
-  const stopSettings = contextSettingsStore.subscribe(() => onChange({ kind: 'settings' }))
+  // The switch of the prices is for the simulation step. The profile does
+  // not use it, so a change of it does not run the profile again.
+  let seen = contextSettingsStore.getSnapshot()
+  const stopSettings = contextSettingsStore.subscribe(() => {
+    const next = contextSettingsStore.getSnapshot()
+    const same = next.etherscanKey === seen.etherscanKey && next.goPlus === seen.goPlus
+    seen = next
+    if (!same) onChange({ kind: 'settings' })
+  })
   // A refresh changes the sources one by one. One run follows the last.
   let listTimer: ReturnType<typeof setTimeout> | undefined
   const stopLists = addressListStore.subscribe(() => {

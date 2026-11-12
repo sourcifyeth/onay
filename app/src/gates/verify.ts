@@ -46,6 +46,9 @@ export type Verified = {
   transformations: { runtime: Transformations; creation: Transformations }
   // From the compile that matched, not from Sourcify.
   abi: unknown[]
+  // The storage layout of the same compile. Absent if the compiler gave
+  // none.
+  storageLayout?: unknown
 }
 
 type Tx = Awaited<ReturnType<SourcifyChain['getTx']>>
@@ -140,7 +143,7 @@ export async function verify(
       log({ source: 'sourcify', text: `creation bytecode compare · no match · ${creationNote}` })
     }
   } else creationNote = read.reason
-  const output = compilation.contractCompilerOutput as { abi?: unknown[] } | undefined
+  const output = compilation.contractCompilerOutput as { abi?: unknown[]; storageLayout?: unknown } | undefined
   return {
     claim,
     runtimeMatch,
@@ -149,6 +152,7 @@ export async function verify(
     creation: read.creation,
     transformations: verification.transformations,
     abi: output?.abi ?? [],
+    ...(output?.storageLayout ? { storageLayout: output.storageLayout } : {}),
   }
 }
 

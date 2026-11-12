@@ -2,10 +2,11 @@
 // and storage slots as it runs; each one is read from the chain at the
 // block of the request, through the same call as the gates, and kept. In
 // Helios mode each read comes with a proof. The writes of the EVM stay in
-// the cache, with the checkpoints that a reverted call undoes. Modeled on
-// the RPCStateManager of @ethereumjs/statemanager, which takes a URL
-// only. This module has no browser or Tauri calls, so the tests run it
-// as it is.
+// the cache, with the checkpoints that a reverted call undoes. The values
+// of the chain stay apart from the writes: `diff` compares the two, and
+// `before` gives the state without the writes. Modeled on the
+// RPCStateManager of @ethereumjs/statemanager, which takes a URL only.
+// This module has no browser or Tauri calls, so the tests run it as it is.
 
 import type { AccountFields, StateManagerInterface } from '@ethereumjs/common'
 import { Caches, OriginalStorageCache } from '@ethereumjs/statemanager'
@@ -13,6 +14,7 @@ import {
   Account,
   createAccount,
   createAccountFromRLP,
+  bytesToHex,
   equalsBytes,
   hexToBytes,
   setLengthLeft,
@@ -25,23 +27,99 @@ import type { ChainRead } from './helios.ts'
 // How many times the chain was asked.
 export type Reads = { accounts: number; slots: number }
 
+// One account whose balance or nonce the run changed.
+export type AccountChange = {
+  address: Hex
+  balance: { before: bigint; after: bigint }
+  nonce: { before: bigint; after: bigint }
+}
+
+// One storage slot whose value the run changed. The slot and the values
+// are 32 bytes each.
+export type SlotChange = { address: Hex; slot: Hex; before: Hex; after: Hex }
+
+// What the run changed, in the order of the first write.
+export type StateDiff = { accounts: AccountChange[]; slots: SlotChange[] }
+
+type AccountData = { nonce: bigint; balance: bigint; codeHash: Uint8Array; storageRoot: Uint8Array }
+
+// What the chain gave, read once and never changed. A state and its
+// `before` state share it.
+type Origin = {
+  read: ChainRead
+  block: Hex
+  reads: Reads
+  codes: Map<Hex, Hex>
+  // Null for an address that the chain does not know.
+  accounts: Map<Hex, AccountData | null>
+  // By address and slot. The values have no leading zeros.
+  slots: Map<string, Uint8Array>
+}
+
 const EMPTY_CODE_HASH = hexToBytes('0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470')
 
 export class ChainStateManager implements StateManagerInterface {
   originalStorageCache: OriginalStorageCache
-  readonly reads: Reads = { accounts: 0, slots: 0 }
+  readonly reads: Reads
   // The code of each address as the chain gave it, before any write of
   // the EVM. '0x' for an address without code.
-  readonly codes = new Map<Hex, Hex>()
+  readonly codes: Map<Hex, Hex>
 
   private caches = new Caches({ storage: { size: 100_000 }, code: { size: 100_000 } })
-  private read: ChainRead
-  private block: Hex
+  private origin: Origin
+  // The accounts and the slots that the EVM wrote to, in the order of
+  // the first write. A write that a revert undid stays in here: `diff`
+  // drops it, because its value did not change.
+  private wroteAccounts = new Map<Hex, Address>()
+  private wroteSlots = new Map<string, { address: Address; key: Uint8Array }>()
 
-  constructor(read: ChainRead, block: number) {
-    this.read = read
-    this.block = `0x${block.toString(16)}`
+  constructor(read: ChainRead, block: number, origin?: Origin) {
+    this.origin = origin ?? {
+      read,
+      block: `0x${block.toString(16)}`,
+      reads: { accounts: 0, slots: 0 },
+      codes: new Map(),
+      accounts: new Map(),
+      slots: new Map(),
+    }
+    this.reads = this.origin.reads
+    this.codes = this.origin.codes
     this.originalStorageCache = new OriginalStorageCache(this.getStorage.bind(this))
+  }
+
+  // The state of the chain without the writes of this one. It reads the
+  // chain only for a value that this state did not read.
+  before(): ChainStateManager {
+    return new ChainStateManager(this.origin.read, Number(this.origin.block), this.origin)
+  }
+
+  // Each balance, nonce and storage slot that now differs from the value
+  // of the chain.
+  async diff(): Promise<StateDiff> {
+    const accounts: AccountChange[] = []
+    for (const [hex, address] of this.wroteAccounts) {
+      const before = await this.chainAccount(address)
+      const after = await this.getAccount(address)
+      const balance = { before: before?.balance ?? 0n, after: after?.balance ?? 0n }
+      const nonce = { before: before?.nonce ?? 0n, after: after?.nonce ?? 0n }
+      if (balance.before !== balance.after || nonce.before !== nonce.after) {
+        accounts.push({ address: hex, balance, nonce })
+      }
+    }
+    const slots: SlotChange[] = []
+    for (const { address, key } of this.wroteSlots.values()) {
+      const before = await this.chainSlot(address, key)
+      const after = await this.getStorage(address, key)
+      if (!equalsBytes(before, after)) {
+        slots.push({
+          address: address.toString() as Hex,
+          slot: bytesToHex(key) as Hex,
+          before: word(before),
+          after: word(after),
+        })
+      }
+    }
+    return { accounts, slots }
   }
 
   async getAccount(address: Address): Promise<Account | undefined> {
@@ -49,27 +127,40 @@ export class ChainStateManager implements StateManagerInterface {
     if (cached !== undefined) {
       return cached.accountRLP !== undefined ? createAccountFromRLP(cached.accountRLP) : undefined
     }
-    this.reads.accounts++
-    const proof = asRecord(await this.read('eth_getProof', [address.toString(), [], this.block]), 'eth_getProof')
-    const account = createAccount({
-      nonce: asQuantity(proof.nonce, 'eth_getProof'),
-      balance: asQuantity(proof.balance, 'eth_getProof'),
-      codeHash: hexToBytes(asHash(proof.codeHash, 'eth_getProof')),
-      storageRoot: hexToBytes(asHash(proof.storageHash, 'eth_getProof')),
-    })
-    // An address that the chain does not know has no account.
-    const empty = account.nonce === 0n && account.balance === 0n && equalsBytes(account.codeHash, EMPTY_CODE_HASH)
-    const known = empty ? undefined : account
+    const data = await this.chainAccount(address)
+    const known = data === null ? undefined : createAccount(data)
     this.caches.account?.put(address, known)
     return known
   }
 
+  private async chainAccount(address: Address): Promise<AccountData | null> {
+    const hex = address.toString() as Hex
+    const kept = this.origin.accounts.get(hex)
+    if (kept !== undefined) return kept
+    this.origin.reads.accounts++
+    const { read, block } = this.origin
+    const proof = asRecord(await read('eth_getProof', [hex, [], block]), 'eth_getProof')
+    const data: AccountData = {
+      nonce: asQuantity(proof.nonce, 'eth_getProof'),
+      balance: asQuantity(proof.balance, 'eth_getProof'),
+      codeHash: hexToBytes(asHash(proof.codeHash, 'eth_getProof')),
+      storageRoot: hexToBytes(asHash(proof.storageHash, 'eth_getProof')),
+    }
+    // An address that the chain does not know has no account.
+    const empty = data.nonce === 0n && data.balance === 0n && equalsBytes(data.codeHash, EMPTY_CODE_HASH)
+    const known = empty ? null : data
+    this.origin.accounts.set(hex, known)
+    return known
+  }
+
   async putAccount(address: Address, account?: Account): Promise<void> {
+    this.wroteAccounts.set(address.toString() as Hex, address)
     if (account !== undefined) this.caches.account?.put(address, account)
     else this.caches.account?.del(address)
   }
 
   async deleteAccount(address: Address): Promise<void> {
+    this.wroteAccounts.set(address.toString() as Hex, address)
     this.caches.deleteAccount(address)
   }
 
@@ -85,8 +176,12 @@ export class ChainStateManager implements StateManagerInterface {
   async getCode(address: Address): Promise<Uint8Array> {
     const cached = this.caches.code?.get(address)?.code
     if (cached !== undefined) return cached
-    const code = asHex(await this.read('eth_getCode', [address.toString(), this.block]), 'eth_getCode')
-    this.codes.set(address.toString() as Hex, code)
+    const hex = address.toString() as Hex
+    let code = this.origin.codes.get(hex)
+    if (code === undefined) {
+      code = asHex(await this.origin.read('eth_getCode', [hex, this.origin.block]), 'eth_getCode')
+      this.origin.codes.set(hex, code)
+    }
     const bytes = hexToBytes(code)
     this.caches.code?.put(address, bytes)
     return bytes
@@ -104,16 +199,27 @@ export class ChainStateManager implements StateManagerInterface {
     if (key.length !== 32) throw new Error('a storage key must be 32 bytes')
     const cached = this.caches.storage?.get(address, key)
     if (cached !== undefined) return cached
-    this.reads.slots++
-    const slot = `0x${Array.from(key, (byte) => byte.toString(16).padStart(2, '0')).join('')}`
-    const value = asHex(await this.read('eth_getStorageAt', [address.toString(), slot, this.block]), 'eth_getStorageAt')
-    // The EVM keeps values without leading zeros: a zero is empty.
-    const bytes = unpadBytes(setLengthLeft(hexToBytes(value), 32))
+    const bytes = await this.chainSlot(address, key)
     this.caches.storage?.put(address, key, bytes)
     return bytes
   }
 
+  private async chainSlot(address: Address, key: Uint8Array): Promise<Uint8Array> {
+    const slot = bytesToHex(key)
+    const id = `${address.toString()}:${slot}`
+    const kept = this.origin.slots.get(id)
+    if (kept !== undefined) return kept
+    this.origin.reads.slots++
+    const { read, block } = this.origin
+    const value = asHex(await read('eth_getStorageAt', [address.toString(), slot, block]), 'eth_getStorageAt')
+    // The EVM keeps values without leading zeros: a zero is empty.
+    const bytes = unpadBytes(setLengthLeft(hexToBytes(value), 32))
+    this.origin.slots.set(id, bytes)
+    return bytes
+  }
+
   async putStorage(address: Address, key: Uint8Array, value: Uint8Array): Promise<void> {
+    this.wroteSlots.set(`${address.toString()}:${bytesToHex(key)}`, { address, key })
     this.caches.storage?.put(address, key, value)
   }
 
@@ -150,8 +256,13 @@ export class ChainStateManager implements StateManagerInterface {
   }
 
   shallowCopy(): StateManagerInterface {
-    return new ChainStateManager(this.read, Number(this.block))
+    return this.before()
   }
+}
+
+// A value as the 32 bytes of its slot.
+function word(value: Uint8Array): Hex {
+  return bytesToHex(setLengthLeft(value, 32)) as Hex
 }
 
 function unexpected(method: string): Error {

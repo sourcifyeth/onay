@@ -77,3 +77,51 @@ function render(param: ParamType, value: unknown): string {
   if (typeof value === 'string' && param.baseType === 'string') return JSON.stringify(value)
   return String(value)
 }
+
+// One event as an ABI decodes it.
+export type DecodedEvent = { name: string; params: Param[] }
+
+// The events of the token standards, for a contract whose source code is
+// not verified. Such a contract can emit them with any meaning.
+export const STANDARD_EVENTS = [
+  'event Transfer(address indexed from, address indexed to, uint256 value)',
+  'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
+  'event Approval(address indexed owner, address indexed spender, uint256 value)',
+  'event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId)',
+  'event ApprovalForAll(address indexed owner, address indexed operator, bool approved)',
+  'event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)',
+  'event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)',
+  'event Deposit(address indexed dst, uint256 wad)',
+  'event Withdrawal(address indexed src, uint256 wad)',
+]
+
+// Null if the ABI has no event with the first topic and the count of
+// indexed values of the log, or if the log does not decode with it.
+export function decodeEvent(abi: unknown[], log: { topics: Hex[]; data: Hex }): DecodedEvent | null {
+  let parsed
+  try {
+    parsed = new Interface(abi as InterfaceAbi).parseLog({ topics: log.topics, data: log.data })
+  } catch {
+    return null
+  }
+  if (!parsed) return null
+  const { fragment } = parsed
+  if (fragment.inputs.filter((input) => input.indexed).length !== log.topics.length - 1) return null
+  const params = fragment.inputs.map((input, index) => ({
+    name: input.name || `#${index}`,
+    type: input.type,
+    value: render(input, parsed.args[index]),
+  }))
+  return { name: fragment.name, params }
+}
+
+// A log decoded with the events of the token standards. ERC-20 and
+// ERC-721 give Transfer and Approval the same topic, so one ABI cannot
+// hold both: each event is tried alone.
+export function decodeStandardEvent(log: { topics: Hex[]; data: Hex }): DecodedEvent | null {
+  for (const event of STANDARD_EVENTS) {
+    const decoded = decodeEvent([event], log)
+    if (decoded) return decoded
+  }
+  return null
+}

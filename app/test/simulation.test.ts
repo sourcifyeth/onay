@@ -156,7 +156,9 @@ test('the call tree of a call: each message, and the contracts whose code ran', 
   ])
   assert.ok(texts.includes(`  call ${PAYEE} · <0.000001 ETH`))
   assert.ok(texts.includes(`  delegatecall ${IMPL} · ${(await contracts).Impl.selectors['set(uint256)']}`))
-  assert.deepEqual(lines.at(-3), { source: 'evm', text: 'executed · 5 messages', ok: true })
+  assert.deepEqual(lines.at(-4), { source: 'evm', text: 'executed · 5 messages · 0 events', ok: true })
+  // The sender sends the value of the call: 5 wei.
+  assert.match(lines.at(-3)?.text ?? '', /^effects · 1 asset change · 0 allowances · \d+ probes$/)
   assert.match(lines.at(-2)?.text ?? '', /^state read · \d+ accounts · 2 storage slots · no proof$/)
   assert.deepEqual(lines.at(-1), { source: 'evm', text: 'call tree · 3 contracts', ok: true })
   assert.ok(lines.every((line) => line.source === 'evm'))

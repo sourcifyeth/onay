@@ -1,25 +1,32 @@
 // The simulation: the calls of the request, run in a local EVM on the
-// state of the chain at the block of the request. Its one purpose is the
-// call tree: every contract whose code runs, and in which context, so
-// that the gates check each one and the implementation of a named
-// contract counts as named. The EVM runs the calls alone, not in a
-// block, so the gas it counts is not the gas of the chain. The state
-// comes through `ChainRead`, so the tests run the gate on a fake chain.
+// state of the chain at the block of the request. It gives the call
+// tree: every contract whose code runs, and in which context, so that
+// the gates check each one and the implementation of a named contract
+// counts as named. It also gives the effects: what the sender sends,
+// receives and allows, from the state before and after the run. The EVM
+// runs each call as a transaction would run it, apart from the fee: the
+// gas of the chain comes from `gas.ts`. The state comes through
+// `ChainRead`, so the tests run the gate on a fake chain.
 
-import { createEVM, type EVMResult, type Message } from '@ethereumjs/evm'
-import { bytesToHex, createAddressFromString, hexToBytes } from '@ethereumjs/util'
+import { createEVM, type EVM, type EVMResult, type Message } from '@ethereumjs/evm'
+import { bytesToHex, createAddressFromString, hexToBytes, type Address } from '@ethereumjs/util'
 import type { ChainConfig } from '../chains.ts'
 import type { Hex } from '../messages.ts'
 import { blockFor, commonFor, parseHeader, type Header } from './block.ts'
-import { withDeadline, type Gate, type Log } from './gate.ts'
+import { effectsOf, type Effects, type EventLog } from './effects.ts'
+import { chargedGas, gasPriceOf, intrinsicGas, TX_GAS_CAP } from './gas.ts'
+import { errorText, withDeadline, type Gate, type Log } from './gate.ts'
 import type { ChainCode, ChainRead } from './helios.ts'
 import type { Call } from './request.ts'
-import { ChainStateManager, type Reads } from './state.ts'
+import { ChainStateManager, type Reads, type StateDiff } from './state.ts'
 import { formatEther, revertText } from './words.ts'
 
 // State reads in Helios mode take a proof each. A large call tree takes a
 // while.
 const TIMEOUT = 180_000
+
+// The gas of one probe. A balanceOf takes a few thousand.
+const PROBE_GAS = 1_000_000n
 
 export type FrameKind = 'call' | 'staticcall' | 'delegatecall' | 'create'
 
@@ -46,7 +53,21 @@ export type SimulatedCall = {
   frames: Frame[]
   // The error of the first frame: the call as a whole failed.
   error: string | null
+  // The events, in order. A call that failed has none.
+  logs: EventLog[]
+  // The gas that the chain charges for the call.
+  gas: bigint
 }
+
+// The fee of all calls: their gas times the price of one unit.
+export type Fee = { gas: bigint; price: bigint; fromRequest: boolean }
+
+export type EffectsState =
+  | { status: 'passed'; value: Effects }
+  // A call reverted, so nothing changes.
+  | { status: 'skipped'; reason: string }
+  // A probe could not read the chain. The call tree still holds.
+  | { status: 'failed'; reason: string }
 
 // A contract whose code ran, with the distinct contexts it ran in, in
 // the order of the first run. The delegate of an EIP-7702 account ran in
@@ -61,6 +82,10 @@ export type Simulation = {
   // created by the calls are not in it: they have no sources to check.
   touched: Touched[]
   reads: Reads
+  // Each balance, nonce and storage slot that the calls changed.
+  diff: StateDiff
+  fee: Fee
+  effects: EffectsState
 }
 
 // True if a call of the run reverted.
@@ -105,6 +130,8 @@ async function simulate(chain: ChainConfig, read: ChainRead, { calls, block }: S
   const common = commonFor(chain.id)
   const evm = await createEVM({ common, stateManager: state })
   const evmBlock = blockFor(header, common.param('blobGasPriceUpdateFraction'))
+  // One price for all calls. A batch takes the fees of its first call.
+  const price = gasPriceOf(calls[0]?.fees, header.baseFee)
   const results: SimulatedCall[] = []
   for (const [index, call] of calls.entries()) {
     if (calls.length > 1) log({ source: 'evm', text: `call ${index + 1} of ${calls.length}` })
@@ -140,31 +167,52 @@ async function simulate(chain: ChainConfig, read: ChainRead, { calls, block }: S
       }
       frame.error = errorOf(result)
     }
+    const caller = createAddressFromString(call.from)
+    const to = createAddressFromString(call.to)
+    // A transaction starts with these warm (EIP-2929, EIP-3651), so the
+    // gas of the run is the gas of the chain.
+    warm(evm, [caller, to, evmBlock.header.coinbase])
+    const intrinsic = intrinsicGas(call.data)
+    const limit = call.gas ?? (header.gasLimit < TX_GAS_CAP ? header.gasLimit : TX_GAS_CAP)
+    if (limit < intrinsic) throw new Error(`the gas limit ${limit} is below the intrinsic gas ${intrinsic}`)
     evm.events.on('beforeMessage', before)
     evm.events.on('afterMessage', after)
     let result: EVMResult
     try {
       result = await evm.runCall({
-        caller: createAddressFromString(call.from),
-        to: createAddressFromString(call.to),
+        caller,
+        origin: caller,
+        to,
         data: hexToBytes(call.data),
         value: call.value,
-        // The gas of the request goes to the call whole. On chain the
-        // intrinsic cost comes off first, so a transaction at the edge
-        // can still run out of gas there.
-        gasLimit: call.gas ?? header.gasLimit,
+        gasLimit: limit - intrinsic,
+        gasPrice: price.price,
         block: evmBlock,
       })
     } finally {
       evm.events.off('beforeMessage', before)
       evm.events.off('afterMessage', after)
     }
+    // The end of a transaction: empty accounts go (EIP-161), and the warm
+    // addresses cool down for the next call.
+    await evm.journal.cleanup()
     const error = errorOf(result)
-    results.push({ call, frames, error })
+    const { execResult } = result
+    const logs = error ? [] : (execResult.logs ?? []).map(logOf)
+    const gas = chargedGas(call.data, execResult.executionGasUsed, execResult.gasRefund ?? 0n)
+    results.push({ call, frames, error, logs, gas })
     if (error) log({ source: 'evm', text: `reverted · ${error}`, ok: false })
-    else log({ source: 'evm', text: `executed · ${count(frames.length, 'message')}`, ok: true })
+    else
+      log({
+        source: 'evm',
+        text: `executed · ${count(frames.length, 'message')} · ${count(logs.length, 'event')}`,
+        ok: true,
+      })
   }
   const touched = touchedBy(results, state, block)
+  const diff = await state.diff()
+  const fee: Fee = { gas: results.reduce((sum, result) => sum + result.gas, 0n), ...price }
+  const effects = await effectsFor(results, diff, state, evm, evmBlock, log)
   const { accounts, slots } = state.reads
   log({
     source: 'evm',
@@ -173,7 +221,62 @@ async function simulate(chain: ChainConfig, read: ChainRead, { calls, block }: S
     proof: helios,
   })
   log({ source: 'evm', text: `call tree · ${count(touched.length, 'contract')}`, ok: true })
-  return { header, calls: results, touched, reads: state.reads }
+  return { header, calls: results, touched, reads: state.reads, diff, fee, effects }
+}
+
+// The effects of the run: probes on the state before it, in an EVM of
+// its own, and on the state after it, in the EVM of the run.
+async function effectsFor(
+  results: SimulatedCall[],
+  diff: StateDiff,
+  state: ChainStateManager,
+  evm: EVM,
+  block: ReturnType<typeof blockFor>,
+  log: Log,
+): Promise<EffectsState> {
+  if (results.some((result) => result.error !== null)) return { status: 'skipped', reason: 'the transaction reverts' }
+  const you = results[0]?.call.from
+  if (!you) return { status: 'skipped', reason: 'nothing ran' }
+  try {
+    const previous = await createEVM({ common: evm.common, stateManager: state.before() })
+    const caller = createAddressFromString(you)
+    const probe = async (to: Hex, data: Hex, when: 'before' | 'after') => {
+      const vm = when === 'before' ? previous : evm
+      const { execResult } = await vm.runCall({
+        caller,
+        to: createAddressFromString(to),
+        data: hexToBytes(data),
+        gasLimit: PROBE_GAS,
+        isStatic: true,
+        skipNonceIncrement: true,
+        block,
+      })
+      return execResult.exceptionError ? null : (bytesToHex(execResult.returnValue) as Hex)
+    }
+    const calls = results.map((result) => result.call)
+    const value = await effectsOf({ you, calls, logs: results.flatMap((result) => result.logs), diff }, probe)
+    const parts = [count(value.assets.length, 'asset change'), count(value.permissions.length, 'allowance')]
+    if (value.warnings.length > 0) parts.push(count(value.warnings.length, 'event without a balance change'))
+    log({ source: 'evm', text: `effects · ${parts.join(' · ')} · ${count(value.probes, 'probe')}`, ok: true })
+    return { status: 'passed', value }
+  } catch (error) {
+    const reason = errorText(error)
+    log({ source: 'evm', text: `effects not read · ${reason}`, ok: false })
+    return { status: 'failed', reason }
+  }
+}
+
+function warm(evm: EVM, addresses: Address[]) {
+  for (const address of addresses) evm.journal.addAlwaysWarmAddress(address.toString())
+  for (const address of evm.precompiles.keys()) evm.journal.addAlwaysWarmAddress(address)
+}
+
+function logOf([address, topics, data]: [Uint8Array, Uint8Array[], Uint8Array]): EventLog {
+  return {
+    address: bytesToHex(address) as Hex,
+    topics: topics.map((value) => bytesToHex(value) as Hex),
+    data: bytesToHex(data) as Hex,
+  }
 }
 
 // The delegate of an EIP-7702 account, from its code. Null for any other

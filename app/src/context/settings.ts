@@ -1,5 +1,6 @@
 // The settings of the context lookups: the Etherscan key of the user,
-// and the switch of GoPlus. Saved in the webview. The pure parts have no
+// the switch of GoPlus, and the switch of the dollar values of the
+// simulation. Saved in the webview. The pure parts have no
 // browser calls, so the tests run them.
 
 export const STORAGE_KEY = 'onay.context'
@@ -8,9 +9,11 @@ export type ContextSettings = {
   // Empty: Onay does not ask Etherscan.
   etherscanKey: string
   goPlus: boolean
+  // Dollar values from DefiLlama next to the effects of a transaction.
+  prices: boolean
 }
 
-export const DEFAULT_CONTEXT_SETTINGS: ContextSettings = { etherscanKey: '', goPlus: true }
+export const DEFAULT_CONTEXT_SETTINGS: ContextSettings = { etherscanKey: '', goPlus: true, prices: true }
 
 // An Etherscan key is 34 letters and digits. The check is loose, so a
 // key of a new format still works, but it keeps other text out of the
@@ -21,13 +24,14 @@ export const isEtherscanKey = (value: string) => /^[A-Za-z0-9]{0,64}$/.test(valu
 export function parseContextSettings(value: unknown): ContextSettings {
   const saved = value as Partial<Record<keyof ContextSettings, unknown>> | null
   if (typeof saved !== 'object' || saved === null || Array.isArray(saved)) return DEFAULT_CONTEXT_SETTINGS
-  const { etherscanKey, goPlus } = saved
+  const { etherscanKey, goPlus, prices } = saved
   return {
     etherscanKey:
       typeof etherscanKey === 'string' && isEtherscanKey(etherscanKey.trim())
         ? etherscanKey.trim()
         : DEFAULT_CONTEXT_SETTINGS.etherscanKey,
     goPlus: typeof goPlus === 'boolean' ? goPlus : DEFAULT_CONTEXT_SETTINGS.goPlus,
+    prices: typeof prices === 'boolean' ? prices : DEFAULT_CONTEXT_SETTINGS.prices,
   }
 }
 
