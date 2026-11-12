@@ -220,6 +220,10 @@ export function contractsOf({ method, params }: SigningRequest): Hex[] {
   return [...new Set(addresses)]
 }
 
+// The fee fields of a transaction. Each one is absent if the request
+// leaves it to the wallet.
+export type Fees = { gasPrice?: bigint; maxFeePerGas?: bigint; maxPriorityFeePerGas?: bigint }
+
 // One call of a transaction, as the simulation runs it.
 export type Call = {
   from: Hex
@@ -228,6 +232,7 @@ export type Call = {
   value: bigint
   // Null if the request leaves the gas to the wallet.
   gas: bigint | null
+  fees?: Fees
 }
 
 // The calls of a request, or why there are none to run. A signature
@@ -274,7 +279,21 @@ function parseCall(from: Hex, value: unknown): RequestCalls {
   if (amount === null) return none('the request has an unexpected value')
   const gas = call.gas === undefined || call.gas === null ? null : parseBigQuantity(call.gas)
   if (gas === null && call.gas != null) return none('the request has an unexpected gas limit')
-  return { calls: [{ from, to: call.to.toLowerCase() as Hex, data: data as Hex, value: amount, gas }] }
+  const fees = feesOf(call)
+  const parsed: Call = { from, to: call.to.toLowerCase() as Hex, data: data as Hex, value: amount, gas }
+  return { calls: [Object.keys(fees).length > 0 ? { ...parsed, fees } : parsed] }
+}
+
+// The fee fields that read as hex quantities. The simulation uses them
+// for the gas price and the estimate of the fee only, so a field that
+// does not read is left out.
+function feesOf(call: Record<string, unknown>): Fees {
+  const fees: Fees = {}
+  for (const name of ['gasPrice', 'maxFeePerGas', 'maxPriorityFeePerGas'] as const) {
+    const value = call[name]
+    if (typeof value === 'string' && /^0x[0-9a-fA-F]+$/.test(value)) fees[name] = BigInt(value)
+  }
+  return fees
 }
 
 // A JSON-RPC quantity of any size. Absent means zero.

@@ -88,9 +88,12 @@ function simulationOf(world: World, calls: Call[], block: number): Simulation {
       prevRandao: '0x',
       excessBlobGas: null,
     },
-    calls: calls.map((call) => ({ call, frames: [], error: world.revert ?? null })),
+    calls: calls.map((call) => ({ call, frames: [], error: world.revert ?? null, logs: [], gas: 0n })),
     touched,
     reads: { accounts: 1, slots: 0 },
+    diff: { accounts: [], slots: [] },
+    fee: { gas: 0n, price: 0n, fromRequest: false },
+    effects: { status: 'skipped', reason: 'not in this test' },
   }
 }
 
