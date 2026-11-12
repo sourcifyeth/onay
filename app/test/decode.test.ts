@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import { Interface } from 'ethers'
-import { decodeCalldata, rawWords, selectorOf } from '../src/clear-signing/decode.ts'
+import { decodeCalldata, decodeEvent, decodeStandardEvent, rawWords, selectorOf } from '../src/clear-signing/decode.ts'
 import type { Hex } from '../src/messages.ts'
 
 const ALICE = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'
@@ -65,4 +65,43 @@ test('selectorOf takes the first four bytes', () => {
   assert.equal(selectorOf('0xA9059CBB00'), '0xa9059cbb')
   assert.equal(selectorOf('0xa905'), null)
   assert.equal(selectorOf('0x'), null)
+})
+
+test('decodeEvent names the values of a log with the verified ABI', () => {
+  const abi = [
+    'event VoteCast(address indexed voter, uint256 proposalId, uint8 support, uint256 weight, string reason)',
+  ]
+  const event = new Interface(abi).getEvent('VoteCast')!
+  const log = new Interface(abi).encodeEventLog(event, [ALICE, 12n, 1, 7472n, 'yes'])
+  assert.deepEqual(decodeEvent(abi, { topics: log.topics as Hex[], data: log.data as Hex }), {
+    name: 'VoteCast',
+    params: [
+      { name: 'voter', type: 'address', value: ALICE },
+      { name: 'proposalId', type: 'uint256', value: '12' },
+      { name: 'support', type: 'uint8', value: '1' },
+      { name: 'weight', type: 'uint256', value: '7472' },
+      { name: 'reason', type: 'string', value: '"yes"' },
+    ],
+  })
+  // Another event, or a log with another count of topics, does not decode.
+  assert.equal(decodeEvent(ERC20_ABI, { topics: log.topics as Hex[], data: log.data as Hex }), null)
+  assert.equal(decodeEvent(abi, { topics: log.topics.slice(0, 1) as Hex[], data: log.data as Hex }), null)
+})
+
+test('decodeStandardEvent tells the Transfer of an ERC-20 from the one of an ERC-721', () => {
+  const erc20 = new Interface(['event Transfer(address indexed from, address indexed to, uint256 value)'])
+  const erc721 = new Interface(['event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)'])
+  const a = erc20.encodeEventLog(erc20.getEvent('Transfer')!, [ALICE, ALICE, 5n])
+  const b = erc721.encodeEventLog(erc721.getEvent('Transfer')!, [ALICE, ALICE, 7n])
+  assert.deepEqual(decodeStandardEvent({ topics: a.topics as Hex[], data: a.data as Hex })?.params.at(-1), {
+    name: 'value',
+    type: 'uint256',
+    value: '5',
+  })
+  assert.deepEqual(decodeStandardEvent({ topics: b.topics as Hex[], data: b.data as Hex })?.params.at(-1), {
+    name: 'tokenId',
+    type: 'uint256',
+    value: '7',
+  })
+  assert.equal(decodeStandardEvent({ topics: [`0x${'11'.repeat(32)}`], data: '0x' }), null)
 })

@@ -63,6 +63,23 @@ export function LocallyVerifiedIcon(props: IconProps) {
   )
 }
 
+// A triangle with an exclamation mark: a warning.
+export function WarningIcon(props: IconProps) {
+  return (
+    <CutoutIcon
+      {...props}
+      fillClass="fill-amber-500"
+      shape={<path d="M10.27 3.5a2 2 0 0 1 3.46 0l8.66 15a2 2 0 0 1-1.73 3H3.34a2 2 0 0 1-1.73-3Z" />}
+      cutout={
+        <>
+          <path d="M12 9v4.5" stroke="black" strokeWidth="3" strokeLinecap="round" />
+          <circle cx="12" cy="17.75" r="1.5" fill="black" />
+        </>
+      }
+    />
+  )
+}
+
 // A cloud with an exclamation mark: from a third party, not checked here.
 export function ThirdPartyIcon(props: IconProps) {
   return (
