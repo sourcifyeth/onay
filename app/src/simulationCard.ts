@@ -4,12 +4,13 @@
 // ABI. This module has no browser or Tauri calls, so the tests run it.
 
 import { decodeEvent, decodeStandardEvent, type DecodedEvent } from './clear-signing/decode.ts'
+import { errorFromAbi } from './gates/errors.ts'
 import { amountText } from './context/run.ts'
 import type { Hex } from './messages.ts'
 import { verdictOf, type Contract } from './gates/contracts.ts'
 import type { AssetChange, Effects, EventLog, EventWarning, Permission, TokenFacts } from './gates/effects.ts'
 import { nameSlots, type NamedSlot } from './gates/layout.ts'
-import type { Simulation } from './gates/simulation.ts'
+import type { Frame, Simulation } from './gates/simulation.ts'
 import { short } from './gates/words.ts'
 
 // An allowance above this is more than any token has: "Unlimited".
@@ -52,6 +53,46 @@ export function sourceOf(address: Hex, contracts: Contract[]): SourceState {
 export function nameOf(address: Hex, contracts: Contract[], you: Hex): string | null {
   if (address === you) return 'you'
   return verifiedOf(address, contracts)?.claim.name ?? null
+}
+
+// The implementations of a proxy or the facets of a diamond: the code
+// that the own code of the contract called with a delegatecall, in the
+// order of the first run, with the names of their verified sources. A
+// library that an implementation calls in the same way is not one. Your
+// own account gets none: it is "you".
+export function implementationsOf(
+  address: Hex,
+  simulation: Simulation,
+  contracts: Contract[],
+  you: Hex,
+): { address: Hex; name: string | null }[] {
+  if (address === you) return []
+  const found: Hex[] = []
+  for (const { frames } of simulation.calls) {
+    frames.forEach((frame, index) => {
+      if (frame.kind !== 'delegatecall' || frame.context !== address || frame.address === address) return
+      // The caller is the last frame before it, one level up.
+      let caller: Frame | undefined
+      for (let at = index - 1; at >= 0 && !caller; at--) if (frames[at].depth === frame.depth - 1) caller = frames[at]
+      if (caller?.address === address && !found.includes(frame.address)) found.push(frame.address)
+    })
+  }
+  return found.map((code) => ({ address: code, name: verifiedOf(code, contracts)?.claim.name ?? null }))
+}
+
+// A custom error of a frame, named by a verified ABI of the run: the
+// code of the frame first, then each other verified contract, because a
+// revert can come up from a deeper call. Null if no verified ABI has it.
+export function errorOf(frame: Frame, contracts: Contract[]): { text: string; contract: string } | null {
+  if (frame.revert === null) return null
+  const own = contracts.filter((contract) => contract.address === frame.address)
+  const others = contracts.filter((contract) => contract.address !== frame.address)
+  for (const contract of [...own, ...others]) {
+    const verified = verifiedOf(contract.address, contracts)
+    const text = verified ? errorFromAbi(verified.abi, frame.revert) : null
+    if (verified && text) return { text, contract: verified.claim.name }
+  }
+  return null
 }
 
 // The symbol of a token, or its short address if it gave none.

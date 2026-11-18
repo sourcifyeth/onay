@@ -46,6 +46,9 @@ export type Frame = {
   value: bigint
   // Why the message failed. Null if it did not.
   error: string | null
+  // The return data of a revert: the error that the code gave. Null if
+  // the message did not revert.
+  revert: Hex | null
 }
 
 export type SimulatedCall = {
@@ -153,6 +156,7 @@ async function simulate(chain: ChainConfig, read: ChainRead, { calls, block }: S
         // A delegatecall keeps the value of its caller. It moves none.
         value: kind === 'delegatecall' ? 0n : message.value,
         error: null,
+        revert: null,
       }
       frames.push(frame)
       open.push(frame)
@@ -166,6 +170,7 @@ async function simulate(chain: ChainConfig, read: ChainRead, { calls, block }: S
         frame.context = frame.address
       }
       frame.error = errorOf(result)
+      frame.revert = revertOf(result)
     }
     const caller = createAddressFromString(call.from)
     const to = createAddressFromString(call.to)
@@ -329,6 +334,10 @@ function errorOf({ execResult }: EVMResult): string | null {
   if (!error) return null
   if (error.error !== 'revert') return error.error
   return revertText(bytesToHex(execResult.returnValue))
+}
+
+function revertOf({ execResult }: EVMResult): Hex | null {
+  return execResult.exceptionError?.error === 'revert' ? bytesToHex(execResult.returnValue) : null
 }
 
 // One frame in words, for the log and the review.

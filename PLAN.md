@@ -163,6 +163,7 @@ Each step ends with something that runs and can be reviewed. Steps 3 to 6 work o
     - Effects: candidates from the written contracts, the transfer events and the targets of the calls; `balanceOf`, `ownerOf`, `allowance`, `getApproved` and `isApprovedForAll` before and after, in the local EVM. Symbol, name and decimals are the token's own claims.
     - Advanced view: the state diff, plain variables named with the storage layout of the local compile, events decoded with the verified ABI, the call tree.
     - Dollar values from DefiLlama, with a switch in the settings. A value shows no mark; its tooltip names the source.
+    - Names: a proxy or a diamond names the code that its own code called with a delegatecall in the run, as its implementation. A custom error of a revert takes its name from a verified ABI of the run, else from 4byte.sourcify.dev, a claim with the third-party mark and a switch in the settings.
     - Not yet: signatures, Permit2 allowances, a new run at each block, and names for the slots of mappings.
 
 ### Preparing for step 7 from day one

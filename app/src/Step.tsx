@@ -61,7 +61,7 @@ export function Notice({
 }: {
   tone: 'coral' | 'amber' | 'gray'
   title: string
-  detail?: string
+  detail?: ReactNode
   className?: string
   children?: ReactNode
 }) {

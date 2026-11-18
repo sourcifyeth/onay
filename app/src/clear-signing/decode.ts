@@ -62,7 +62,7 @@ export function decodeCalldata(abi: unknown[], data: Hex): Decoded | null {
   }
 }
 
-function render(param: ParamType, value: unknown): string {
+export function render(param: ParamType, value: unknown): string {
   if (param.arrayChildren) {
     const items = (value as Result).toArray()
     return `[${items.map((item) => render(param.arrayChildren!, item)).join(', ')}]`

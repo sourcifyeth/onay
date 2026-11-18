@@ -1,20 +1,22 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { Interface } from 'ethers'
+import { getAddress, Interface } from 'ethers'
 import type { Hex } from '../src/messages.ts'
 import type { Contract } from '../src/gates/contracts.ts'
 import { TOPICS, type Effects, type Permission } from '../src/gates/effects.ts'
-import type { Simulation } from '../src/gates/simulation.ts'
+import type { Frame, Simulation } from '../src/gates/simulation.ts'
 import type { Verified } from '../src/gates/verify.ts'
 import {
   allowanceText,
   assetText,
   balanceText,
   codesOn,
+  errorOf,
   eventRows,
   feeNote,
   feeOf,
+  implementationsOf,
   isUnlimited,
   nameOf,
   otherContracts,
@@ -217,4 +219,74 @@ test('the fee: the gas times the price, and where the price comes from', () => {
   )
   const request = { ...simulation, fee: { gas: 50_000n, price: 2_500_000_000n, fromRequest: true } }
   assert.equal(feeNote(request, true, '12 s ago'), 'Estimate: 50,000 gas × 2.5 gwei, the gas price in the request.')
+})
+
+test('implementationsOf: the code that the own code of a proxy delegates to, not a library under it', () => {
+  const LIBRARY: Hex = '0x5000000000000000000000000000000000000005'
+  const frame = (depth: number, kind: Frame['kind'], address: Hex, context: Hex): Frame => ({
+    depth,
+    kind,
+    address,
+    context,
+    selector: null,
+    value: 0n,
+    error: null,
+    revert: null,
+  })
+  const run: Simulation = {
+    ...simulation,
+    calls: [
+      {
+        ...simulation.calls[0],
+        frames: [
+          frame(0, 'call', POOL, POOL),
+          frame(1, 'call', PROXY, PROXY),
+          frame(2, 'delegatecall', IMPL, PROXY),
+          frame(3, 'delegatecall', LIBRARY, PROXY),
+          // A second run of the same implementation counts once.
+          frame(1, 'call', PROXY, PROXY),
+          frame(2, 'delegatecall', IMPL, PROXY),
+        ],
+      },
+    ],
+  }
+  assert.deepEqual(implementationsOf(PROXY, run, contracts, YOU), [{ address: IMPL, name: 'Token' }])
+  assert.deepEqual(implementationsOf(POOL, run, contracts, YOU), [])
+  // An implementation without verified sources has no name.
+  assert.deepEqual(implementationsOf(PROXY, run, [contract(IMPL, null)], YOU), [{ address: IMPL, name: null }])
+  // Your own account is "you", also with the code of an EIP-7702 delegate.
+  const delegated: Simulation = {
+    ...run,
+    calls: [{ ...run.calls[0], frames: [frame(0, 'call', YOU, YOU), frame(1, 'delegatecall', IMPL, YOU)] }],
+  }
+  assert.deepEqual(implementationsOf(YOU, delegated, contracts, YOU), [])
+})
+
+test('errorOf: a custom error by the verified ABI of the frame, else of another contract of the run', () => {
+  const routerAbi = ['error TransactionDeadlinePassed()', 'error TooLittle(uint256 amountOut, address to)']
+  const errors = new Interface(routerAbi)
+  const frame = (address: Hex, revert: Hex | null): Frame => ({
+    depth: 0,
+    kind: 'call',
+    address,
+    context: address,
+    selector: null,
+    value: 0n,
+    error: revert === null ? null : 'custom error',
+    revert,
+  })
+  const deadline = errors.encodeErrorResult('TransactionDeadlinePassed', []) as Hex
+  const tooLittle = errors.encodeErrorResult('TooLittle', [5n, YOU]) as Hex
+  const run = [contract(POOL, 'Router', { abi: routerAbi }), contract(PROXY, 'TokenProxy')]
+  assert.deepEqual(errorOf(frame(POOL, deadline), run), { text: 'TransactionDeadlinePassed()', contract: 'Router' })
+  assert.deepEqual(errorOf(frame(POOL, tooLittle), run), {
+    text: `TooLittle(amountOut: 5, to: ${getAddress(YOU)})`,
+    contract: 'Router',
+  })
+  // The error came up from the router through the proxy.
+  assert.deepEqual(errorOf(frame(PROXY, deadline), run), { text: 'TransactionDeadlinePassed()', contract: 'Router' })
+  // No verified ABI has it, no revert, and a contract without sources.
+  assert.equal(errorOf(frame(POOL, '0x12345678'), run), null)
+  assert.equal(errorOf(frame(POOL, null), run), null)
+  assert.equal(errorOf(frame(POOL, deadline), [contract(POOL, null)]), null)
 })

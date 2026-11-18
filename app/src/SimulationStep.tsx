@@ -12,6 +12,7 @@ import { contextSettingsStore } from './context/settings.ts'
 import type { Hex } from './messages.ts'
 import type { Contract } from './gates/contracts.ts'
 import type { AssetChange, Effects, Permission } from './gates/effects.ts'
+import { customSelector, errorsFromSignatures, SIGNATURE_SOURCE, signatureCache } from './gates/errors.ts'
 import { errorText, type GateState } from './gates/gate.ts'
 import { valueText } from './gates/layout.ts'
 import { claimOf } from './gates/sourcify.ts'
@@ -27,9 +28,11 @@ import {
   allowanceText,
   assetText,
   balanceText,
+  errorOf,
   eventRows,
   feeNote,
   feeOf,
+  implementationsOf,
   isUnlimited,
   nameOf,
   otherContracts,
@@ -39,6 +42,7 @@ import {
 } from './simulationCard.ts'
 
 const cachedPrices = priceCache((url, init) => fetch(url, init), Date.now)
+const cachedSignatures = signatureCache((url, init) => fetch(url, init))
 
 const count = (n: number, what: string) => `${n.toLocaleString('en-US')} ${what}${n === 1 ? '' : 's'}`
 
@@ -85,12 +89,29 @@ function ageText(seconds: number): string {
 
 const Muted = ({ children }: { children: ReactNode }) => <span className="text-gray-400">{children}</span>
 
-// A name if Onay has one, and the address always.
-function Account({ address, name }: { address: Hex; name: string | null }) {
+type Implementation = { address: Hex; name: string | null }
+
+// A name if Onay has one, and the address always. A proxy also names
+// the code that ran on its storage.
+function Account({
+  address,
+  name,
+  implementations = [],
+}: {
+  address: Hex
+  name: string | null
+  implementations?: Implementation[]
+}) {
   return (
     <span title={address}>
       {name && <span className="font-medium text-gray-900">{name} </span>}
       <span className="font-mono text-xs text-gray-500">{short(address)}</span>
+      {implementations.map((implementation) => (
+        <span key={implementation.address} className="text-xs text-gray-500" title={implementation.address}>
+          {' '}
+          · implementation <span className="text-gray-700">{implementation.name ?? short(implementation.address)}</span>
+        </span>
+      ))}
     </span>
   )
 }
@@ -134,7 +155,7 @@ function Usd({
 }
 
 // The name first, then the whole address and a button that copies it.
-function FullAccount({ address, name }: { address: Hex; name: string | null }) {
+function NameAndAddress({ address, name }: { address: Hex; name: string | null }) {
   return (
     <span className="inline-flex flex-wrap items-center gap-x-2">
       {name && <span className="font-medium text-gray-900">{name}</span>}
@@ -146,9 +167,104 @@ function FullAccount({ address, name }: { address: Hex; name: string | null }) {
   )
 }
 
+// An account in full. A proxy also names, on the next line, the code
+// that ran on its storage.
+function FullAccount({
+  address,
+  name,
+  implementations = [],
+}: {
+  address: Hex
+  name: string | null
+  implementations?: Implementation[]
+}) {
+  return (
+    <>
+      <NameAndAddress address={address} name={name} />
+      {implementations.map((implementation) => (
+        <span key={implementation.address} className="flex flex-wrap items-center gap-x-2 pt-0.5 text-xs">
+          <span className="text-gray-500">Implementation:</span>
+          <NameAndAddress address={implementation.address} name={implementation.name} />
+        </span>
+      ))}
+    </>
+  )
+}
+
+// The names of the custom errors that the signature database gives for
+// a revert, while the switch is on.
+type Lookup =
+  | { status: 'off' | 'loading' }
+  | { status: 'passed'; names: string[] }
+  | { status: 'failed'; reason: string }
+
+function useErrorNames(data: Hex | null, wanted: boolean): Lookup {
+  const { signatures: on } = useSyncExternalStore(contextSettingsStore.subscribe, contextSettingsStore.getSnapshot)
+  const selector = wanted && on ? customSelector(data) : null
+  const [state, setState] = useState<{ key: string; lookup: Lookup }>({ key: '', lookup: { status: 'loading' } })
+  useEffect(() => {
+    if (!selector || data === null) return
+    let live = true
+    cachedSignatures(selector).then(
+      (signatures) =>
+        live && setState({ key: data, lookup: { status: 'passed', names: errorsFromSignatures(signatures, data) } }),
+      (error) => live && setState({ key: data, lookup: { status: 'failed', reason: errorText(error) } }),
+    )
+    return () => {
+      live = false
+    }
+  }, [selector, data])
+  if (!selector) return { status: 'off' }
+  return state.key === data ? state.lookup : { status: 'loading' }
+}
+
+// Why a frame failed. A custom error shows by its name: from a verified
+// ABI of the run, or else from the signature database, as a claim.
+function RevertReason({ frame, contracts }: { frame: Frame; contracts: Contract[] }) {
+  const fromAbi = errorOf(frame, contracts)
+  const lookup = useErrorNames(frame.revert, fromAbi === null)
+  if (fromAbi) {
+    return (
+      <Tooltip tip={`Error in the verified ABI of ${fromAbi.contract}.`}>
+        <span>{fromAbi.text}</span>
+      </Tooltip>
+    )
+  }
+  if (lookup.status === 'passed' && lookup.names.length > 0) {
+    return (
+      <Tooltip
+        tip={
+          <span className="flex items-start gap-1.5">
+            <ThirdPartyIcon className="mt-0.5 h-3 w-3 shrink-0" title="Not checked by Onay" />
+            {`Name from ${SIGNATURE_SOURCE}. No verified ABI of the run has this error.`}
+          </span>
+        }
+      >
+        <span className="inline-flex items-center gap-1">
+          <ThirdPartyIcon className="h-3.5 w-3.5 shrink-0" title="Not checked by Onay" />
+          {lookup.names.length === 1 ? lookup.names[0] : `one of ${lookup.names.join(', ')}`}
+        </span>
+      </Tooltip>
+    )
+  }
+  const note =
+    lookup.status === 'passed'
+      ? ` · not in ${SIGNATURE_SOURCE}`
+      : lookup.status === 'failed'
+        ? ` · ${SIGNATURE_SOURCE}: ${lookup.reason}`
+        : ''
+  return (
+    <span>
+      {frame.error}
+      {note && <span className="text-gray-500">{note}</span>}
+    </span>
+  )
+}
+
 /* the rows */
 
 type Context = {
+  simulation: Simulation
   effects: Effects
   contracts: Contract[]
   listed: Map<Hex, string[]>
@@ -228,7 +344,11 @@ function AssetRow({ change, context }: { change: AssetChange; context: Context }
         {change.counterparty && (
           <span className="text-gray-500">
             {out ? 'to' : 'from'}{' '}
-            <Account address={change.counterparty} name={nameOf(change.counterparty, context.contracts, you)} />
+            <Account
+              address={change.counterparty}
+              name={nameOf(change.counterparty, context.contracts, you)}
+              implementations={implementationsOf(change.counterparty, context.simulation, context.contracts, you)}
+            />
           </span>
         )}
       </p>
@@ -252,7 +372,11 @@ function PermissionRow({ permission, context }: { permission: Permission; contex
   return (
     <div className={loud ? 'rounded-lg bg-amber-50 px-3 py-2 ring-1 ring-amber-300' : undefined}>
       <p className="text-sm text-gray-700">
-        <Account address={permission.spender} name={nameOf(permission.spender, context.contracts, you)} />{' '}
+        <Account
+          address={permission.spender}
+          name={nameOf(permission.spender, context.contracts, you)}
+          implementations={implementationsOf(permission.spender, context.simulation, context.contracts, you)}
+        />{' '}
         {revoked ? 'can no longer spend' : 'to spend'}
       </p>
       <p className="flex flex-wrap items-baseline gap-x-3 text-sm">
@@ -318,6 +442,7 @@ function Delta({ text }: { text: string | null }) {
 
 function StateChanges({ simulation, contracts, you }: { simulation: Simulation; contracts: Contract[]; you: Hex }) {
   const name = (address: Hex) => nameOf(address, contracts, you)
+  const implementations = (address: Hex) => implementationsOf(address, simulation, contracts, you)
   // An address in a value shows by its name, if Onay has one.
   const shown = (value: string, type: string) =>
     type === 'address' && name(value.toLowerCase() as Hex)
@@ -332,7 +457,11 @@ function StateChanges({ simulation, contracts, you }: { simulation: Simulation; 
       {simulation.diff.accounts.map((account) => (
         <div key={account.address} className="py-3 pl-5">
           <p className="pb-1 text-sm">
-            <FullAccount address={account.address} name={name(account.address)} />
+            <FullAccount
+              address={account.address}
+              name={name(account.address)}
+              implementations={implementations(account.address)}
+            />
           </p>
           {account.balance.before !== account.balance.after && (
             <p className="font-mono text-xs text-gray-500">
@@ -352,7 +481,11 @@ function StateChanges({ simulation, contracts, you }: { simulation: Simulation; 
       {stateChanges(simulation, contracts).map((group) => (
         <div key={group.address} className="py-3 pl-5">
           <p className="pb-1 text-sm">
-            <FullAccount address={group.address} name={name(group.address)} />
+            <FullAccount
+              address={group.address}
+              name={name(group.address)}
+              implementations={implementations(group.address)}
+            />
           </p>
           <div className="divide-y divide-gray-100">
             {group.slots.map((slot) =>
@@ -451,7 +584,11 @@ function FrameRow({ frame, contracts }: { frame: Frame; contracts: Contract[] })
       {name && <span className="text-xs text-gray-500">{name}</span>}
       {frame.selector && <span className="font-mono text-xs text-gray-400">{frame.selector}</span>}
       {frame.value > 0n && <span className="text-xs text-gray-500">{formatEther(frame.value)} ETH</span>}
-      {frame.error && <span className="text-xs text-light-coral-700">✕ {frame.error}</span>}
+      {frame.error && (
+        <span className="text-xs text-light-coral-700">
+          ✕ <RevertReason frame={frame} contracts={contracts} />
+        </span>
+      )}
     </div>
   )
 }
@@ -539,7 +676,11 @@ function Advanced({
           <ul className="list-disc space-y-1 pt-1.5 pl-5 text-sm marker:text-gray-400">
             {others.map((address) => (
               <li key={address}>
-                <FullAccount address={address} name={nameOf(address, contracts, you)} />
+                <FullAccount
+                  address={address}
+                  name={nameOf(address, contracts, you)}
+                  implementations={implementationsOf(address, simulation, contracts, you)}
+                />
               </li>
             ))}
           </ul>
@@ -634,6 +775,15 @@ function Changes({ simulation, context, helios }: { simulation: Simulation; cont
   )
 }
 
+// The error of the first call that failed. The first frame of a call is
+// the call itself.
+function CallError({ simulation, contracts }: { simulation: Simulation; contracts: Contract[] }) {
+  const failed = simulation.calls.find((call) => call.error)
+  if (!failed) return null
+  const frame = failed.frames[0]
+  return frame?.error ? <RevertReason frame={frame} contracts={contracts} /> : <>{failed.error}</>
+}
+
 // A run that did not give effects: not simulated, failed, or running.
 function Summary({ state, runs }: { state: GateState<Simulation>; runs: boolean }) {
   if (state.status === 'skipped') {
@@ -691,7 +841,7 @@ export function SimulationStep({ step, verification }: { step: StepInfo; verific
               <Notice
                 tone="coral"
                 title="⚠ The transaction reverts in simulation"
-                detail={passed.calls.find((call) => call.error)?.error ?? undefined}
+                detail={<CallError simulation={passed} contracts={contracts} />}
                 className="mt-3"
               >
                 {`Run on the ${helios ? 'latest verified' : 'latest'} chain state. Nothing changes, and sending it would only waste gas. Do not sign it.`}
@@ -702,7 +852,11 @@ export function SimulationStep({ step, verification }: { step: StepInfo; verific
               </Notice>
             ) : (
               effects && (
-                <Changes simulation={passed} context={{ effects, contracts, listed, prices }} helios={helios} />
+                <Changes
+                  simulation={passed}
+                  context={{ simulation: passed, effects, contracts, listed, prices }}
+                  helios={helios}
+                />
               )
             )}
             <Advanced simulation={passed} effects={effects} contracts={contracts} helios={helios} />

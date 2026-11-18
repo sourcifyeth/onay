@@ -182,6 +182,9 @@ test('a revert deep in the tree: the reason on the frame, on the call, and in th
     { depth: 0, kind: 'call', address: CALLER, context: CALLER, error: 'nope' },
     { depth: 1, kind: 'staticcall', address: CALLEE, context: CALLEE, error: 'nope' },
   ])
+  // The return data of the revert stays on each frame, so the card can
+  // name a custom error.
+  for (const frame of result.frames) assert.match(frame.revert ?? '', /^0x08c379a0/)
   assert.deepEqual(
     simulation.touched.map(({ address }) => address),
     [CALLER, CALLEE],
@@ -306,6 +309,7 @@ test('describe: one frame in words', () => {
     selector: '0x12345678',
     value: 10n ** 18n,
     error: null,
+    revert: null,
   }
   assert.equal(describe(frame), `call ${CALLEE} · 0x12345678 · 1 ETH`)
   assert.equal(describe({ ...frame, selector: null, value: 0n }), `call ${CALLEE}`)
