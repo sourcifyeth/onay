@@ -26,6 +26,27 @@ ignore = [
   { id = "RUSTSEC-2024-0436", reason = "unmaintained paste, a compile-time macro, via helios > alloy-primitives" },
   { id = "RUSTSEC-2024-0449", reason = "unmaintained unsafe-libyaml, via helios-ethereum > serde_yaml; parses the checkpoint service list that Helios fetches from GitHub over HTTPS" },
   { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5, via helios > alloy-signer > elliptic-curve 0.13; timing leaks on secret integers, and Onay holds no keys: the curve code only verifies signatures on public data; fixed in 0.7, which elliptic-curve 0.13 does not accept" },
+  { id = "RUSTSEC-2026-0543", reason = "unmaintained chrono, via helios-ethereum; no known vulnerability; waits for Helios to move" },
+  # hickory 0.25, via helios > reqwest 0.12 (feature hickory-dns). All are fixed
+  # in 0.26.2, which reqwest 0.12 does not accept. Helios 0.12.0 is the newest
+  # release and still uses reqwest 0.12. Remove these when Helios moves to reqwest 0.13.
+  # The build has only the features std, tokio and futures-io of hickory-proto:
+  # no DNSSEC validation and no text (zone file) parser.
+  { id = "RUSTSEC-2026-0487", reason = "hickory-proto 0.25: panic in the text parser of SVCB records; the text parser is not compiled (no text-parsing feature)" },
+  { id = "RUSTSEC-2026-0489", reason = "hickory-proto 0.25: panic in the text parser of SVCB records; the text parser is not compiled (no text-parsing feature)" },
+  { id = "RUSTSEC-2026-0490", reason = "hickory-proto 0.25: panic in the zone file lexer; the lexer is not compiled (no text-parsing feature)" },
+  { id = "RUSTSEC-2026-0491", reason = "hickory-proto 0.25: a forged DNS reply makes the decoder reserve about 18 MB for each packet; only the system resolver or an attacker on the network path can send replies, and the worst result is that the app uses more memory or stops" },
+  { id = "RUSTSEC-2026-0504", reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)" },
+  { id = "RUSTSEC-2026-0505", reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)" },
+  { id = "RUSTSEC-2026-0511", reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)" },
+  { id = "RUSTSEC-2026-0512", reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)" },
+  { id = "RUSTSEC-2026-0514", reason = "hickory-resolver 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)" },
+  { id = "RUSTSEC-2026-0530", reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)" },
+  { id = "RUSTSEC-2026-0531", reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)" },
+  { id = "RUSTSEC-2026-0532", reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)" },
+  { id = "RUSTSEC-2026-0549", reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)" },
+  { id = "RUSTSEC-2026-0550", reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)" },
+  { id = "RUSTSEC-2026-0551", reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)" },
 ]
 
 [licenses]

@@ -1,0 +1,7 @@
+# OSV scanner ignore list for pnpm-lock.yaml. The scanner reads this file
+# from the lockfile's directory. Each entry needs a reason. Review the list
+# at every vite bump. app/osv-scanner.toml has the list for app/Cargo.lock.
+
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf"
+reason = "picomatch 4.0.7 (ReDoS on crafted extglob patterns), a dev dependency only: vite and tinyglobby use it at build time in app, mock and site; the glob patterns come from our own config, and nothing ships picomatch; no fixed release yet"
