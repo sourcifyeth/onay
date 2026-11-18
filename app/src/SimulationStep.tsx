@@ -477,30 +477,24 @@ function CallTree({ simulation, contracts }: { simulation: Simulation; contracts
   )
 }
 
-// What Onay read from the chain to run the transaction, and how it
-// checked it.
+// What the run read from the chain, and whether Onay checked it.
 function StateRead({ simulation, helios }: { simulation: Simulation; helios: boolean }) {
-  const { accounts, slots } = simulation.reads
-  return (
-    <Section title="State read">
-      <p className="pt-1 text-xs text-gray-500">
-        To run the transaction, Onay read data from the chain. An account is an address with its balance, its nonce (the
-        count of its transactions) and its code. A storage slot is one cell of 32 bytes in the data of a contract.
-      </p>
-      <p className="pt-2 pl-5 text-sm text-gray-700">
-        {count(accounts, 'account')} · {count(slots, 'storage slot')}
-      </p>
-      {helios ? (
-        <p className="pt-1 pl-5 text-xs text-green-700">
-          ✓ Checked with Merkle proofs. A Merkle proof shows that a value is part of the state of the block that Helios
-          verified, so the RPC node cannot change the value.
-        </p>
-      ) : (
-        <p className="pt-1 pl-5 text-xs text-amber-700">
-          No proof. The RPC node sent the values, and Onay did not check them.
-        </p>
-      )}
-    </Section>
+  const read = `${count(simulation.reads.accounts, 'account')} and ${count(simulation.reads.slots, 'storage slot')}`
+  return helios ? (
+    <p className="mt-4 flex items-start gap-1.5 text-xs text-green-700">
+      <LocallyVerifiedIcon className="mt-px h-3.5 w-3.5 shrink-0" title="Checked on this machine" />
+      <span>
+        <span className="font-medium">Verified state.</span> The run read {read} from the Helios light client, each
+        checked with a Merkle proof.
+      </span>
+    </p>
+  ) : (
+    <p className="mt-4 flex items-start gap-1.5 text-xs text-amber-700">
+      <ThirdPartyIcon className="mt-px h-3.5 w-3.5 shrink-0" title="Not checked by Onay" />
+      <span>
+        <span className="font-medium">Unverified state.</span> The run read {read} from the RPC node, with no proof.
+      </span>
+    </p>
   )
 }
 
@@ -549,12 +543,12 @@ function Advanced({
           </ul>
         </div>
       )}
+      <StateRead simulation={simulation} helios={helios} />
       {(slots > 0 || simulation.diff.accounts.length > 0) && (
         <StateChanges simulation={simulation} contracts={contracts} you={you} />
       )}
       {events > 0 && <Events simulation={simulation} contracts={contracts} you={you} />}
       <CallTree simulation={simulation} contracts={contracts} />
-      <StateRead simulation={simulation} helios={helios} />
     </Disclosure>
   )
 }
