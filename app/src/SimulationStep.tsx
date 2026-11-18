@@ -618,18 +618,7 @@ function Changes({ simulation, context, helios }: { simulation: Simulation; cont
         )}
         <Line label="Network fee">
           <p className="flex flex-wrap items-center gap-x-2 text-sm">
-            <Tooltip
-              tip={
-                <>
-                  <span className="block">An estimate.</span>
-                  {feeNote(simulation, helios, ageText(age)).map((line) => (
-                    <span key={line} className="block">
-                      {line}
-                    </span>
-                  ))}
-                </>
-              }
-            >
+            <Tooltip tip={feeNote(simulation, helios, ageText(age))}>
               <span className="font-mono text-gray-700">− {amountText(fee, 18)} ETH</span>
             </Tooltip>
             <Usd amount={fee} decimals={18} price={ethPrice} prices={prices} />

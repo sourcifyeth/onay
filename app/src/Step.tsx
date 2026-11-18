@@ -146,7 +146,7 @@ export function CopyButton({ text, what }: { text: string; what: string }) {
       onClick={copy}
       title={copied ? 'Copied' : `Copy the ${what}`}
       aria-label={`Copy the ${what}`}
-      className="inline-flex cursor-copy items-center text-gray-400 hover:text-gray-700"
+      className="inline-flex cursor-pointer items-center text-gray-400 hover:text-gray-700"
     >
       {copied ? <span className="text-[11px] text-green-700">copied</span> : <CopyIcon />}
     </button>
