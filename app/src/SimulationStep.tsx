@@ -479,21 +479,23 @@ function CallTree({ simulation, contracts }: { simulation: Simulation; contracts
 
 // What the run read from the chain, and whether Onay checked it.
 function StateRead({ simulation, helios }: { simulation: Simulation; helios: boolean }) {
-  const read = `${count(simulation.reads.accounts, 'account')} and ${count(simulation.reads.slots, 'storage slot')}`
-  return helios ? (
-    <p className="mt-4 flex items-start gap-1.5 text-xs text-green-700">
-      <LocallyVerifiedIcon className="mt-px h-3.5 w-3.5 shrink-0" title="Checked on this machine" />
+  return (
+    <p className="mt-4 flex flex-wrap items-center gap-x-2 text-xs text-gray-600">
       <span>
-        <span className="font-medium">Verified state.</span> The run read {read} from the Helios light client, each
-        checked with a Merkle proof.
+        <span className="font-medium text-gray-700">State read:</span> {count(simulation.reads.accounts, 'account')} and{' '}
+        {count(simulation.reads.slots, 'storage slot')}
       </span>
-    </p>
-  ) : (
-    <p className="mt-4 flex items-start gap-1.5 text-xs text-amber-700">
-      <ThirdPartyIcon className="mt-px h-3.5 w-3.5 shrink-0" title="Not checked by Onay" />
-      <span>
-        <span className="font-medium">Unverified state.</span> The run read {read} from the RPC node, with no proof.
-      </span>
+      {helios ? (
+        <span className="flex items-center gap-1 text-green-700">
+          <LocallyVerifiedIcon className="h-3.5 w-3.5 shrink-0" title="Checked on this machine" />
+          Verified state with light client
+        </span>
+      ) : (
+        <span className="flex items-center gap-1 text-amber-700">
+          <ThirdPartyIcon className="h-3.5 w-3.5 shrink-0" title="Not checked by Onay" />
+          Unverified state from RPC node
+        </span>
+      )}
     </p>
   )
 }
