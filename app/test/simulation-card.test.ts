@@ -13,6 +13,7 @@ import {
   balanceText,
   codesOn,
   eventRows,
+  feeNote,
   feeOf,
   isUnlimited,
   nameOf,
@@ -204,6 +205,18 @@ test('eventRows: the verified ABI of the implementation, else nothing', () => {
   assert.equal(standard.standard, true)
 })
 
-test('the fee: the gas times the price', () => {
+test('the fee: the gas times the price, and where the price comes from', () => {
   assert.equal(feeOf(simulation), 500_000n)
+  const gas = '50,000 gas: the gas that the run used.'
+  assert.deepEqual(feeNote(simulation, true, '12 s ago'), [
+    gas,
+    '× under 0.000001 gwei: the base fee of block 100 (12 s ago), from the block header that Helios verified.',
+    'Your wallet adds a tip, so the real fee is a little higher.',
+  ])
+  assert.deepEqual(
+    feeNote(simulation, false, '3 min ago')[1],
+    '× under 0.000001 gwei: the base fee of block 100 (3 min ago), from the RPC node, without proof.',
+  )
+  const request = { ...simulation, fee: { gas: 50_000n, price: 2_500_000_000n, fromRequest: true } }
+  assert.deepEqual(feeNote(request, true, '12 s ago'), [gas, '× 2.5 gwei: the gas price that the request sets.'])
 })

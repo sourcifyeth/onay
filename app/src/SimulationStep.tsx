@@ -21,13 +21,14 @@ import type { Verification } from './gates/verification.ts'
 import { formatEther, short } from './gates/words.ts'
 import { LocallyVerifiedIcon, ThirdPartyIcon, WarningIcon } from './Icons.tsx'
 import { CollapsibleLog } from './Log.tsx'
-import { CopyButton, Notice, Row, Step } from './Step.tsx'
+import { CopyButton, Notice, Step } from './Step.tsx'
 import { Tooltip } from './Tooltip.tsx'
 import {
   allowanceText,
   assetText,
   balanceText,
   eventRows,
+  feeNote,
   feeOf,
   isUnlimited,
   nameOf,
@@ -129,6 +130,19 @@ function Usd({
         ≈ ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </span>
     </Tooltip>
+  )
+}
+
+// The name first, then the whole address and a button that copies it.
+function FullAccount({ address, name }: { address: Hex; name: string | null }) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-2">
+      {name && <span className="font-medium text-gray-900">{name}</span>}
+      <span className="inline-flex items-center gap-1">
+        <span className="font-mono text-xs break-all text-gray-500">{address}</span>
+        <CopyButton text={address} what="address" />
+      </span>
+    </span>
   )
 }
 
@@ -278,7 +292,15 @@ function Disclosure({ label, children }: { label: ReactNode; children: ReactNode
   )
 }
 
-const HEADING = 'pt-4 text-[11px] font-medium tracking-wide text-gray-400 uppercase'
+// The title of one section of the advanced view.
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="mt-5 border-t border-gray-100 pt-4">
+      <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+      {children}
+    </section>
+  )
+}
 
 function signed(before: bigint, after: bigint, text: (value: bigint) => string): string | null {
   if (before === after) return null
@@ -302,16 +324,15 @@ function StateChanges({ simulation, contracts, you }: { simulation: Simulation; 
       ? `${name(value.toLowerCase() as Hex)} ${short(value)}`
       : value
   return (
-    <>
-      <p className={HEADING}>State changes</p>
+    <Section title="State changes">
       <p className="pt-1 text-xs text-gray-500">
         Each balance, nonce and storage slot that the run changed. A plain variable shows by its name, from the storage
         layout of the recompile. A slot of a mapping or an array shows raw.
       </p>
       {simulation.diff.accounts.map((account) => (
-        <div key={account.address} className="py-2 pl-3">
-          <p className="text-sm text-gray-900">
-            <Account address={account.address} name={name(account.address)} />
+        <div key={account.address} className="py-3 pl-5">
+          <p className="pb-1 text-sm">
+            <FullAccount address={account.address} name={name(account.address)} />
           </p>
           {account.balance.before !== account.balance.after && (
             <p className="font-mono text-xs text-gray-500">
@@ -329,15 +350,15 @@ function StateChanges({ simulation, contracts, you }: { simulation: Simulation; 
         </div>
       ))}
       {stateChanges(simulation, contracts).map((group) => (
-        <div key={group.address} className="pt-3">
-          <p className="text-sm">
-            <Account address={group.address} name={name(group.address)} />
+        <div key={group.address} className="py-3 pl-5">
+          <p className="pb-1 text-sm">
+            <FullAccount address={group.address} name={name(group.address)} />
           </p>
           <div className="divide-y divide-gray-100">
             {group.slots.map((slot) =>
               slot.variables.length > 0 ? (
                 slot.variables.map((variable) => (
-                  <div key={`${slot.slot} ${variable.name}`} className="py-2 pl-3">
+                  <div key={`${slot.slot} ${variable.name}`} className="py-2.5 pl-5">
                     <p className="text-sm text-gray-900">
                       <span className="font-mono text-[13px]">{variable.name}</span>
                       <span className="pl-2 font-mono text-[11px] text-gray-400">{variable.type}</span>
@@ -359,7 +380,7 @@ function StateChanges({ simulation, contracts, you }: { simulation: Simulation; 
                   </div>
                 ))
               ) : (
-                <div key={slot.slot} className="py-2 pl-3">
+                <div key={slot.slot} className="py-2.5 pl-5">
                   <p className="font-mono text-[13px] break-all text-gray-500">slot {slot.slot}</p>
                   <p className="font-mono text-xs break-all text-gray-500">
                     {valueText(BigInt(slot.before), 'bytes32', 32)} <Muted>→</Muted>{' '}
@@ -371,18 +392,17 @@ function StateChanges({ simulation, contracts, you }: { simulation: Simulation; 
           </div>
         </div>
       ))}
-    </>
+    </Section>
   )
 }
 
 function Events({ simulation, contracts, you }: { simulation: Simulation; contracts: Contract[]; you: Hex }) {
   const rows = eventRows(simulation, contracts)
   return (
-    <>
-      <p className={`${HEADING} pb-1`}>Events</p>
-      <div className="divide-y divide-gray-100">
+    <Section title="Events">
+      <div className="divide-y divide-gray-100 pt-1 pl-5">
         {rows.map(({ log, decoded, standard }, index) => (
-          <div key={index} className="flex gap-3 py-1.5 text-xs">
+          <div key={index} className="flex gap-3 py-2 text-xs">
             <span className="w-32 shrink-0 truncate text-gray-500" title={log.address}>
               {nameOf(log.address, contracts, you) ?? short(log.address)}
             </span>
@@ -411,7 +431,7 @@ function Events({ simulation, contracts, you }: { simulation: Simulation; contra
           </div>
         ))}
       </div>
-    </>
+    </Section>
   )
 }
 
@@ -421,7 +441,7 @@ function FrameRow({ frame, contracts }: { frame: Frame; contracts: Contract[] })
   // A create that failed never got its address.
   const known = frame.kind !== 'create' || frame.address !== UNKNOWN
   return (
-    <div className="flex flex-wrap items-baseline gap-x-2 py-1 text-[13px]" style={{ paddingLeft: frame.depth * 20 }}>
+    <div className="flex flex-wrap items-baseline gap-x-2 py-1.5 text-[13px]" style={{ paddingLeft: frame.depth * 24 }}>
       <span className="font-mono text-xs text-gray-400">{frame.kind}</span>
       {known && (
         <span className="font-mono break-all text-gray-700" title={frame.address}>
@@ -438,21 +458,49 @@ function FrameRow({ frame, contracts }: { frame: Frame; contracts: Contract[] })
 
 function CallTree({ simulation, contracts }: { simulation: Simulation; contracts: Contract[] }) {
   return (
-    <>
-      <p className={HEADING}>Call tree</p>
-      {simulation.calls.map((call, index) => (
-        <Fragment key={index}>
-          {simulation.calls.length > 1 && (
-            <p className="pt-2 text-xs text-gray-500">
-              call {index + 1} of {simulation.calls.length}
-            </p>
-          )}
-          {call.frames.map((frame, at) => (
-            <FrameRow key={at} frame={frame} contracts={contracts} />
-          ))}
-        </Fragment>
-      ))}
-    </>
+    <Section title="Call tree">
+      <div className="pt-1 pl-5">
+        {simulation.calls.map((call, index) => (
+          <Fragment key={index}>
+            {simulation.calls.length > 1 && (
+              <p className="pt-2 text-xs text-gray-500">
+                call {index + 1} of {simulation.calls.length}
+              </p>
+            )}
+            {call.frames.map((frame, at) => (
+              <FrameRow key={at} frame={frame} contracts={contracts} />
+            ))}
+          </Fragment>
+        ))}
+      </div>
+    </Section>
+  )
+}
+
+// What Onay read from the chain to run the transaction, and how it
+// checked it.
+function StateRead({ simulation, helios }: { simulation: Simulation; helios: boolean }) {
+  const { accounts, slots } = simulation.reads
+  return (
+    <Section title="State read">
+      <p className="pt-1 text-xs text-gray-500">
+        To run the transaction, Onay read data from the chain. An account is an address with its balance, its nonce (the
+        count of its transactions) and its code. A storage slot is one cell of 32 bytes in the data of a contract.
+      </p>
+      <p className="pt-2 pl-5 text-sm text-gray-700">
+        {count(accounts, 'account')} · {count(slots, 'storage slot')}
+      </p>
+      {helios ? (
+        <p className="pt-1 pl-5 text-xs text-green-700">
+          ✓ Checked with Merkle proofs. A Merkle proof shows that a value is part of the state of the block that Helios
+          verified, so the RPC node cannot change the value.
+        </p>
+      ) : (
+        <p className="pt-1 pl-5 text-xs text-amber-700">
+          No proof. The RPC node sent the values, and Onay did not check them.
+        </p>
+      )}
+    </Section>
   )
 }
 
@@ -486,36 +534,35 @@ function Advanced({
       }
     >
       {others.length > 0 && (
-        <p className="pt-1 text-xs text-gray-600">
-          {shown
-            ? `The transaction also changes data in ${count(others.length, 'other contract')}: `
-            : `The transaction changes data in ${count(others.length, 'contract')}: `}
-          {others.map((address) => nameOf(address, contracts, you) ?? short(address)).join(', ')}.
-        </p>
+        <div className="pt-1 text-xs text-gray-600">
+          <p>
+            {shown
+              ? `The transaction also changes data in ${count(others.length, 'other contract')}:`
+              : `The transaction changes data in ${count(others.length, 'contract')}:`}
+          </p>
+          <ul className="list-disc space-y-1 pt-1.5 pl-5 text-sm marker:text-gray-400">
+            {others.map((address) => (
+              <li key={address}>
+                <FullAccount address={address} name={nameOf(address, contracts, you)} />
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
-      <div className="divide-y divide-gray-100 pt-2">
-        <Row label="Block">{simulation.header.number.toLocaleString('en-US')}</Row>
-        <Row label="State read">
-          {count(simulation.reads.accounts, 'account')} · {count(simulation.reads.slots, 'storage slot')}
-          {helios ? (
-            <span className="text-green-700"> ✓ merkle proofs</span>
-          ) : (
-            <span className="text-amber-700"> no proof</span>
-          )}
-        </Row>
-      </div>
       {(slots > 0 || simulation.diff.accounts.length > 0) && (
         <StateChanges simulation={simulation} contracts={contracts} you={you} />
       )}
       {events > 0 && <Events simulation={simulation} contracts={contracts} you={you} />}
       <CallTree simulation={simulation} contracts={contracts} />
+      <StateRead simulation={simulation} helios={helios} />
     </Disclosure>
   )
 }
 
 /* the card */
 
-function Changes({ simulation, context }: { simulation: Simulation; context: Context }) {
+function Changes({ simulation, context, helios }: { simulation: Simulation; context: Context; helios: boolean }) {
+  const age = useAge(simulation.header.timestamp)
   const { effects, prices } = context
   const sent = effects.assets.filter((change) => change.delta < 0n)
   const received = effects.assets.filter((change) => change.delta > 0n)
@@ -571,7 +618,18 @@ function Changes({ simulation, context }: { simulation: Simulation; context: Con
         )}
         <Line label="Network fee">
           <p className="flex flex-wrap items-center gap-x-2 text-sm">
-            <Tooltip tip="An estimate.">
+            <Tooltip
+              tip={
+                <>
+                  <span className="block">An estimate.</span>
+                  {feeNote(simulation, helios, ageText(age)).map((line) => (
+                    <span key={line} className="block">
+                      {line}
+                    </span>
+                  ))}
+                </>
+              }
+            >
               <span className="font-mono text-gray-700">− {amountText(fee, 18)} ETH</span>
             </Tooltip>
             <Usd amount={fee} decimals={18} price={ethPrice} prices={prices} />
@@ -658,7 +716,9 @@ export function SimulationStep({ step, verification }: { step: StepInfo; verific
                 {`${passed.effects.reason}. The run ended, and the contracts it calls are checked, but what it does to your assets is unknown.`}
               </Notice>
             ) : (
-              effects && <Changes simulation={passed} context={{ effects, contracts, listed, prices }} />
+              effects && (
+                <Changes simulation={passed} context={{ effects, contracts, listed, prices }} helios={helios} />
+              )
             )}
             <Advanced simulation={passed} effects={effects} contracts={contracts} helios={helios} />
           </>

@@ -172,6 +172,21 @@ export function eventRows(simulation: Simulation, contracts: Contract[]): EventR
     })
 }
 
+// How Onay estimates the fee: the gas of the run times a gas price, and
+// where that price comes from. `age` says how old the block is.
+export function feeNote(simulation: Simulation, helios: boolean, age: string): string[] {
+  const { fee, header } = simulation
+  const gas = `${fee.gas.toLocaleString('en-US')} gas: the gas that the run used.`
+  const gwei = `${amountText(fee.price, 9)} gwei`
+  if (fee.fromRequest) return [gas, `× ${gwei}: the gas price that the request sets.`]
+  const source = helios ? 'the block header that Helios verified' : 'the RPC node, without proof'
+  return [
+    gas,
+    `× ${gwei}: the base fee of block ${header.number.toLocaleString('en-US')} (${age}), from ${source}.`,
+    'Your wallet adds a tip, so the real fee is a little higher.',
+  ]
+}
+
 export function feeOf(simulation: Simulation): bigint {
   return simulation.fee.gas * simulation.fee.price
 }
