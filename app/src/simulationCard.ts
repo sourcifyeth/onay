@@ -172,14 +172,6 @@ export function eventRows(simulation: Simulation, contracts: Contract[]): EventR
     })
 }
 
-// The fee in words, and how Onay got the price.
-export function feeNote(simulation: Simulation): string {
-  const { fee, header } = simulation
-  const gas = `${fee.gas.toLocaleString('en-US')} gas`
-  if (fee.fromRequest) return `${gas} at the gas price of the request.`
-  return `${gas} at the base fee of block ${header.number.toLocaleString('en-US')}. Your wallet adds a tip, so the fee is a little higher.`
-}
-
 export function feeOf(simulation: Simulation): bigint {
   return simulation.fee.gas * simulation.fee.price
 }

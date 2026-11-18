@@ -4,6 +4,7 @@
 
 import { useState, type ReactNode } from 'react'
 import type { StepInfo } from './gates/verdict.ts'
+import { CopyIcon } from './Icons.tsx'
 
 // The number and the title come from the list of the steps.
 export function Step({ step, explainer, children }: { step: StepInfo; explainer: string; children: ReactNode }) {
@@ -129,6 +130,27 @@ async function copyText(text: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+// A small button that copies a text, such as a whole address next to its
+// short form.
+export function CopyButton({ text, what }: { text: string; what: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    if (!(await copyText(text))) return
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <button
+      onClick={copy}
+      title={copied ? 'Copied' : `Copy the ${what}`}
+      aria-label={`Copy the ${what}`}
+      className="inline-flex cursor-copy items-center text-gray-400 hover:text-gray-700"
+    >
+      {copied ? <span className="text-[11px] text-green-700">copied</span> : <CopyIcon />}
+    </button>
+  )
 }
 
 // A value with a tooltip that shows what is behind it. A click copies

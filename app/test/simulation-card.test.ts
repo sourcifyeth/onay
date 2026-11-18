@@ -13,7 +13,6 @@ import {
   balanceText,
   codesOn,
   eventRows,
-  feeNote,
   feeOf,
   isUnlimited,
   nameOf,
@@ -205,14 +204,6 @@ test('eventRows: the verified ABI of the implementation, else nothing', () => {
   assert.equal(standard.standard, true)
 })
 
-test('the fee: the gas times the price, and how the price was chosen', () => {
+test('the fee: the gas times the price', () => {
   assert.equal(feeOf(simulation), 500_000n)
-  assert.equal(
-    feeNote(simulation),
-    '50,000 gas at the base fee of block 100. Your wallet adds a tip, so the fee is a little higher.',
-  )
-  assert.equal(
-    feeNote({ ...simulation, fee: { ...simulation.fee, fromRequest: true } }),
-    '50,000 gas at the gas price of the request.',
-  )
 })

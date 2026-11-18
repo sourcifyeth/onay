@@ -21,14 +21,13 @@ import type { Verification } from './gates/verification.ts'
 import { formatEther, short } from './gates/words.ts'
 import { LocallyVerifiedIcon, ThirdPartyIcon, WarningIcon } from './Icons.tsx'
 import { CollapsibleLog } from './Log.tsx'
-import { Notice, Row, Step } from './Step.tsx'
+import { CopyButton, Notice, Row, Step } from './Step.tsx'
 import { Tooltip } from './Tooltip.tsx'
 import {
   allowanceText,
   assetText,
   balanceText,
   eventRows,
-  feeNote,
   feeOf,
   isUnlimited,
   nameOf,
@@ -111,9 +110,7 @@ function Usd({
   if (prices.status !== 'passed') return null
   if (price === undefined) {
     return (
-      <Tooltip
-        tip={`${PRICE_SOURCE} has no recent price for this token. A token with no price is often new or little traded.`}
-      >
+      <Tooltip tip={`No recent price from ${PRICE_SOURCE}.`}>
         <span className="text-xs text-gray-400">no price</span>
       </Tooltip>
     )
@@ -124,8 +121,7 @@ function Usd({
       tip={
         <span className="flex items-start gap-1.5">
           <ThirdPartyIcon className="mt-0.5 h-3 w-3 shrink-0" title="Not checked by Onay" />
-          The amount times the price from {PRICE_SOURCE}, a third party. Onay does not check the price. It can be wrong
-          or old.
+          Price from {PRICE_SOURCE}.
         </span>
       }
     >
@@ -166,12 +162,15 @@ function TokenFacts({ token, fungible, context }: { token: Hex; fungible: boolea
   return (
     <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-gray-500">
       {facts?.name && (
-        <Tooltip tip="What the token says its name is: a claim of its own code.">
+        <Tooltip tip="Token name in the contract.">
           <span>{facts.name}</span>
         </Tooltip>
       )}
-      <span className="font-mono" title={token}>
-        {short(token)}
+      <span className="inline-flex items-center gap-1">
+        <span className="font-mono" title={token}>
+          {short(token)}
+        </span>
+        <CopyButton text={token} what="contract address" />
       </span>
       {lists.length > 0 && (
         <span className="flex items-center gap-1" title="On your token list: a claim of its publisher">
@@ -199,11 +198,9 @@ function AssetRow({ change, context }: { change: AssetChange; context: Context }
   return (
     <div>
       <p className="flex flex-wrap items-center gap-x-2 text-sm">
-        <Tooltip tip="The change of your balance: the balance after the run, minus the balance before. The token's own code answers.">
-          <span className={`font-mono font-medium ${out ? 'text-light-coral-700' : 'text-green-700'}`}>
-            {out ? '−' : '+'} {assetText(change, tokens)}
-          </span>
-        </Tooltip>
+        <span className={`font-mono font-medium ${out ? 'text-light-coral-700' : 'text-green-700'}`}>
+          {out ? '−' : '+'} {assetText(change, tokens)}
+        </span>
         {asset.kind === 'native' && <Usd amount={change.delta} decimals={18} price={price(NATIVE)} prices={prices} />}
         {/* Without decimals, an amount has no size in whole tokens. */}
         {asset.kind === 'erc20' && tokens[asset.token]?.decimals != null && (
@@ -245,11 +242,9 @@ function PermissionRow({ permission, context }: { permission: Permission; contex
         {revoked ? 'can no longer spend' : 'to spend'}
       </p>
       <p className="flex flex-wrap items-baseline gap-x-3 text-sm">
-        <Tooltip tip="The allowance after the run, as the token answers it.">
-          <span className={`font-mono font-medium ${loud ? 'text-amber-900' : 'text-gray-900'}`}>
-            {allowanceText(permission, tokens)}
-          </span>
-        </Tooltip>
+        <span className={`font-mono font-medium ${loud ? 'text-amber-900' : 'text-gray-900'}`}>
+          {allowanceText(permission, tokens)}
+        </span>
         {earlier && <span className="text-xs text-gray-500">was {earlier}</span>}
         {balance && !revoked && <span className="text-xs text-gray-500">your balance: {balance}</span>}
       </p>
@@ -576,11 +571,10 @@ function Changes({ simulation, context }: { simulation: Simulation; context: Con
         )}
         <Line label="Network fee">
           <p className="flex flex-wrap items-center gap-x-2 text-sm">
-            <Tooltip tip={feeNote(simulation)}>
+            <Tooltip tip="An estimate.">
               <span className="font-mono text-gray-700">− {amountText(fee, 18)} ETH</span>
             </Tooltip>
             <Usd amount={fee} decimals={18} price={ethPrice} prices={prices} />
-            <span className="text-xs text-gray-400">estimate</span>
           </p>
         </Line>
       </div>
