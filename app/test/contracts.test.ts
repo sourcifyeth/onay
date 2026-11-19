@@ -211,9 +211,20 @@ const simulated = (reverts: boolean): GateState<Simulation> => ({
       prevRandao: '0x',
       excessBlobGas: null,
     },
-    calls: [{ call: { from: A, to: B, data: '0x', value: 0n, gas: null }, frames: [], error: reverts ? 'nope' : null }],
+    calls: [
+      {
+        call: { from: A, to: B, data: '0x', value: 0n, gas: null },
+        frames: [],
+        error: reverts ? 'nope' : null,
+        logs: [],
+        gas: 0n,
+      },
+    ],
     touched: [],
     reads: { accounts: 0, slots: 0 },
+    diff: { accounts: [], slots: [] },
+    fee: { gas: 0n, price: 0n, fromRequest: false },
+    effects: { status: 'skipped', reason: 'not in this test' },
   },
 })
 const verifiedContract = (address: Hex, foundBy: 'request' | 'simulation' = 'request'): Contract => ({

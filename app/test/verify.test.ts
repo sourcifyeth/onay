@@ -111,6 +111,12 @@ test('the sources compile to the code on chain: exact match, with the ABI of the
   assert.deepEqual(verified.transformations.runtime, { list: [], values: {} })
   const names = (verified.abi as { name?: string }[]).map((entry) => entry.name).sort()
   assert.deepEqual(names, ['count', 'up'])
+  // The storage layout of the same compile: the simulation names slots with it.
+  const layout = verified.storageLayout as { storage: { label: string; slot: string }[] }
+  assert.deepEqual(
+    layout.storage.map(({ label, slot }) => [label, slot]),
+    [['count', '0']],
+  )
   const texts = lines.map((line) => line.text)
   assert.ok(texts.includes(`compiling Counter · ${VERSION}`))
   assert.deepEqual(lines.at(-1), {
