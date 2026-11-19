@@ -72,8 +72,73 @@ reason = "unmaintained unsafe-libyaml, via helios-ethereum > serde_yaml; parses 
 id = "RUSTSEC-2026-0387"
 reason = "crypto-bigint 0.5, via helios > alloy-signer > elliptic-curve 0.13; timing leaks on secret integers, and Onay holds no keys: the curve code only verifies signatures on public data; fixed in 0.7, which elliptic-curve 0.13 does not accept"
 
-# Only in the GitHub advisory database, so cargo-deny does not know it.
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0543"
+reason = "unmaintained chrono, via helios-ethereum; no known vulnerability; waits for Helios to move"
 
 [[IgnoredVulns]]
-id = "GHSA-qwgh-2vcv-g2f7"
-reason = "block-buffer 0.9 via helios > sha2 0.9 and sha-1 0.9, and 0.10 via digest 0.10 (sha2, hmac, k256, tauri-codegen); the buffer breaks only if a hash function panics inside it and the caller catches the panic and uses the hasher again; the hash functions do not panic there; fixed in 0.12.1, which digest 0.10 does not accept"
+id = "RUSTSEC-2026-0441"
+reason = "unmaintained pin-utils, in the lockfile only: wasm-timer, wasmtimer and zduny-wasm-timer use it, and they build only for wasm32, which Onay does not ship"
+
+# hickory 0.25, via helios > reqwest 0.12 (feature hickory-dns). All are fixed
+# in 0.26.2, which reqwest 0.12 does not accept. Helios 0.12.0 is the newest
+# release and still uses reqwest 0.12. Remove these when Helios moves to reqwest 0.13.
+# The build has only the features std, tokio and futures-io of hickory-proto:
+# no DNSSEC validation and no text (zone file) parser. RUSTSEC-2026-0514
+# (hickory-resolver DNSSEC lookup) is an alias of GHSA-5j98-2g5x-46v6 above.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0487"
+reason = "hickory-proto 0.25: panic in the text parser of SVCB records; the text parser is not compiled (no text-parsing feature)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0489"
+reason = "hickory-proto 0.25: panic in the text parser of SVCB records; the text parser is not compiled (no text-parsing feature)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0490"
+reason = "hickory-proto 0.25: panic in the zone file lexer; the lexer is not compiled (no text-parsing feature)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0491"
+reason = "hickory-proto 0.25: a forged DNS reply makes the decoder reserve about 18 MB for each packet; only the system resolver or an attacker on the network path can send replies, and the worst result is that the app uses more memory or stops"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0504"
+reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0505"
+reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0511"
+reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0512"
+reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0530"
+reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0531"
+reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0532"
+reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0549"
+reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0550"
+reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0551"
+reason = "hickory-proto 0.25: DNSSEC validation, which is not compiled (neither dnssec-ring nor dnssec-aws-lc-rs is on)"
