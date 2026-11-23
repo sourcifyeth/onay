@@ -3,9 +3,9 @@
 // tokens, not from the events: a probe calls balanceOf, ownerOf,
 // allowance and the like on the state before the run and on the state
 // after it. The events and the written storage only say which contracts
-// to ask. A contract can emit any event, so an event that names the
-// sender without a change of a balance is a warning. This module has no
-// EVM in it: the probe is a parameter.
+// to ask. A contract can emit any event, so events that name the sender
+// and add up to a change, at a token whose balance does not change, are a
+// warning. This module has no EVM in it: the probe is a parameter.
 
 import { AbiCoder, id } from 'ethers'
 import type { Hex } from '../messages.ts'
@@ -44,18 +44,23 @@ export type Permission = {
   // The balance of the sender after the run. Null if the token did not
   // answer.
   balance: bigint | null
+  // The total supply of the token after the run, for an allowance of an
+  // amount. Null for the other kinds, or if the token did not answer.
+  supply: bigint | null
 }
 
 // What a token says about itself. Each value is a claim of its code.
 // Null if the token did not answer.
 export type TokenFacts = { symbol: string | null; name: string | null; decimals: number | null }
 
-// An event that says that the sender sends or receives a token, while
-// the balance of the sender at that token does not change.
+// The events of a token that say that the sender sends or receives it,
+// while the balance of the sender at that token does not change. The
+// events of each token add up first, so a token that goes out and comes
+// back is no warning.
 export type EventWarning = {
   token: Hex
   direction: 'in' | 'out'
-  // The amount of an ERC-20 event, or the id of an NFT.
+  // The sum of the ERC-20 events, or the id of an NFT.
   amount: bigint | null
   id: bigint | null
 }
@@ -66,6 +71,10 @@ export type Effects = {
   permissions: Permission[]
   tokens: Record<Hex, TokenFacts>
   warnings: EventWarning[]
+  // How many contracts could hold an asset of the sender but were not
+  // asked, because the list was longer than MAX_TOKENS. Above zero, the
+  // assets are incomplete.
+  unchecked: number
   // How many calls the probes made.
   probes: number
 }
@@ -83,7 +92,7 @@ export type EffectsInput = {
 }
 
 // A swap through an aggregator writes to a few dozen contracts. Past
-// this, the rest are not asked.
+// this, the rest are not asked, and the effects say how many.
 export const MAX_TOKENS = 40
 
 const topic = (signature: string) => id(signature) as Hex
@@ -105,6 +114,7 @@ const SELECTORS = {
   getApproved: selector('getApproved(uint256)'),
   isApprovedForAll: selector('isApprovedForAll(address,address)'),
   supportsInterface: selector('supportsInterface(bytes4)'),
+  totalSupply: selector('totalSupply()'),
   symbol: selector('symbol()'),
   name: selector('name()'),
   decimals: selector('decimals()'),
@@ -194,7 +204,12 @@ export async function effectsOf(input: EffectsInput, probe: Probe): Promise<Effe
   for (const slot of diff.slots) consider(slot.address)
   for (const call of calls) consider(call.to)
 
-  for (const token of candidates.slice(0, MAX_TOKENS)) {
+  // A contract can emit events to fill the list. So the contracts past
+  // the limit are counted, and the card says that the list is cut.
+  const asked = candidates.slice(0, MAX_TOKENS)
+  const unchecked = candidates.length - asked.length
+
+  for (const token of asked) {
     const at = logs.filter((log) => log.address === token)
     const nftIds = unique(
       at
@@ -236,12 +251,18 @@ export async function effectsOf(input: EffectsInput, probe: Probe): Promise<Effe
 
   const permissions: Permission[] = []
   const seen = new Set<string>()
-  const grant = async (permission: Omit<Permission, 'balance'>) => {
+  const grant = async (permission: Omit<Permission, 'balance' | 'supply'>) => {
     const key = `${permission.token} ${permission.spender} ${permission.kind} ${permission.id ?? ''}`
     if (seen.has(key)) return
     seen.add(key)
     const balance = uintOf(await ask(permission.token, encode(SELECTORS.balanceOf, you), 'after'))
-    permissions.push({ ...permission, balance })
+    // UNI and COMP keep a maximum allowance as 2^96 - 1. An allowance at
+    // or above the total supply is unlimited too.
+    const supply =
+      permission.kind === 'amount' && permission.after > 0n
+        ? uintOf(await ask(permission.token, SELECTORS.totalSupply, 'after'))
+        : null
+    permissions.push({ ...permission, balance, supply })
   }
   for (const log of logs) {
     if (topicAddress(log.topics[1]) !== you) continue
@@ -271,13 +292,26 @@ export async function effectsOf(input: EffectsInput, probe: Probe): Promise<Effe
     }
   }
 
+  // The events of each token, and of each id of an NFT, add up: in is
+  // plus, out is minus. A sum that is not zero at a token that was asked
+  // and shows no change is a warning. A token that was not asked gives
+  // no warning, because its balance is unknown.
   const changed = new Set(assets.flatMap(({ asset }) => (asset.kind === 'native' ? [] : [asset.token])))
-  const warnings: EventWarning[] = []
+  const sums = new Map<string, { token: Hex; id: bigint | null; sum: bigint }>()
   for (const log of logs) {
     const claim = claimOf(log, you)
-    if (!claim || changed.has(log.address)) continue
-    if (warnings.some((w) => w.token === log.address && w.direction === claim.direction)) continue
-    warnings.push({ token: log.address, ...claim })
+    if (!claim || !asked.includes(log.address) || changed.has(log.address)) continue
+    const key = `${log.address} ${claim.id ?? ''}`
+    const entry = sums.get(key) ?? { token: log.address, id: claim.id, sum: 0n }
+    entry.sum += claim.direction === 'in' ? claim.size : -claim.size
+    sums.set(key, entry)
+  }
+  const warnings: EventWarning[] = []
+  for (const { token, id, sum } of sums.values()) {
+    if (sum === 0n) continue
+    const direction = sum > 0n ? 'in' : 'out'
+    if (warnings.some((w) => w.token === token && w.direction === direction)) continue
+    warnings.push({ token, direction, amount: id === null ? (sum > 0n ? sum : -sum) : null, id })
   }
 
   const tokens: Record<Hex, TokenFacts> = {}
@@ -294,29 +328,34 @@ export async function effectsOf(input: EffectsInput, probe: Probe): Promise<Effe
     tokens[token] = { symbol, name, decimals: decimals !== null && decimals <= 77n ? Number(decimals) : null }
   }
 
-  return { you, assets: withCounterparty(assets, calls, you), permissions, tokens, warnings, probes }
+  return { you, assets: withCounterparty(assets, calls, you), permissions, tokens, warnings, unchecked, probes }
 }
 
-// What a transfer event claims about the sender: the direction, and the
-// amount or the id. Null if it does not name the sender, or moves
+// What a transfer event claims about the sender: the direction, the size,
+// and the id of an NFT. Null if it does not name the sender, or moves
 // nothing.
-function claimOf(log: EventLog, you: Hex): Omit<EventWarning, 'token'> | null {
+type Claim = { direction: 'in' | 'out'; size: bigint; id: bigint | null }
+
+function claimOf(log: EventLog, you: Hex): Claim | null {
   if (log.topics[0] === TOPICS.transfer && (log.topics.length === 3 || log.topics.length === 4)) {
     const from = topicAddress(log.topics[1])
     const to = topicAddress(log.topics[2])
     if (from === to || (from !== you && to !== you)) return null
     const direction = to === you ? 'in' : 'out'
-    if (log.topics.length === 4) return { direction, amount: null, id: BigInt(log.topics[3]) }
+    if (log.topics.length === 4) return { direction, size: 1n, id: BigInt(log.topics[3]) }
     const amount = uintOf(log.data)
     if (amount === null || amount === 0n) return null
-    return { direction, amount, id: null }
+    return { direction, size: amount, id: null }
   }
   if (log.topics[0] === TOPICS.transferSingle && log.topics.length === 4) {
     const from = topicAddress(log.topics[2])
     const to = topicAddress(log.topics[3])
     if (from === to || (from !== you && to !== you)) return null
+    // The data is the id and the value, one word each.
     const tokenId = uintOf(log.data)
-    return { direction: to === you ? 'in' : 'out', amount: null, id: tokenId }
+    const value = log.data.length >= 130 ? BigInt(`0x${log.data.slice(66, 130)}`) : null
+    if (tokenId === null || value === null || value === 0n) return null
+    return { direction: to === you ? 'in' : 'out', size: value, id: tokenId }
   }
   return null
 }

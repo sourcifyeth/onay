@@ -11,7 +11,7 @@ import { amountText } from './context/run.ts'
 import { contextSettingsStore } from './context/settings.ts'
 import type { Hex } from './messages.ts'
 import type { Contract } from './gates/contracts.ts'
-import type { AssetChange, Effects, Permission } from './gates/effects.ts'
+import { MAX_TOKENS, type AssetChange, type Effects, type Permission } from './gates/effects.ts'
 import { customSelector, errorsFromSignatures, SIGNATURE_SOURCE, signatureCache } from './gates/errors.ts'
 import { errorText, type GateState } from './gates/gate.ts'
 import { valueText } from './gates/layout.ts'
@@ -703,12 +703,18 @@ function Changes({ simulation, context, helios }: { simulation: Simulation; cont
   const { effects, prices } = context
   const sent = effects.assets.filter((change) => change.delta < 0n)
   const received = effects.assets.filter((change) => change.delta > 0n)
-  const nothing = effects.assets.length === 0 && effects.permissions.length === 0
+  // A cut list cannot say that nothing moves.
+  const nothing = effects.assets.length === 0 && effects.permissions.length === 0 && effects.unchecked === 0
   const others = otherContracts(simulation, effects)
   const fee = feeOf(simulation)
   const ethPrice = prices.status === 'passed' ? prices.prices.get(NATIVE) : undefined
   return (
     <>
+      {effects.unchecked > 0 && (
+        <Notice tone="amber" title="⚠ The list of your assets is incomplete" className="mt-3">
+          {`The transaction touches ${count(MAX_TOKENS + effects.unchecked, 'contract')} that could hold an asset of yours. Onay asked only the first ${MAX_TOKENS}, so an asset of yours can move without a row below. A contract can make this happen on purpose.`}
+        </Notice>
+      )}
       {effects.warnings.map((warning) => (
         <Notice
           key={`${warning.token} ${warning.direction}`}

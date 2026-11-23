@@ -31,6 +31,7 @@ const abi = new Interface([
   'function symbol() view returns (string)',
   'function name() view returns (string)',
   'function decimals() view returns (uint8)',
+  'function totalSupply() view returns (uint256)',
   'function transfer(address,uint256)',
   'function safeTransferFrom(address,address,uint256)',
 ])
@@ -154,9 +155,32 @@ test('an approval: the allowance before and after, and the balance next to it', 
   )
   assert.deepEqual(effects.assets, [])
   assert.deepEqual(effects.permissions, [
-    { token: TOKEN, spender: SPENDER, kind: 'amount', before: 0n, after: MAX, balance: 250n },
+    { token: TOKEN, spender: SPENDER, kind: 'amount', before: 0n, after: MAX, balance: 250n, supply: null },
   ])
   assert.equal(effects.tokens[TOKEN]?.symbol, 'USDC')
+})
+
+test('an approval of an amount asks the total supply, a revoke does not', async () => {
+  const uniMax = (1n << 96n) - 1n
+  const logs: EventLog[] = [
+    { address: TOKEN, topics: [TOPICS.approval, topic(YOU), topic(SPENDER)], data: uintTopic(MAX) },
+    { address: TOKEN, topics: [TOPICS.approval, topic(YOU), topic(ALICE)], data: uintTopic(0n) },
+  ]
+  const probe = probeOf({
+    [`before ${TOKEN} ${data('allowance', [YOU, SPENDER])}`]: out('uint256', 0n),
+    [`after ${TOKEN} ${data('allowance', [YOU, SPENDER])}`]: out('uint256', uniMax),
+    [`before ${TOKEN} ${data('allowance', [YOU, ALICE])}`]: out('uint256', 5n),
+    [`after ${TOKEN} ${data('allowance', [YOU, ALICE])}`]: out('uint256', 0n),
+    [`any ${TOKEN} ${data('totalSupply')}`]: out('uint256', 10n ** 27n),
+    ...balance(TOKEN, 250n, 250n),
+    ...described(TOKEN, 'UNI', 18),
+  })
+  const effects = await effectsOf({ you: YOU, calls: [call(TOKEN, '0x095ea7b3')], logs, diff: noDiff }, probe)
+  assert.deepEqual(effects.permissions, [
+    { token: TOKEN, spender: SPENDER, kind: 'amount', before: 0n, after: uniMax, balance: 250n, supply: 10n ** 27n },
+    { token: TOKEN, spender: ALICE, kind: 'amount', before: 5n, after: 0n, balance: 250n, supply: null },
+  ])
+  assert.equal(probe.asked.filter((line) => line.endsWith(data('totalSupply'))).length, 1)
 })
 
 test('an approval event of another owner, or with no change of the allowance, gives nothing', async () => {
@@ -185,7 +209,7 @@ test('an approval for all the NFTs, hidden in a call that names another contract
   })
   const effects = await effectsOf({ you: YOU, calls: [call(POOL, '0x4e71d92d')], logs, diff: noDiff }, probe)
   assert.deepEqual(effects.permissions, [
-    { token: NFT, spender: SPENDER, kind: 'all', before: 0n, after: 1n, balance: 3n },
+    { token: NFT, spender: SPENDER, kind: 'all', before: 0n, after: 1n, balance: 3n, supply: null },
   ])
   assert.deepEqual(effects.tokens[NFT], { symbol: 'BAYC', name: 'BAYC Token', decimals: null })
 })
@@ -202,7 +226,7 @@ test('the approval of one NFT counts, the clear of it on a transfer does not', a
   })
   const effects = await effectsOf({ you: YOU, calls: [call(NFT, '0x095ea7b3')], logs, diff: noDiff }, probe)
   assert.deepEqual(effects.permissions, [
-    { token: NFT, spender: SPENDER, kind: 'one', before: 0n, after: 1n, id: 7n, balance: 1n },
+    { token: NFT, spender: SPENDER, kind: 'one', before: 0n, after: 1n, id: 7n, balance: 1n, supply: null },
   ])
 })
 
@@ -266,6 +290,36 @@ test('a fake NFT event: the owner does not change', async () => {
   assert.deepEqual(effects.warnings, [{ token: NFT, direction: 'in', amount: null, id: 1n }])
 })
 
+test('a token that goes out and comes back is no warning: the events add up to zero', async () => {
+  const logs = [transferLog(TOKEN, YOU, POOL, 10n), transferLog(TOKEN, POOL, YOU, 10n)]
+  const probe = probeOf({ ...balance(TOKEN, 50n, 50n), ...described(TOKEN, 'USDC', 6) })
+  const effects = await effectsOf({ you: YOU, calls: [call(POOL, '0x12345678')], logs, diff: noDiff }, probe)
+  assert.deepEqual(effects.assets, [])
+  assert.deepEqual(effects.warnings, [])
+})
+
+test('the events add up first: a warning shows the sum', async () => {
+  const logs = [transferLog(TOKEN, YOU, POOL, 10n), transferLog(TOKEN, POOL, YOU, 3n)]
+  const probe = probeOf({ ...balance(TOKEN, 50n, 50n), ...described(TOKEN, 'USDC', 6) })
+  const effects = await effectsOf({ you: YOU, calls: [call(POOL, '0x12345678')], logs, diff: noDiff }, probe)
+  assert.deepEqual(effects.warnings, [{ token: TOKEN, direction: 'out', amount: 7n, id: null }])
+})
+
+test('an NFT that goes out and comes back is no warning, an id that only comes in is', async () => {
+  const nftLog = (from: Hex, to: Hex, tokenId: bigint): EventLog => ({
+    address: NFT,
+    topics: [TOPICS.transfer, topic(from), topic(to), uintTopic(tokenId)],
+    data: '0x',
+  })
+  const logs = [nftLog(YOU, POOL, 1n), nftLog(POOL, YOU, 1n), nftLog(ALICE, YOU, 2n)]
+  const probe = probeOf({
+    [`any ${NFT} ${data('ownerOf', [1n])}`]: out('address', YOU),
+    [`any ${NFT} ${data('ownerOf', [2n])}`]: out('address', ALICE),
+  })
+  const effects = await effectsOf({ you: YOU, calls: [call(POOL, '0x12345678')], logs, diff: noDiff }, probe)
+  assert.deepEqual(effects.warnings, [{ token: NFT, direction: 'in', amount: null, id: 2n }])
+})
+
 test('an event of nothing, or of you to you, is no warning', async () => {
   const logs = [transferLog(TOKEN, ALICE, YOU, 0n), transferLog(TOKEN, YOU, YOU, 7n)]
   const effects = await effectsOf({ you: YOU, calls: [call(POOL)], logs, diff: noDiff }, probeOf({}))
@@ -275,10 +329,32 @@ test('an event of nothing, or of you to you, is no warning', async () => {
 test('the sender is no token, and a long list of contracts stops at the cap', async () => {
   const many = Array.from({ length: MAX_TOKENS + 5 }, (_, i) => slotAt(`0x${(i + 1).toString(16).padStart(40, '0')}`))
   const probe = probeOf({})
-  await effectsOf({ you: YOU, calls: [], logs: [], diff: { accounts: [], slots: [slotAt(YOU), ...many] } }, probe)
+  const effects = await effectsOf(
+    { you: YOU, calls: [], logs: [], diff: { accounts: [], slots: [slotAt(YOU), ...many] } },
+    probe,
+  )
   const asked = new Set(probe.asked.map((line) => line.split(' ')[1]))
   assert.equal(asked.has(YOU), false)
   assert.equal(asked.size, MAX_TOKENS)
+  assert.equal(effects.unchecked, 5)
+})
+
+test('junk events that fill the list: the real token is counted as not asked, and gets no warning', async () => {
+  const junk = Array.from({ length: MAX_TOKENS }, (_, i) =>
+    transferLog(`0x${(i + 1).toString(16).padStart(40, '0')}` as Hex, ALICE, YOU, 1n),
+  )
+  const logs = [...junk, transferLog(TOKEN, YOU, ALICE, 10n)]
+  const probe = probeOf({ ...balance(TOKEN, 50n, 40n), ...described(TOKEN, 'USDC', 6) })
+  const effects = await effectsOf({ you: YOU, calls: [call(POOL, '0x12345678')], logs, diff: noDiff }, probe)
+  assert.equal(effects.unchecked, 2)
+  assert.equal(
+    probe.asked.some((line) => line.includes(TOKEN)),
+    false,
+  )
+  assert.equal(
+    effects.warnings.some((warning) => warning.token === TOKEN),
+    false,
+  )
 })
 
 test('the words of a token: an ABI string, a bytes32, and no control characters', async () => {

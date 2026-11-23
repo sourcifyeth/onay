@@ -120,8 +120,13 @@ export function assetText(change: AssetChange, tokens: Effects['tokens']): strin
   return size === 1n ? item : `${size} × ${item}`
 }
 
+// An allowance of all NFTs, or of an amount at or above 2^255 or at or
+// above the total supply of the token.
 export function isUnlimited(permission: Permission): boolean {
-  return permission.kind === 'all' || (permission.kind === 'amount' && permission.after >= UNLIMITED)
+  if (permission.kind === 'all') return true
+  if (permission.kind !== 'amount' || permission.after === 0n) return false
+  const { after, supply } = permission
+  return after >= UNLIMITED || (supply !== null && supply > 0n && after >= supply)
 }
 
 // What a spender may take after the run.
@@ -131,7 +136,7 @@ export function allowanceText(permission: Permission, tokens: Effects['tokens'])
   if (permission.after === 0n) return ticker
   if (permission.kind === 'all') return `All your ${ticker}`
   if (permission.kind === 'one') return `${ticker} #${permission.id}`
-  if (permission.after >= UNLIMITED) return `Unlimited ${ticker}`
+  if (isUnlimited(permission)) return `Unlimited ${ticker}`
   return tokenAmount(permission.after, permission.token, facts)
 }
 

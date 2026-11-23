@@ -262,6 +262,7 @@ async function effectsFor(
     const value = await effectsOf({ you, calls, logs: results.flatMap((result) => result.logs), diff }, probe)
     const parts = [count(value.assets.length, 'asset change'), count(value.permissions.length, 'allowance')]
     if (value.warnings.length > 0) parts.push(count(value.warnings.length, 'event without a balance change'))
+    if (value.unchecked > 0) parts.push(`${count(value.unchecked, 'contract')} not asked`)
     log({ source: 'evm', text: `effects · ${parts.join(' · ')} · ${count(value.probes, 'probe')}`, ok: true })
     return { status: 'passed', value }
   } catch (error) {

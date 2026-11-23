@@ -148,6 +148,7 @@ test('allowances: unlimited in words, an amount, all of a collection, one NFT, a
     before: 0n,
     after: MAX,
     balance: 250_000_000n,
+    supply: null,
   }
   assert.equal(allowanceText(base, tokens), 'Unlimited TKN')
   assert.equal(isUnlimited(base), true)
@@ -159,6 +160,26 @@ test('allowances: unlimited in words, an amount, all of a collection, one NFT, a
   assert.equal(allowanceText({ ...base, kind: 'one', after: 1n, id: 7n }, tokens), 'TKN #7')
   assert.equal(allowanceText({ ...base, after: 0n }, tokens), 'TKN')
   assert.equal(balanceText({ ...base, balance: null }, tokens), null)
+})
+
+test('allowances: an amount at or above the total supply is unlimited, as UNI keeps 2^96 - 1', () => {
+  const uni: Permission = {
+    token: PROXY,
+    spender: SPENDER,
+    kind: 'amount',
+    before: 0n,
+    after: (1n << 96n) - 1n,
+    balance: 0n,
+    supply: 10n ** 27n,
+  }
+  assert.equal(isUnlimited(uni), true)
+  assert.equal(allowanceText(uni, tokens), 'Unlimited TKN')
+  assert.equal(isUnlimited({ ...uni, after: 10n ** 27n }), true)
+  assert.equal(isUnlimited({ ...uni, after: 10n ** 27n - 1n }), false)
+  // Without an answer, or with no supply, only the old threshold counts.
+  assert.equal(isUnlimited({ ...uni, supply: null }), false)
+  assert.equal(isUnlimited({ ...uni, supply: 0n }), false)
+  assert.equal(isUnlimited({ ...uni, after: 0n }), false)
 })
 
 test('warningText: what the event claims', () => {
@@ -179,6 +200,7 @@ test('otherContracts: the written contracts that the rows do not explain', () =>
     permissions: [],
     tokens,
     warnings: [],
+    unchecked: 0,
     probes: 2,
   }
   assert.deepEqual(otherContracts(simulation, effects), [POOL])

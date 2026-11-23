@@ -192,7 +192,7 @@ test('an unlimited approval: the allowance before and after, and your balance', 
   const result = effects(simulation)
   assert.deepEqual(result.assets, [])
   assert.deepEqual(result.permissions, [
-    { token: TOKEN, spender: DRAINER, kind: 'amount', before: 0n, after: MAX, balance: 1000n },
+    { token: TOKEN, spender: DRAINER, kind: 'amount', before: 0n, after: MAX, balance: 1000n, supply: null },
   ])
 })
 
@@ -212,7 +212,7 @@ test('a batch: a false event and an approval for all the NFTs', async () => {
   assert.deepEqual(result.assets, [])
   assert.deepEqual(result.warnings, [{ token: CLAIM, direction: 'in', amount: 5_000_000_000n, id: null }])
   assert.deepEqual(result.permissions, [
-    { token: NFT, spender: DRAINER, kind: 'all', before: 0n, after: 1n, balance: 1n },
+    { token: NFT, spender: DRAINER, kind: 'all', before: 0n, after: 1n, balance: 1n, supply: null },
   ])
   assert.deepEqual(result.tokens[CLAIM], { symbol: null, name: null, decimals: null })
 })
