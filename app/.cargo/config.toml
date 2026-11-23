@@ -1,0 +1,7 @@
+# Supply chain: Cargo does not take a crate version that is younger than
+# seven days, as pnpm does for npm packages (minimumReleaseAge). Versions
+# that are already in Cargo.lock stay. To take a newer version for a
+# security fix, run the one command with
+# CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE=allow, and say why in the commit.
+[registry]
+global-min-publish-age = "7 days"

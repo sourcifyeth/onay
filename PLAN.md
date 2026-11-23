@@ -86,6 +86,7 @@ JavaScript (pnpm):
 
 Rust (cargo):
 
+- `global-min-publish-age` = 7 days in `app/.cargo/config.toml` (Cargo 1.100 and later): versions younger than a week are not resolved; a security fix that is younger needs `CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE=allow` for that one command, with the reason in the commit
 - committed `Cargo.lock`, `--locked` in CI
 - git dependencies pinned to exact revisions
 - `cargo-deny`: advisories, licenses, sources
