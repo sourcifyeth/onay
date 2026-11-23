@@ -1,10 +1,13 @@
-// The lists and GoPlus, in the address profile group of the settings.
+// The lists, GoPlus and the dollar values, in the address profile group
+// of the settings.
 
 import { useState, useSyncExternalStore } from 'react'
 import { chainStore } from './chains.ts'
 import { agoText } from './context/card.ts'
 import { addressListStore, LIST_SOURCES, type ListSource, type ListState } from './context/lists.ts'
+import { PRICE_SOURCE } from './context/prices.ts'
 import { contextSettingsStore, saveContextSettings } from './context/settings.ts'
+import { SIGNATURE_SOURCE } from './gates/errors.ts'
 import { ExternalLink } from './ExternalLink.tsx'
 import { ThirdPartyIcon } from './Icons.tsx'
 
@@ -85,7 +88,7 @@ export function ProfileSettings() {
   const settings = useSyncExternalStore(contextSettingsStore.subscribe, contextSettingsStore.getSnapshot)
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <p className="pb-1 font-medium text-gray-800">Lists and GoPlus</p>
+      <p className="pb-1 font-medium text-gray-800">Lists, GoPlus, prices and error names</p>
       <p className="pb-2 text-xs leading-relaxed text-gray-500">
         The review shows the lists that know each address the request names. An allow list names known contracts; a
         block list names sanctioned or scam addresses, and a hit shows a loud notice. Each list is a claim of its
@@ -113,6 +116,49 @@ export function ProfileSettings() {
             <p className="text-xs leading-relaxed text-gray-500">
               GoPlus is a closed service that answers without a key. The lookups tell it each address that the request
               names. Its answer shows with the yellow mark.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-start gap-3 py-2">
+          <Switch
+            id="prices"
+            on={settings.prices}
+            label="Show dollar values"
+            onChange={(prices) => saveContextSettings({ ...settings, prices })}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-1.5 text-sm text-gray-800">
+              <ThirdPartyIcon className="h-3.5 w-3.5 shrink-0" title="A claim of DefiLlama, not checked here" />
+              Dollar values from {PRICE_SOURCE}
+            </p>
+            <p className="text-xs leading-relaxed text-gray-500">
+              The simulation shows the dollar value of what you send and receive, and of the fee. {PRICE_SOURCE} is a
+              free service with no key. Each review tells it the native coin and the tokens that the transaction moves.
+              A price is a claim: a tooltip on the value says so, and no check depends on it. Test networks get no
+              prices.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-start gap-3 py-2">
+          <Switch
+            id="signatures"
+            on={settings.signatures}
+            label="Look up error names"
+            onChange={(signatures) => saveContextSettings({ ...settings, signatures })}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-1.5 text-sm text-gray-800">
+              <ThirdPartyIcon
+                className="h-3.5 w-3.5 shrink-0"
+                title={`A claim of ${SIGNATURE_SOURCE}, not checked here`}
+              />
+              Error names from {SIGNATURE_SOURCE}
+            </p>
+            <p className="text-xs leading-relaxed text-gray-500">
+              When a simulated transaction reverts with a custom error, the verified ABI of the contract names the
+              error. If no verified ABI has it, Onay asks {SIGNATURE_SOURCE}, the signature database of Sourcify. The
+              lookup tells it the 4-byte selector of the error, and nothing else. Anyone can add a signature there, so
+              the name shows with the yellow mark.
             </p>
           </div>
         </div>

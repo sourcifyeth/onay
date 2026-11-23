@@ -156,7 +156,9 @@ test('the call tree of a call: each message, and the contracts whose code ran', 
   ])
   assert.ok(texts.includes(`  call ${PAYEE} · <0.000001 ETH`))
   assert.ok(texts.includes(`  delegatecall ${IMPL} · ${(await contracts).Impl.selectors['set(uint256)']}`))
-  assert.deepEqual(lines.at(-3), { source: 'evm', text: 'executed · 5 messages', ok: true })
+  assert.deepEqual(lines.at(-4), { source: 'evm', text: 'executed · 5 messages · 0 events', ok: true })
+  // The sender sends the value of the call: 5 wei.
+  assert.match(lines.at(-3)?.text ?? '', /^effects · 1 asset change · 0 allowances · \d+ probes$/)
   assert.match(lines.at(-2)?.text ?? '', /^state read · \d+ accounts · 2 storage slots · no proof$/)
   assert.deepEqual(lines.at(-1), { source: 'evm', text: 'call tree · 3 contracts', ok: true })
   assert.ok(lines.every((line) => line.source === 'evm'))
@@ -180,6 +182,9 @@ test('a revert deep in the tree: the reason on the frame, on the call, and in th
     { depth: 0, kind: 'call', address: CALLER, context: CALLER, error: 'nope' },
     { depth: 1, kind: 'staticcall', address: CALLEE, context: CALLEE, error: 'nope' },
   ])
+  // The return data of the revert stays on each frame, so the card can
+  // name a custom error.
+  for (const frame of result.frames) assert.match(frame.revert ?? '', /^0x08c379a0/)
   assert.deepEqual(
     simulation.touched.map(({ address }) => address),
     [CALLER, CALLEE],
@@ -304,6 +309,7 @@ test('describe: one frame in words', () => {
     selector: '0x12345678',
     value: 10n ** 18n,
     error: null,
+    revert: null,
   }
   assert.equal(describe(frame), `call ${CALLEE} · 0x12345678 · 1 ETH`)
   assert.equal(describe({ ...frame, selector: null, value: 0n }), `call ${CALLEE}`)
