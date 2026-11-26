@@ -462,7 +462,7 @@ dependencies = [
  "futures-utils-wasm",
  "http 1.5.0",
  "lru",
- "parking_lot 0.12.5",
+ "parking_lot",
  "pin-project",
  "reqwest 0.13.5",
  "serde",
@@ -736,7 +736,7 @@ dependencies = [
  "derive_more",
  "futures",
  "futures-utils-wasm",
- "parking_lot 0.12.5",
+ "parking_lot",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -2296,7 +2296,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "lock_api",
  "once_cell",
- "parking_lot_core 0.9.12",
+ "parking_lot_core",
 ]
 
 [[package]]
@@ -2483,7 +2483,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.3",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2744,7 +2744,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3553,8 +3553,8 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "helios-common"
-version = "0.12.0"
-source = "git+https://github.com/a16z/helios?rev=2af9b41887e069144ee56cd710f3ddca195473f8#2af9b41887e069144ee56cd710f3ddca195473f8"
+version = "0.12.1"
+source = "git+https://github.com/a16z/helios?rev=77a88ee29cae45c9fdc7d9c776b58cb2fd78f8b5#77a88ee29cae45c9fdc7d9c776b58cb2fd78f8b5"
 dependencies = [
  "alloy",
  "async-trait",
@@ -3569,8 +3569,8 @@ dependencies = [
 
 [[package]]
 name = "helios-consensus-core"
-version = "0.12.0"
-source = "git+https://github.com/a16z/helios?rev=2af9b41887e069144ee56cd710f3ddca195473f8#2af9b41887e069144ee56cd710f3ddca195473f8"
+version = "0.12.1"
+source = "git+https://github.com/a16z/helios?rev=77a88ee29cae45c9fdc7d9c776b58cb2fd78f8b5#77a88ee29cae45c9fdc7d9c776b58cb2fd78f8b5"
 dependencies = [
  "alloy",
  "alloy-rlp",
@@ -3593,8 +3593,8 @@ dependencies = [
 
 [[package]]
 name = "helios-core"
-version = "0.12.0"
-source = "git+https://github.com/a16z/helios?rev=2af9b41887e069144ee56cd710f3ddca195473f8#2af9b41887e069144ee56cd710f3ddca195473f8"
+version = "0.12.1"
+source = "git+https://github.com/a16z/helios?rev=77a88ee29cae45c9fdc7d9c776b58cb2fd78f8b5#77a88ee29cae45c9fdc7d9c776b58cb2fd78f8b5"
 dependencies = [
  "alloy",
  "alloy-trie",
@@ -3604,11 +3604,10 @@ dependencies = [
  "getrandom 0.3.4",
  "getrandom 0.4.3",
  "helios-common",
- "helios-verifiable-api-client",
  "hex",
  "jsonrpsee",
  "openssl",
- "parking_lot 0.12.5",
+ "parking_lot",
  "reqwest 0.12.28",
  "revm",
  "schnellru",
@@ -3624,8 +3623,8 @@ dependencies = [
 
 [[package]]
 name = "helios-ethereum"
-version = "0.12.0"
-source = "git+https://github.com/a16z/helios?rev=2af9b41887e069144ee56cd710f3ddca195473f8#2af9b41887e069144ee56cd710f3ddca195473f8"
+version = "0.12.1"
+source = "git+https://github.com/a16z/helios?rev=77a88ee29cae45c9fdc7d9c776b58cb2fd78f8b5#77a88ee29cae45c9fdc7d9c776b58cb2fd78f8b5"
 dependencies = [
  "alloy",
  "alloy-trie",
@@ -3642,7 +3641,7 @@ dependencies = [
  "helios-revm-utils",
  "hex",
  "openssl",
- "parking_lot 0.12.5",
+ "parking_lot",
  "reqwest 0.12.28",
  "retri",
  "revm",
@@ -3662,8 +3661,8 @@ dependencies = [
 
 [[package]]
 name = "helios-revm-utils"
-version = "0.12.0"
-source = "git+https://github.com/a16z/helios?rev=2af9b41887e069144ee56cd710f3ddca195473f8#2af9b41887e069144ee56cd710f3ddca195473f8"
+version = "0.12.1"
+source = "git+https://github.com/a16z/helios?rev=77a88ee29cae45c9fdc7d9c776b58cb2fd78f8b5#77a88ee29cae45c9fdc7d9c776b58cb2fd78f8b5"
 dependencies = [
  "alloy",
  "eyre",
@@ -3673,36 +3672,6 @@ dependencies = [
  "revm",
  "thiserror 1.0.69",
  "tracing",
-]
-
-[[package]]
-name = "helios-verifiable-api-client"
-version = "0.12.0"
-source = "git+https://github.com/a16z/helios?rev=2af9b41887e069144ee56cd710f3ddca195473f8#2af9b41887e069144ee56cd710f3ddca195473f8"
-dependencies = [
- "alloy",
- "async-trait",
- "eyre",
- "helios-common",
- "helios-verifiable-api-types",
- "reqwest 0.12.28",
- "reqwest-middleware",
- "reqwest-retry",
- "serde",
- "serde_json",
- "tokio",
- "url",
-]
-
-[[package]]
-name = "helios-verifiable-api-types"
-version = "0.12.0"
-source = "git+https://github.com/a16z/helios?rev=2af9b41887e069144ee56cd710f3ddca195473f8#2af9b41887e069144ee56cd710f3ddca195473f8"
-dependencies = [
- "alloy",
- "helios-common",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -3772,7 +3741,7 @@ dependencies = [
  "ipconfig",
  "moka",
  "once_cell",
- "parking_lot 0.12.5",
+ "parking_lot",
  "rand 0.9.5",
  "resolv-conf",
  "smallvec",
@@ -4213,18 +4182,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "instant"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
-dependencies = [
- "cfg-if",
- "js-sys",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
 name = "ipconfig"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4496,7 +4453,7 @@ dependencies = [
  "globset",
  "hyper 0.14.32",
  "jsonrpsee-types",
- "parking_lot 0.12.5",
+ "parking_lot",
  "rand 0.8.8",
  "rustc-hash 1.1.0",
  "serde",
@@ -4811,7 +4768,7 @@ dependencies = [
  "crossbeam-epoch",
  "crossbeam-utils",
  "equivalent",
- "parking_lot 0.12.5",
+ "parking_lot",
  "portable-atomic",
  "smallvec",
  "tagptr",
@@ -4907,7 +4864,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5015,7 +4972,7 @@ version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8"
 dependencies = [
- "proc-macro-crate 3.5.0",
+ "proc-macro-crate 2.0.2",
  "proc-macro2",
  "quote",
  "syn 2.0.119",
@@ -5413,37 +5370,12 @@ dependencies = [
 
 [[package]]
 name = "parking_lot"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d17b78036a60663b797adeaee46f5c9dfebb86948d1255007a1d6be0271ff99"
-dependencies = [
- "instant",
- "lock_api",
- "parking_lot_core 0.8.6",
-]
-
-[[package]]
-name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
 dependencies = [
  "lock_api",
- "parking_lot_core 0.9.12",
-]
-
-[[package]]
-name = "parking_lot_core"
-version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60a2cfe6f0ad2bfc16aefa463b497d5c7a5ecd44a23efa72aa342d90177356dc"
-dependencies = [
- "cfg-if",
- "instant",
- "libc",
- "redox_syscall 0.2.16",
- "smallvec",
- "winapi",
+ "parking_lot_core",
 ]
 
 [[package]]
@@ -5454,7 +5386,7 @@ checksum = "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall 0.5.18",
+ "redox_syscall",
  "smallvec",
  "windows-link 0.2.1",
 ]
@@ -5938,7 +5870,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6080,15 +6012,6 @@ name = "raw-window-handle"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20675572f6f24e9e76ef639bc5552774ed45f1c30e2951e1e99c59888861c539"
-
-[[package]]
-name = "redox_syscall"
-version = "0.2.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb5a58c1855b4b6819d59012155603f0b22ad30cad752600aadfcb695265519a"
-dependencies = [
- "bitflags 1.3.2",
-]
 
 [[package]]
 name = "redox_syscall"
@@ -6252,43 +6175,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "reqwest-middleware"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57f17d28a6e6acfe1733fe24bcd30774d13bffa4b8a22535b4c8c98423088d4e"
-dependencies = [
- "anyhow",
- "async-trait",
- "http 1.5.0",
- "reqwest 0.12.28",
- "serde",
- "thiserror 1.0.69",
- "tower-service",
-]
-
-[[package]]
-name = "reqwest-retry"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29c73e4195a6bfbcb174b790d9b3407ab90646976c55de58a6515da25d851178"
-dependencies = [
- "anyhow",
- "async-trait",
- "futures",
- "getrandom 0.2.17",
- "http 1.5.0",
- "hyper 1.11.1",
- "parking_lot 0.11.2",
- "reqwest 0.12.28",
- "reqwest-middleware",
- "retry-policies",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
- "wasm-timer",
-]
-
-[[package]]
 name = "resolv-conf"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6302,15 +6188,6 @@ checksum = "c38316070fbd6504dcbb6042225f2608f2323c71155836c9b48f192113f68782"
 dependencies = [
  "tokio",
  "zduny-wasm-timer",
-]
-
-[[package]]
-name = "retry-policies"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5875471e6cab2871bc150ecb8c727db5113c9338cc3354dc5ee3425b6aa40a1c"
-dependencies = [
- "rand 0.8.8",
 ]
 
 [[package]]
@@ -6634,7 +6511,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6691,7 +6568,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7292,7 +7169,7 @@ dependencies = [
  "objc2-foundation",
  "objc2-quartz-core",
  "raw-window-handle",
- "redox_syscall 0.5.18",
+ "redox_syscall",
  "tracing",
  "wasm-bindgen",
  "web-sys",
@@ -7386,7 +7263,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a18596f8c785a729f2819c0f6a7eae6ebeebdfffbfe4214ae6b087f690e31901"
 dependencies = [
  "new_debug_unreachable",
- "parking_lot 0.12.5",
+ "parking_lot",
  "phf_shared 0.13.1",
  "precomputed-hash",
 ]
@@ -7633,7 +7510,7 @@ dependencies = [
  "objc2-foundation",
  "objc2-ui-kit",
  "once_cell",
- "parking_lot 0.12.5",
+ "parking_lot",
  "percent-encoding",
  "raw-window-handle",
  "tao-macros",
@@ -7888,10 +7765,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -8723,21 +8600,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasm-timer"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be0ecb0db480561e9a7642b5d3e4187c128914e58aa84330b9493e3eb68c5e7f"
-dependencies = [
- "futures",
- "js-sys",
- "parking_lot 0.11.2",
- "pin-utils",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
 name = "wasmtimer"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8745,7 +8607,7 @@ checksum = "1c598d6b99ea013e35844697fc4670d08339d5cda15588f193c6beedd12f644b"
 dependencies = [
  "futures",
  "js-sys",
- "parking_lot 0.12.5",
+ "parking_lot",
  "pin-utils",
  "slab",
  "wasm-bindgen",
@@ -8900,7 +8762,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -9470,7 +9332,7 @@ checksum = "f52bd30296679f51dce4a4da2a5050d9401d09866d89b89d860da37bc3ec08df"
 dependencies = [
  "futures",
  "js-sys",
- "parking_lot 0.12.5",
+ "parking_lot",
  "pin-utils",
  "wasm-bindgen",
  "wasm-bindgen-futures",

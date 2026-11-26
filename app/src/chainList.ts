@@ -30,10 +30,11 @@ const explorers = (id: number) => ({
   blockscout: EXPLORER_HOSTS[id].blockscout,
 })
 
-// Helios mode supports only the Ethereum chains (Helios 0.12.0):
-// - Linea: Helios stops its support. Linea blocks do not carry the
-//   sequencer signature that Helios checks, and the sync stops.
+// Helios mode supports only the Ethereum chains (Helios 0.12.1):
+// - Linea: Helios removes its support in 0.12.1. Linea blocks do not carry
+//   the sequencer signature that Helios checks, and the sync stops.
 //   https://github.com/a16z/helios/pull/833
+//   https://github.com/a16z/helios/pull/878
 // - OP Stack: the Helios server gets no blocks on the mainnet chains, so
 //   the default servers do not answer.
 //   https://github.com/a16z/helios/pull/801
@@ -49,7 +50,7 @@ const explorers = (id: number) => ({
 // - publicnode runs Lighthouse 8.3.1, which makes no light-client data for
 //   Gloas blocks. It answers 404 to every bootstrap.
 // - Lodestar serves the Gloas data, but changes the finality update once
-//   per epoch only, as the spec says. Helios 0.12.0 takes its head from the
+//   per epoch only, as the spec says. Helios 0.12.1 takes its head from the
 //   finality update alone, so the head falls up to 6 minutes behind.
 // - Nimbus serves the Gloas data and changes the finality update every
 //   slot, so the head of Helios stays recent. This node is a test node of

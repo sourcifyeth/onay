@@ -30,7 +30,7 @@ reason = "unmaintained unic-ucd-version, via tauri-utils > urlpattern"
 id = "RUSTSEC-2025-0100"
 reason = "unmaintained unic-ucd-ident, via tauri-utils > urlpattern"
 
-# Helios 0.12.0. Review these at every Helios bump.
+# Helios 0.12.1. Review these at every Helios bump.
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0258"
@@ -61,10 +61,6 @@ id = "RUSTSEC-2024-0388"
 reason = "unmaintained derivative, in the lockfile only: ark-ff 0.3 and 0.4 use it, and they are optional dependencies of ruint (via helios > alloy-primitives) that are not built"
 
 [[IgnoredVulns]]
-id = "RUSTSEC-2024-0384"
-reason = "unmaintained instant, via helios-verifiable-api-client > reqwest-retry > parking_lot 0.11"
-
-[[IgnoredVulns]]
 id = "RUSTSEC-2024-0449"
 reason = "unmaintained unsafe-libyaml, via helios-ethereum > serde_yaml; parses the checkpoint service list that Helios fetches from GitHub over HTTPS"
 
@@ -78,10 +74,10 @@ reason = "unmaintained chrono, via helios-ethereum; no known vulnerability; wait
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0441"
-reason = "unmaintained pin-utils, in the lockfile only: wasm-timer, wasmtimer and zduny-wasm-timer use it, and they build only for wasm32, which Onay does not ship"
+reason = "unmaintained pin-utils, in the lockfile only: wasmtimer and zduny-wasm-timer use it, and they build only for wasm32, which Onay does not ship"
 
 # hickory 0.25, via helios > reqwest 0.12 (feature hickory-dns). All are fixed
-# in 0.26.2, which reqwest 0.12 does not accept. Helios 0.12.0 is the newest
+# in 0.26.2, which reqwest 0.12 does not accept. Helios 0.12.1 is the newest
 # release and still uses reqwest 0.12. Remove these when Helios moves to reqwest 0.13.
 # The build has only the features std, tokio and futures-io of hickory-proto:
 # no DNSSEC validation and no text (zone file) parser. RUSTSEC-2026-0514
